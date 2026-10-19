@@ -799,3 +799,176 @@
                 lessonModal.classList.add('hidden');
                 lessonForm.reset();
             } catch (err) {
+                alert("저장 중 오류가 발생했습니다: " + err.message);
+            }
+        });
+
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterBtns.forEach(b => {
+                    b.classList.remove('bg-sky-500', 'text-white', 'shadow-sm', 'active');
+                    b.classList.add('bg-slate-200', 'text-slate-600');
+                });
+                btn.classList.add('bg-sky-500', 'text-white', 'shadow-sm', 'active');
+                btn.classList.remove('bg-slate-200', 'text-slate-600');
+
+                currentSelectedCategory = btn.getAttribute('data-category');
+                renderLessons();
+            });
+        });
+
+        const noticesRef = collection(db, "notices");
+        const noticesQuery = query(noticesRef, orderBy("createdAt", "desc"));
+
+        onSnapshot(noticesQuery, (snapshot) => {
+            noticeLoadingState.classList.add('hidden');
+            if (snapshot.empty) {
+                noticeListContainer.innerHTML = `
+                    <div class="p-4 bg-sky-50 rounded-xl border border-sky-100 text-xs text-slate-600">
+                        <p class="font-bold text-slate-800">공지사항</p>
+                        <p class="mt-0.5">등록된 공지사항이 없습니다. 교사로 로그인 후 공지를 작성해 보세요.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            noticeListContainer.innerHTML = '';
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const id = docSnap.id;
+                
+                let bgStyle = "bg-sky-50 border-sky-100 text-sky-500";
+                if(data.type === 'amber') bgStyle = "bg-amber-50 border-amber-100 text-amber-500";
+                if(data.type === 'rose') bgStyle = "bg-rose-50 border-rose-100 text-rose-500";
+                if(data.type === 'emerald') bgStyle = "bg-emerald-50 border-emerald-100 text-emerald-500";
+
+                const div = document.createElement('div');
+                div.className = `flex items-start justify-between gap-3 p-3.5 rounded-xl border ${bgStyle.split(' ')[0]} ${bgStyle.split(' ')[1]}`;
+                div.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <i class="fa-solid fa-circle-info ${bgStyle.split(' ')[2]} mt-0.5"></i>
+                        <div>
+                            <p class="font-semibold text-slate-800 text-xs sm:text-sm">${data.title}</p>
+                            <p class="text-slate-600 text-xs mt-0.5 leading-relaxed">${data.body}</p>
+                        </div>
+                    </div>
+                    ${currentUser ? `<button data-id="${id}" class="delete-notice-btn text-rose-400 hover:text-rose-600 text-xs p-1"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+                `;
+                noticeListContainer.appendChild(div);
+            });
+
+            document.querySelectorAll('.delete-notice-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const docId = e.currentTarget.getAttribute('data-id');
+                    if(confirm("이 공지사항을 삭제하시겠습니까?")) {
+                        await deleteDoc(doc(db, "notices", docId));
+                    }
+                });
+            });
+        });
+
+        teacherEditNoticeBtn.addEventListener('click', () => {
+            noticeEditControls.classList.toggle('hidden');
+        });
+
+        addNoticeFirebaseBtn.addEventListener('click', async () => {
+            const title = document.getElementById('newNoticeTitle').value.trim();
+            const body = document.getElementById('newNoticeBody').value.trim();
+            const type = document.getElementById('newNoticeType').value;
+
+            if(!title || !body) {
+                alert("제목과 내용을 모두 입력해 주세요.");
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, "notices"), {
+                    title, body, type, createdAt: serverTimestamp()
+                });
+                document.getElementById('newNoticeTitle').value = '';
+                document.getElementById('newNoticeBody').value = '';
+            } catch (err) {
+                alert("공지 등록 중 오류가 발생했습니다.");
+            }
+        });
+
+        const assignmentRef = collection(db, "assignments");
+        const assignmentQuery = query(assignmentRef, orderBy("createdAt", "desc"));
+
+        onSnapshot(assignmentQuery, (snapshot) => {
+            if (snapshot.empty) {
+                assignmentList.innerHTML = `<p class="text-xs text-slate-400 text-center py-8">제출된 과제가 없습니다.</p>`;
+                return;
+            }
+
+            assignmentList.innerHTML = '';
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const id = docSnap.id;
+
+                const div = document.createElement('div');
+                div.className = "p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1 relative group";
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-xs text-slate-800">${data.studentNum} ${data.studentName}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-slate-400">${data.timeStr || ''}</span>
+                            ${currentUser ? `<button data-id="${id}" class="delete-assign-btn text-slate-300 hover:text-rose-500 text-xs p-0.5"><i class="fa-solid fa-xmark"></i></button>` : ''}
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-600 leading-relaxed">${data.text}</p>
+                `;
+                assignmentList.appendChild(div);
+            });
+
+            document.querySelectorAll('.delete-assign-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const docId = e.currentTarget.getAttribute('data-id');
+                    if(confirm("이 과제 제출 내역을 삭제하시겠습니까?")) {
+                        await deleteDoc(doc(db, "assignments", docId));
+                    }
+                });
+            });
+        });
+
+        assignmentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const studentNum = document.getElementById('studentNum').value.trim();
+            const studentName = document.getElementById('studentName').value.trim();
+            const text = document.getElementById('assignmentText').value.trim();
+
+            const now = new Date();
+            const timeStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+            try {
+                await addDoc(collection(db, "assignments"), {
+                    studentNum, studentName, text, timeStr, createdAt: serverTimestamp()
+                });
+                alert("과제가 정상적으로 제출되었습니다!");
+                assignmentForm.reset();
+            } catch(err) {
+                alert("과제 제출에 실패했습니다. 다시 시도해 주세요.");
+            }
+        });
+
+        const toggleNoticeBtn = document.getElementById('toggleNoticeBtn');
+        const noticeContent = document.getElementById('noticeContent');
+        const noticeIcon = document.getElementById('noticeIcon');
+
+        toggleNoticeBtn.addEventListener('click', () => {
+            noticeContent.classList.toggle('hidden');
+            noticeIcon.classList.toggle('rotate-180');
+        });
+
+        const globalSearch = document.getElementById('globalSearch');
+        globalSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            document.querySelectorAll('.searchable-card').forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(query) ? '' : 'none';
+            });
+        });
+    </script>
+</body>
+</html>
