@@ -1,18 +1,399 @@
-HTML
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>정보교사의 웹사이트</title>
+    <title>정보 수업 대시보드 | 정보교사 웹사이트</title>
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (Noto Sans KR) -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0284c7',   /* Sky 600 */
+                        secondary: '#0d9488', /* Teal 600 */
+                        mint: '#14b8a6',      /* Teal 500 */
+                        lightbg: '#f8fafc',   /* Slate 50 */
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans KR', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        body { font-family: 'Noto Sans KR', sans-serif; text-align: center; padding: 50px; background-color: #f4f6f9; }
-        h1 { color: #2c3e50; }
-        p { color: #555; }
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f8fafc;
+        }
+        /* smooth transition */
+        .transition-all-custom {
+            transition: all 0.3s ease-in-out;
+        }
     </style>
 </head>
-<body>
-    <h1>👋 안녕하세요! 정보교사의 수업 공간입니다.</h1>
-    <p>이 사이트는 차차 다양한 기능으로 업데이트될 예정입니다.</p>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- 1. Header & Navigation Bar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-r from-sky-500 to-teal-500 text-white p-2.5 rounded-xl shadow-md">
+                    <i class="fa-solid fa-laptop-code text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-800 leading-tight">정보 수업 대시보드</h1>
+                    <p class="text-xs text-slate-500">중학교 정보과 수업 & 자료실</p>
+                </div>
+            </div>
+
+            <!-- Global Search Box -->
+            <div class="relative w-48 sm:w-72">
+                <input type="text" id="globalSearch" placeholder="수업자료, 링크 검색..." 
+                    class="w-full pl-9 pr-4 py-2 text-sm bg-slate-100 rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
+
+        <!-- 2. Profile & Welcome Section -->
+        <section class="bg-gradient-to-r from-sky-600 to-teal-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+            <!-- Background Decorative Shapes -->
+            <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="absolute right-40 -top-10 w-32 h-32 bg-teal-300/20 rounded-full blur-xl pointer-events-none"></div>
+
+            <div class="relative z-10 flex flex-col md:flex-row items-center gap-6">
+                <!-- Avatar / Icon -->
+                <div class="relative">
+                    <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white/20 backdrop-blur-md p-1 border-2 border-white/40 shadow-inner flex items-center justify-center">
+                        <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Teacher" alt="Profile" class="w-full h-full rounded-full bg-slate-100">
+                    </div>
+                    <span class="absolute bottom-1 right-1 bg-emerald-400 w-5 h-5 rounded-full border-2 border-white" title="온라인"></span>
+                </div>
+
+                <!-- Text Info -->
+                <div class="text-center md:text-left flex-1">
+                    <div class="flex items-center justify-center md:justify-start gap-2 mb-1">
+                        <span class="bg-white/20 text-xs px-2.5 py-0.5 rounded-full font-medium backdrop-blur-sm">정보 교사</span>
+                        <span class="text-sky-100 text-xs">💻 컴퓨팅 사고력 증진</span>
+                    </div>
+                    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">
+                        안녕하세요! 즐거운 정보 수업 공간입니다 👋
+                    </h2>
+                    <p class="text-sky-100 text-sm sm:text-base max-w-2xl leading-relaxed">
+                        실습 링크, 차시별 학습 자료, 수행평가 공지사항을 한눈에 확인하세요. 질문이 있거나 도움이 필요하면 언제든 문의해 주세요!
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. Notice / Today's Lesson Card (Collapsible) -->
+        <section class="bg-white rounded-2xl border border-sky-100 shadow-sm overflow-hidden transition-all-custom">
+            <div class="p-5 bg-sky-50/50 flex items-center justify-between border-b border-sky-100">
+                <div class="flex items-center gap-3">
+                    <span class="bg-sky-500 text-white text-xs font-bold px-2.5 py-1 rounded-md animate-pulse">
+                        <i class="fa-solid fa-bullhorn mr-1"></i> 주요 공지
+                    </span>
+                    <h3 class="font-bold text-slate-800 text-base sm:text-lg">오늘의 수업 및 수행평가 안내</h3>
+                </div>
+                <button id="toggleNoticeBtn" class="text-slate-500 hover:text-sky-600 focus:outline-none transition-colors p-1">
+                    <i class="fa-solid fa-chevron-up text-lg transition-transform duration-300" id="noticeIcon"></i>
+                </button>
+            </div>
+
+            <div id="noticeContent" class="p-5 space-y-3 text-sm text-slate-600 transition-all duration-300">
+                <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                    <i class="fa-solid fa-circle-info text-sky-500 mt-0.5"></i>
+                    <div>
+                        <p class="font-semibold text-slate-800">2학기 프로그래밍 수행평가 안내</p>
+                        <p class="text-slate-600 text-xs sm:text-sm mt-0.5">엔트리를 활용한 조건문/반복문 게임 만들기 제출 기한은 다음 주 금요일까지입니다.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3 bg-amber-50 p-3.5 rounded-xl border border-amber-100">
+                    <i class="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5"></i>
+                    <div>
+                        <p class="font-semibold text-slate-800">컴퓨터실 이용 수칙 준수</p>
+                        <p class="text-slate-600 text-xs sm:text-sm mt-0.5">수업 후 음식물 반입 금지, 사용한 키보드/마우스 및 의자는 정리 정돈해 주세요.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. Quick Links Grid -->
+        <section class="space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-rocket text-sky-500"></i> 수업 바로가기 (실습 플랫폼)
+                </h3>
+                <span class="text-xs text-slate-400">자주 쓰는 실습 사이트 모음</span>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4" id="quickLinksContainer">
+                
+                <!-- Entry -->
+                <a href="https://playentry.org" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                    <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-shapes"></i>
+                    </div>
+                    <span class="font-bold text-slate-800 text-sm">엔트리</span>
+                    <span class="text-xs text-slate-400 mt-0.5">블록 코딩</span>
+                </a>
+
+                <!-- Scratch -->
+                <a href="https://scratch.mit.edu" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                    <div class="w-12 h-12 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-cat"></i>
+                    </div>
+                    <span class="font-bold text-slate-800 text-sm">스크래치</span>
+                    <span class="text-xs text-slate-400 mt-0.5">MIT 코딩</span>
+                </a>
+
+                <!-- Python / Replit -->
+                <a href="https://replit.com" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                    <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+                        <i class="fa-brands fa-python"></i>
+                    </div>
+                    <span class="font-bold text-slate-800 text-sm">파이썬 (Replit)</span>
+                    <span class="text-xs text-slate-400 mt-0.5">텍스트 코딩</span>
+                </a>
+
+                <!-- Google Classroom -->
+                <a href="https://classroom.google.com" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-chalkboard-user"></i>
+                    </div>
+                    <span class="font-bold text-slate-800 text-sm">구글 클래스룸</span>
+                    <span class="text-xs text-slate-400 mt-0.5">과제 제출</span>
+                </a>
+
+                <!-- Notion -->
+                <a href="https://notion.so" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                    <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-note-sticky"></i>
+                    </div>
+                    <span class="font-bold text-slate-800 text-sm">Notion</span>
+                    <span class="text-xs text-slate-400 mt-0.5">수업 위키</span>
+                </a>
+
+                <!-- LeetCode / Algo -->
+                <a href="https://programmers.co.kr" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                    <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+                        <i class="fa-solid fa-code"></i>
+                    </div>
+                    <span class="font-bold text-slate-800 text-sm">프로그래머스</span>
+                    <span class="text-xs text-slate-400 mt-0.5">알고리즘 연습</span>
+                </a>
+
+            </div>
+        </section>
+
+        <!-- 5. Lesson Resource Room (Tab Filtered) -->
+        <section class="space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-folder-open text-teal-500"></i> 단원별 수업 자료실
+                </h3>
+
+                <!-- Category Filters -->
+                <div class="flex flex-wrap gap-1.5" id="categoryFilter">
+                    <button class="filter-btn active text-xs font-medium px-3 py-1.5 rounded-full bg-sky-500 text-white transition-all" data-category="all">전체 보기</button>
+                    <button class="filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit1">1단원. 정보사회</button>
+                    <button class="filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit2">2단원. 프로그래밍</button>
+                    <button class="filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit3">3단원. 피지컬컴퓨팅</button>
+                </div>
+            </div>
+
+            <!-- Resource Cards Grid -->
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4" id="resourceContainer">
+                
+                <!-- Card 1 -->
+                <div class="searchable-card resource-card bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between" data-category="unit1">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-sky-50 text-sky-600">1단원. 정보사회</span>
+                            <span class="text-xs text-slate-400">1차시</span>
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-base mb-1">정보 윤리와 저작권 지키기</h4>
+                        <p class="text-xs text-slate-500 line-clamp-2 mb-4">올바른 저작권 사용법 및 개인정보 보호를 위한 실천 가이드 ppt 및 학습지입니다.</p>
+                    </div>
+                    <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+                        <span class="text-slate-400"><i class="fa-regular fa-file-pdf mr-1"></i> PDF 문서</span>
+                        <a href="#" class="text-sky-600 font-semibold hover:underline flex items-center gap-1">
+                            다운로드 <i class="fa-solid fa-arrow-down-long text-xs"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="searchable-card resource-card bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between" data-category="unit2">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-teal-50 text-teal-600">2단원. 프로그래밍</span>
+                            <span class="text-xs text-slate-400">3차시</span>
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-base mb-1">순차, 선택, 반복 구조 다지기</h4>
+                        <p class="text-xs text-slate-500 line-clamp-2 mb-4">엔트리 블록 알고리즘 기본 구조 실습 문제지 및 정답 파일 모음입니다.</p>
+                    </div>
+                    <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+                        <span class="text-slate-400"><i class="fa-regular fa-file-code mr-1"></i> 엔트리 파일</span>
+                        <a href="#" class="text-teal-600 font-semibold hover:underline flex items-center gap-1">
+                            다운로드 <i class="fa-solid fa-arrow-down-long text-xs"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="searchable-card resource-card bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between" data-category="unit2">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-teal-50 text-teal-600">2단원. 프로그래밍</span>
+                            <span class="text-xs text-slate-400">5차시</span>
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-base mb-1">파이썬 기초 문법 예제집</h4>
+                        <p class="text-xs text-slate-500 line-clamp-2 mb-4">변수, 입출력, 조건문 기본을 익히는 10가지 파이썬 기초 코드 예제입니다.</p>
+                    </div>
+                    <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+                        <span class="text-slate-400"><i class="fa-brands fa-python mr-1"></i> .PY 파일</span>
+                        <a href="#" class="text-teal-600 font-semibold hover:underline flex items-center gap-1">
+                            다운로드 <i class="fa-solid fa-arrow-down-long text-xs"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Card 4 -->
+                <div class="searchable-card resource-card bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between" data-category="unit3">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-600">3단원. 피지컬컴퓨팅</span>
+                            <span class="text-xs text-slate-400">2차시</span>
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-base mb-1">마이크로비트 센서 제어하기</h4>
+                        <p class="text-xs text-slate-500 line-clamp-2 mb-4">가속도 센서와 빛 센서를 활용한 스마트 디바이스 제작 가이드북입니다.</p>
+                    </div>
+                    <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
+                        <span class="text-slate-400"><i class="fa-solid fa-microchip mr-1"></i> 회로 가이드</span>
+                        <a href="#" class="text-indigo-600 font-semibold hover:underline flex items-center gap-1">
+                            보기 <i class="fa-solid fa-external-link text-xs"></i>
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- 6. FAQ Section -->
+        <section class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
+            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-circle-question text-amber-500"></i> 자주 묻는 질문 (FAQ)
+            </h3>
+
+            <div class="space-y-3">
+                <details class="group border border-slate-100 rounded-xl bg-slate-50/50 p-4 [&_summary::-webkit-details-marker]:hidden">
+                    <summary class="flex items-center justify-between font-semibold text-slate-700 cursor-pointer text-sm">
+                        <span>Q. 실습 사이트에 로그인이 안 돼요. 어떻게 하나요?</span>
+                        <span class="transition group-open:-rotate-180">
+                            <i class="fa-solid fa-chevron-down text-xs text-slate-400"></i>
+                        </span>
+                    </summary>
+                    <p class="mt-3 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-2">
+                        학교용 구글 계정(@school.gsuite 등)으로 로그인했는지 먼저 확인해 주세요. 개인 계정으로 접속 시 승인이 안 될 수 있습니다.
+                    </p>
+                </details>
+
+                <details class="group border border-slate-100 rounded-xl bg-slate-50/50 p-4 [&_summary::-webkit-details-marker]:hidden">
+                    <summary class="flex items-center justify-between font-semibold text-slate-700 cursor-pointer text-sm">
+                        <span>Q. 결석했을 때 수업 자료는 어디서 보나요?</span>
+                        <span class="transition group-open:-rotate-180">
+                            <i class="fa-solid fa-chevron-down text-xs text-slate-400"></i>
+                        </span>
+                    </summary>
+                    <p class="mt-3 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100 pt-2">
+                        상단 [단원별 수업 자료실] 카테고리에서 진행 중인 차시의 PPT 및 학습지를 다운로드하여 자습할 수 있습니다.
+                    </p>
+                </details>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 7. Footer -->
+    <footer class="bg-white border-t border-slate-200 py-6 mt-12">
+        <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
+            <p class="text-xs text-slate-500">© 2026 정보교사 수업 대시보드. All rights reserved.</p>
+            <p class="text-xs text-slate-400">Hosted for free on <a href="https://pages.github.com" target="_blank" class="underline hover:text-sky-600">GitHub Pages</a></p>
+        </div>
+    </footer>
+
+    <!-- Interactive JavaScript -->
+    <script>
+        // 1. Notice Accordion Toggle
+        const toggleNoticeBtn = document.getElementById('toggleNoticeBtn');
+        const noticeContent = document.getElementById('noticeContent');
+        const noticeIcon = document.getElementById('noticeIcon');
+
+        toggleNoticeBtn.addEventListener('click', () => {
+            if (noticeContent.classList.contains('hidden')) {
+                noticeContent.classList.remove('hidden');
+                noticeIcon.classList.remove('rotate-180');
+            } else {
+                noticeContent.classList.add('hidden');
+                noticeIcon.classList.add('rotate-180');
+            }
+        });
+
+        // 2. Category Tab Filtering
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const resourceCards = document.querySelectorAll('.resource-card');
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Remove active styling from all buttons
+                filterBtns.forEach(b => {
+                    b.classList.remove('bg-sky-500', 'text-white', 'active');
+                    b.classList.add('bg-slate-200', 'text-slate-600');
+                });
+
+                // Set active styling to clicked button
+                btn.classList.add('bg-sky-500', 'text-white', 'active');
+                btn.classList.remove('bg-slate-200', 'text-slate-600');
+
+                const category = btn.getAttribute('data-category');
+
+                resourceCards.forEach(card => {
+                    if (category === 'all' || card.getAttribute('data-category') === category) {
+                        card.style.display = 'flex';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            });
+        });
+
+        // 3. Real-time Global Search Filter
+        const globalSearch = document.getElementById('globalSearch');
+        const searchableCards = document.querySelectorAll('.searchable-card');
+
+        globalSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+
+            searchableCards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    </script>
 </body>
 </html>
