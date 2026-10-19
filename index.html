@@ -33,7 +33,6 @@
             font-family: 'Noto Sans KR', sans-serif;
             background-color: #f8fafc;
         }
-        /* smooth transition */
         .transition-all-custom {
             transition: all 0.3s ease-in-out;
         }
@@ -42,15 +41,15 @@
 <body class="text-slate-800 antialiased min-h-screen flex flex-col">
 
     <!-- 1. Header & Navigation Bar -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
             <div class="flex items-center gap-3">
                 <div class="bg-gradient-to-r from-sky-500 to-teal-500 text-white p-2.5 rounded-xl shadow-md">
                     <i class="fa-solid fa-laptop-code text-xl"></i>
                 </div>
                 <div>
                     <h1 class="text-lg font-bold text-slate-800 leading-tight">정보 수업 대시보드</h1>
-                    <p class="text-xs text-slate-500">중학교 정보과 수업 & 자료실</p>
+                    <p class="text-xs text-slate-500 hidden sm:block">중학교 정보과 수업 & 자료실</p>
                 </div>
             </div>
 
@@ -67,7 +66,6 @@
 
         <!-- 2. Profile & Welcome Section -->
         <section class="bg-gradient-to-r from-sky-600 to-teal-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-            <!-- Background Decorative Shapes -->
             <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
             <div class="absolute right-40 -top-10 w-32 h-32 bg-teal-300/20 rounded-full blur-xl pointer-events-none"></div>
 
@@ -96,34 +94,41 @@
             </div>
         </section>
 
-        <!-- 3. Notice / Today's Lesson Card (Collapsible) -->
+        <!-- 3. Notice Card (Editable & Persisted with localStorage) -->
         <section class="bg-white rounded-2xl border border-sky-100 shadow-sm overflow-hidden transition-all-custom">
-            <div class="p-5 bg-sky-50/50 flex items-center justify-between border-b border-sky-100">
+            <div class="p-5 bg-sky-50/50 flex flex-wrap items-center justify-between gap-3 border-b border-sky-100">
                 <div class="flex items-center gap-3">
                     <span class="bg-sky-500 text-white text-xs font-bold px-2.5 py-1 rounded-md animate-pulse">
                         <i class="fa-solid fa-bullhorn mr-1"></i> 주요 공지
                     </span>
                     <h3 class="font-bold text-slate-800 text-base sm:text-lg">오늘의 수업 및 수행평가 안내</h3>
                 </div>
-                <button id="toggleNoticeBtn" class="text-slate-500 hover:text-sky-600 focus:outline-none transition-colors p-1">
-                    <i class="fa-solid fa-chevron-up text-lg transition-transform duration-300" id="noticeIcon"></i>
-                </button>
+
+                <div class="flex items-center gap-2">
+                    <!-- Edit Mode Control Buttons -->
+                    <button id="toggleEditNoticeBtn" onclick="toggleNoticeEditMode()" class="text-xs font-semibold px-3 py-1.5 rounded-xl border border-sky-300 text-sky-700 bg-white hover:bg-sky-50 transition-all flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-pen-to-square"></i> <span id="editBtnText">공지 관리</span>
+                    </button>
+                    <button id="resetNoticeBtn" onclick="resetNoticeDefaults()" class="hidden text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-slate-300 text-slate-600 bg-white hover:bg-slate-100 transition-all flex items-center gap-1 shadow-sm" title="기본 공지로 초기화">
+                        <i class="fa-solid fa-rotate-left"></i> 초기화
+                    </button>
+                    <button id="toggleNoticeBtn" class="text-slate-500 hover:text-sky-600 focus:outline-none transition-colors p-1 ml-1">
+                        <i class="fa-solid fa-chevron-up text-lg transition-transform duration-300" id="noticeIcon"></i>
+                    </button>
+                </div>
             </div>
 
+            <!-- Notice Body (Dynamic List) -->
             <div id="noticeContent" class="p-5 space-y-3 text-sm text-slate-600 transition-all duration-300">
-                <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-                    <i class="fa-solid fa-circle-info text-sky-500 mt-0.5"></i>
-                    <div>
-                        <p class="font-semibold text-slate-800">2학기 프로그래밍 수행평가 안내</p>
-                        <p class="text-slate-600 text-xs sm:text-sm mt-0.5">엔트리를 활용한 조건문/반복문 게임 만들기 제출 기한은 다음 주 금요일까지입니다.</p>
-                    </div>
+                <div id="noticeItemsContainer" class="space-y-3">
+                    <!-- Notice Items will be dynamically rendered here -->
                 </div>
-                <div class="flex items-start gap-3 bg-amber-50 p-3.5 rounded-xl border border-amber-100">
-                    <i class="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5"></i>
-                    <div>
-                        <p class="font-semibold text-slate-800">컴퓨터실 이용 수칙 준수</p>
-                        <p class="text-slate-600 text-xs sm:text-sm mt-0.5">수업 후 음식물 반입 금지, 사용한 키보드/마우스 및 의자는 정리 정돈해 주세요.</p>
-                    </div>
+
+                <!-- Add Notice Button (Visible in Edit Mode) -->
+                <div id="addNoticeArea" class="hidden pt-2 border-t border-dashed border-slate-200">
+                    <button onclick="openNoticeAddModal()" class="w-full py-2.5 px-4 bg-sky-50 hover:bg-sky-100 text-sky-700 font-semibold text-xs rounded-xl border border-sky-200 border-dashed transition-all flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-plus-circle"></i> 새 공지사항 추가하기
+                    </button>
                 </div>
             </div>
         </section>
@@ -138,8 +143,6 @@
             </div>
 
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4" id="quickLinksContainer">
-                
-                <!-- Entry -->
                 <a href="https://playentry.org" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
                     <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-shapes"></i>
@@ -148,7 +151,6 @@
                     <span class="text-xs text-slate-400 mt-0.5">블록 코딩</span>
                 </a>
 
-                <!-- Scratch -->
                 <a href="https://scratch.mit.edu" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
                     <div class="w-12 h-12 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-cat"></i>
@@ -157,7 +159,6 @@
                     <span class="text-xs text-slate-400 mt-0.5">MIT 코딩</span>
                 </a>
 
-                <!-- Python / Replit -->
                 <a href="https://replit.com" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
                     <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
                         <i class="fa-brands fa-python"></i>
@@ -166,7 +167,6 @@
                     <span class="text-xs text-slate-400 mt-0.5">텍스트 코딩</span>
                 </a>
 
-                <!-- Google Classroom -->
                 <a href="https://classroom.google.com" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
                     <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-chalkboard-user"></i>
@@ -175,7 +175,6 @@
                     <span class="text-xs text-slate-400 mt-0.5">과제 제출</span>
                 </a>
 
-                <!-- Notion -->
                 <a href="https://notion.so" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
                     <div class="w-12 h-12 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-note-sticky"></i>
@@ -184,7 +183,6 @@
                     <span class="text-xs text-slate-400 mt-0.5">수업 위키</span>
                 </a>
 
-                <!-- LeetCode / Algo -->
                 <a href="https://programmers.co.kr" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
                     <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-code"></i>
@@ -192,7 +190,6 @@
                     <span class="font-bold text-slate-800 text-sm">프로그래머스</span>
                     <span class="text-xs text-slate-400 mt-0.5">알고리즘 연습</span>
                 </a>
-
             </div>
         </section>
 
@@ -205,10 +202,10 @@
 
                 <!-- Category Filters -->
                 <div class="flex flex-wrap gap-1.5" id="categoryFilter">
-                    <button class="filter-btn active text-xs font-medium px-3 py-1.5 rounded-full bg-sky-500 text-white transition-all" data-category="all">전체 보기</button>
-                    <button class="filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit1">1단원. 정보사회</button>
-                    <button class="filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit2">2단원. 프로그래밍</button>
-                    <button class="filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit3">3단원. 피지컬컴퓨팅</button>
+                    <button class="filter-btn active text-xs font-medium px-3.5 py-1.5 rounded-full bg-sky-500 text-white transition-all shadow-sm" data-category="all">전체 보기</button>
+                    <button class="filter-btn text-xs font-medium px-3.5 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit1">1단원. 정보사회</button>
+                    <button class="filter-btn text-xs font-medium px-3.5 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit2">2단원. 프로그래밍</button>
+                    <button class="filter-btn text-xs font-medium px-3.5 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit3">3단원. 피지컬컴퓨팅</button>
                 </div>
             </div>
 
@@ -227,9 +224,9 @@
                     </div>
                     <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
                         <span class="text-slate-400"><i class="fa-regular fa-file-pdf mr-1"></i> PDF 문서</span>
-                        <a href="#" class="text-sky-600 font-semibold hover:underline flex items-center gap-1">
-                            다운로드 <i class="fa-solid fa-arrow-down-long text-xs"></i>
-                        </a>
+                        <button onclick="openModal('정보 윤리와 저작권 지키기', '올바른 저작권 사용법 및 개인정보 보호를 위한 상세 학습 가이드입니다. 저작권 보호 원칙 5가지를 준수하여 학습하세요.', 'PDF')" class="text-sky-600 font-semibold hover:underline flex items-center gap-1">
+                            자세히 보기 <i class="fa-solid fa-chevron-right text-xs"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -245,9 +242,9 @@
                     </div>
                     <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
                         <span class="text-slate-400"><i class="fa-regular fa-file-code mr-1"></i> 엔트리 파일</span>
-                        <a href="#" class="text-teal-600 font-semibold hover:underline flex items-center gap-1">
-                            다운로드 <i class="fa-solid fa-arrow-down-long text-xs"></i>
-                        </a>
+                        <button onclick="openModal('순차, 선택, 반복 구조 다지기', '알고리즘의 3대 구조인 순차, 선택, 반복문 실습 파일 모음입니다. 엔트리 오프라인 프로그램에서 열 수 있습니다.', 'ENT')" class="text-teal-600 font-semibold hover:underline flex items-center gap-1">
+                            자세히 보기 <i class="fa-solid fa-chevron-right text-xs"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -263,9 +260,9 @@
                     </div>
                     <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
                         <span class="text-slate-400"><i class="fa-brands fa-python mr-1"></i> .PY 파일</span>
-                        <a href="#" class="text-teal-600 font-semibold hover:underline flex items-center gap-1">
-                            다운로드 <i class="fa-solid fa-arrow-down-long text-xs"></i>
-                        </a>
+                        <button onclick="openModal('파이썬 기초 문법 예제집', '변수 선언, input(), print(), if 조건문이 포함된 기초 예제 패키지입니다.', 'PY')" class="text-teal-600 font-semibold hover:underline flex items-center gap-1">
+                            자세히 보기 <i class="fa-solid fa-chevron-right text-xs"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -281,16 +278,48 @@
                     </div>
                     <div class="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
                         <span class="text-slate-400"><i class="fa-solid fa-microchip mr-1"></i> 회로 가이드</span>
-                        <a href="#" class="text-indigo-600 font-semibold hover:underline flex items-center gap-1">
-                            보기 <i class="fa-solid fa-external-link text-xs"></i>
-                        </a>
+                        <button onclick="openModal('마이크로비트 센서 제어하기', '마이크로비트 v2 센서 활용 튜토리얼 문서입니다. MakeCode 웹 에디터와 연결하여 실습하세요.', 'ZIP')" class="text-indigo-600 font-semibold hover:underline flex items-center gap-1">
+                            자세히 보기 <i class="fa-solid fa-chevron-right text-xs"></i>
+                        </button>
                     </div>
                 </div>
 
             </div>
         </section>
 
-        <!-- 6. FAQ Section -->
+        <!-- 6. Student Assignment & Question Submission Form -->
+        <section class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
+            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-paper-plane text-sky-500"></i> 과제 제출 및 질문하기
+            </h3>
+            <form id="submissionForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">학년/반/번호/이름</label>
+                    <input type="text" required placeholder="예: 1학년 2반 15번 홍길동" class="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">구분</label>
+                    <select class="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                        <option>수행평가 과제 제출</option>
+                        <option>수업 질문하기</option>
+                        <option>기타 문의</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">내용 또는 공유 링크 (엔트리/Replit 등)</label>
+                    <textarea rows="3" required placeholder="과제 공유 링크나 질문 내용을 자유롭게 입력하세요..." class="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"></textarea>
+                </div>
+                <div class="md:col-span-2 text-right">
+                    <button type="submit" class="bg-gradient-to-r from-sky-500 to-teal-500 text-white text-sm font-semibold px-6 py-2.5 rounded-xl hover:opacity-90 shadow-sm transition-all">
+                        제출하기
+                    </button>
+                </div>
+            </form>
+            <!-- Form Response Message Area -->
+            <div id="formAlert" class="hidden p-3.5 rounded-xl text-xs font-medium"></div>
+        </section>
+
+        <!-- 7. FAQ Section -->
         <section class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
             <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <i class="fa-solid fa-circle-question text-amber-500"></i> 자주 묻는 질문 (FAQ)
@@ -325,7 +354,66 @@
 
     </main>
 
-    <!-- 7. Footer -->
+    <!-- 8. Detail View Modal -->
+    <div id="detailModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl relative space-y-4">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="flex items-center gap-2 text-sky-600 text-xs font-semibold">
+                <i class="fa-solid fa-circle-info"></i> 학습 자료 정보
+            </div>
+            <h3 id="modalTitle" class="text-xl font-bold text-slate-800">자료 제목</h3>
+            <p id="modalDesc" class="text-sm text-slate-600 leading-relaxed">자료 상세 설명이 나옵니다.</p>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between text-xs">
+                <span class="text-slate-500">포맷: <span id="modalType" class="font-bold text-slate-700">PDF</span></span>
+                <span class="text-emerald-600 font-medium"><i class="fa-solid fa-check mr-1"></i>다운로드 가능</span>
+            </div>
+            <div class="flex gap-2 justify-end pt-2">
+                <button onclick="closeModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">닫기</button>
+                <button onclick="downloadAlert()" class="px-4 py-2 text-xs font-semibold text-white bg-sky-500 rounded-xl hover:bg-sky-600">파일 다운로드</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 9. Notice Add/Edit Modal -->
+    <div id="noticeModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl relative space-y-4">
+            <button onclick="closeNoticeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="flex items-center gap-2 text-sky-600 text-xs font-semibold">
+                <i class="fa-solid fa-pen-to-square"></i> <span id="noticeModalHeading">공지사항 작성</span>
+            </div>
+            
+            <form id="noticeModalForm" class="space-y-3">
+                <input type="hidden" id="noticeEditId" value="">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">공지 타입</label>
+                    <select id="noticeTypeInput" class="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                        <option value="info">안내 (파란색)</option>
+                        <option value="warning">주의 (주황색)</option>
+                        <option value="success">완료/성공 (초록색)</option>
+                        <option value="danger">긴급 (빨간색)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">제목</label>
+                    <input type="text" id="noticeTitleInput" required placeholder="공지 제목을 입력하세요" class="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">내용</label>
+                    <textarea id="noticeDescInput" rows="3" required placeholder="공지 상세 내용을 입력하세요" class="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500"></textarea>
+                </div>
+                <div class="flex gap-2 justify-end pt-2">
+                    <button type="button" onclick="closeNoticeModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl hover:bg-slate-200">취소</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-semibold text-white bg-sky-500 rounded-xl hover:bg-sky-600">저장</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 10. Footer -->
     <footer class="bg-white border-t border-slate-200 py-6 mt-12">
         <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
             <p class="text-xs text-slate-500">© 2026 정보교사 수업 대시보드. All rights reserved.</p>
@@ -335,6 +423,211 @@
 
     <!-- Interactive JavaScript -->
     <script>
+        // Default Notice Items Data
+        const DEFAULT_NOTICES = [
+            {
+                id: 'n1',
+                type: 'info',
+                title: '2학기 프로그래밍 수행평가 안내',
+                desc: '엔트리를 활용한 조건문/반복문 게임 만들기 제출 기한은 다음 주 금요일까지입니다.'
+            },
+            {
+                id: 'n2',
+                type: 'warning',
+                title: '컴퓨터실 이용 수칙 준수',
+                desc: '수업 후 음식물 반입 금지, 사용한 키보드/마우스 및 의자는 정리 정돈해 주세요.'
+            }
+        ];
+
+        let notices = [];
+        let isNoticeEditMode = false;
+
+        // Initialize Notices on Load
+        function loadNotices() {
+            const saved = localStorage.getItem('teacher_dashboard_notices');
+            if (saved) {
+                try {
+                    notices = JSON.parse(saved);
+                } catch (e) {
+                    notices = [...DEFAULT_NOTICES];
+                }
+            } else {
+                notices = [...DEFAULT_NOTICES];
+            }
+            renderNotices();
+        }
+
+        function saveNotices() {
+            localStorage.setItem('teacher_dashboard_notices', JSON.stringify(notices));
+            renderNotices();
+        }
+
+        function resetNoticeDefaults() {
+            if (confirm('모든 공지사항을 초기 설정으로 되돌리시겠습니까?')) {
+                notices = [...DEFAULT_NOTICES];
+                saveNotices();
+            }
+        }
+
+        function toggleNoticeEditMode() {
+            isNoticeEditMode = !isNoticeEditMode;
+            const editBtnText = document.getElementById('editBtnText');
+            const toggleEditNoticeBtn = document.getElementById('toggleEditNoticeBtn');
+            const resetNoticeBtn = document.getElementById('resetNoticeBtn');
+            const addNoticeArea = document.getElementById('addNoticeArea');
+
+            if (isNoticeEditMode) {
+                editBtnText.textContent = '편집 완료';
+                toggleEditNoticeBtn.classList.remove('bg-white', 'text-sky-700');
+                toggleEditNoticeBtn.classList.add('bg-sky-600', 'text-white');
+                resetNoticeBtn.classList.remove('hidden');
+                addNoticeArea.classList.remove('hidden');
+            } else {
+                editBtnText.textContent = '공지 관리';
+                toggleEditNoticeBtn.classList.remove('bg-sky-600', 'text-white');
+                toggleEditNoticeBtn.classList.add('bg-white', 'text-sky-700');
+                resetNoticeBtn.classList.add('hidden');
+                addNoticeArea.classList.add('hidden');
+            }
+
+            renderNotices();
+        }
+
+        function getNoticeStyle(type) {
+            switch(type) {
+                case 'warning':
+                    return {
+                        bg: 'bg-amber-50',
+                        border: 'border-amber-100',
+                        icon: 'fa-solid fa-triangle-exclamation text-amber-500'
+                    };
+                case 'success':
+                    return {
+                        bg: 'bg-emerald-50',
+                        border: 'border-emerald-100',
+                        icon: 'fa-solid fa-circle-check text-emerald-500'
+                    };
+                case 'danger':
+                    return {
+                        bg: 'bg-rose-50',
+                        border: 'border-rose-100',
+                        icon: 'fa-solid fa-circle-exclamation text-rose-500'
+                    };
+                case 'info':
+                default:
+                    return {
+                        bg: 'bg-slate-50',
+                        border: 'border-slate-100',
+                        icon: 'fa-solid fa-circle-info text-sky-500'
+                    };
+            }
+        }
+
+        function renderNotices() {
+            const container = document.getElementById('noticeItemsContainer');
+            if (notices.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-6 text-slate-400 text-xs">
+                        등록된 공지사항이 없습니다.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = notices.map(item => {
+                const style = getNoticeStyle(item.type);
+                return `
+                    <div class="flex items-start justify-between gap-3 ${style.bg} p-3.5 rounded-xl border ${style.border} group transition-all">
+                        <div class="flex items-start gap-3 flex-1">
+                            <i class="${style.icon} mt-0.5"></i>
+                            <div class="flex-1">
+                                <p class="font-semibold text-slate-800">${escapeHtml(item.title)}</p>
+                                <p class="text-slate-600 text-xs sm:text-sm mt-0.5">${escapeHtml(item.desc)}</p>
+                            </div>
+                        </div>
+                        ${isNoticeEditMode ? `
+                            <div class="flex items-center gap-1.5 shrink-0 pl-2">
+                                <button onclick="openNoticeEditModal('${item.id}')" class="text-slate-400 hover:text-sky-600 p-1 text-xs" title="수정">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button onclick="deleteNotice('${item.id}')" class="text-slate-400 hover:text-rose-600 p-1 text-xs" title="삭제">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function openNoticeAddModal() {
+            document.getElementById('noticeModalHeading').textContent = '새 공지사항 작성';
+            document.getElementById('noticeEditId').value = '';
+            document.getElementById('noticeTypeInput').value = 'info';
+            document.getElementById('noticeTitleInput').value = '';
+            document.getElementById('noticeDescInput').value = '';
+            document.getElementById('noticeModal').classList.remove('hidden');
+        }
+
+        function openNoticeEditModal(id) {
+            const item = notices.find(n => n.id === id);
+            if (!item) return;
+
+            document.getElementById('noticeModalHeading').textContent = '공지사항 수정';
+            document.getElementById('noticeEditId').value = item.id;
+            document.getElementById('noticeTypeInput').value = item.type || 'info';
+            document.getElementById('noticeTitleInput').value = item.title;
+            document.getElementById('noticeDescInput').value = item.desc;
+            document.getElementById('noticeModal').classList.remove('hidden');
+        }
+
+        function closeNoticeModal() {
+            document.getElementById('noticeModal').classList.add('hidden');
+        }
+
+        function deleteNotice(id) {
+            if (confirm('이 공지사항을 삭제하시겠습니까?')) {
+                notices = notices.filter(n => n.id !== id);
+                saveNotices();
+            }
+        }
+
+        document.getElementById('noticeModalForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const editId = document.getElementById('noticeEditId').value;
+            const type = document.getElementById('noticeTypeInput').value;
+            const title = document.getElementById('noticeTitleInput').value.trim();
+            const desc = document.getElementById('noticeDescInput').value.trim();
+
+            if (!title || !desc) return;
+
+            if (editId) {
+                // Edit existing
+                notices = notices.map(n => n.id === editId ? { ...n, type, title, desc } : n);
+            } else {
+                // Create new
+                const newNotice = {
+                    id: 'n_' + Date.now(),
+                    type,
+                    title,
+                    desc
+                };
+                notices.push(newNotice);
+            }
+
+            saveNotices();
+            closeNoticeModal();
+        });
+
         // 1. Notice Accordion Toggle
         const toggleNoticeBtn = document.getElementById('toggleNoticeBtn');
         const noticeContent = document.getElementById('noticeContent');
@@ -356,14 +649,12 @@
 
         filterBtns.forEach(btn => {
             btn.addEventListener('click', () => {
-                // Remove active styling from all buttons
                 filterBtns.forEach(b => {
-                    b.classList.remove('bg-sky-500', 'text-white', 'active');
+                    b.classList.remove('bg-sky-500', 'text-white', 'shadow-sm', 'active');
                     b.classList.add('bg-slate-200', 'text-slate-600');
                 });
 
-                // Set active styling to clicked button
-                btn.classList.add('bg-sky-500', 'text-white', 'active');
+                btn.classList.add('bg-sky-500', 'text-white', 'shadow-sm', 'active');
                 btn.classList.remove('bg-slate-200', 'text-slate-600');
 
                 const category = btn.getAttribute('data-category');
@@ -394,6 +685,49 @@
                 }
             });
         });
+
+        // 4. Submission Form Action
+        const submissionForm = document.getElementById('submissionForm');
+        const formAlert = document.getElementById('formAlert');
+
+        submissionForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            formAlert.classList.remove('hidden', 'bg-red-50', 'text-red-600');
+            formAlert.classList.add('bg-emerald-50', 'text-emerald-700', 'border', 'border-emerald-200');
+            formAlert.innerHTML = '<i class="fa-solid fa-circle-check mr-1.5"></i> 과제/질문이 성공적으로 제출되었습니다!';
+            submissionForm.reset();
+
+            setTimeout(() => {
+                formAlert.classList.add('hidden');
+            }, 4000);
+        });
+
+        // 5. Modal Logic
+        const detailModal = document.getElementById('detailModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalDesc = document.getElementById('modalDesc');
+        const modalType = document.getElementById('modalType');
+
+        function openModal(title, desc, type) {
+            modalTitle.textContent = title;
+            modalDesc.textContent = desc;
+            modalType.textContent = type;
+            detailModal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            detailModal.classList.add('hidden');
+        }
+
+        function downloadAlert() {
+            alert('샘플 파일 다운로드가 시작되었습니다.');
+            closeModal();
+        }
+
+        // Initialize on Window Load
+        window.onload = function() {
+            loadNotices();
+        };
     </script>
 </body>
 </html>
