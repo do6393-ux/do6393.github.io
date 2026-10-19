@@ -1,74 +1,981 @@
-<!-- 4. Quick Links Grid -->
-<section class="space-y-4">
-    <div class="flex items-center justify-between">
-        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <i class="fa-solid fa-rocket text-sky-500"></i> 수업 바로가기 (실습 플랫폼)
-        </h3>
-        <span class="text-xs text-slate-400">자주 쓰는 실습 사이트 모음</span>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>정보 수업 대시보드 | 정보교사 웹사이트</title>
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts (Noto Sans KR) -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Marked.js (Markdown Viewer for Notion-like pages) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0284c7',   /* Sky 600 */
+                        secondary: '#0d9488', /* Teal 600 */
+                        mint: '#14b8a6',      /* Teal 500 */
+                        lightbg: '#f8fafc',   /* Slate 50 */
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans KR', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f8fafc;
+        }
+        .transition-all-custom {
+            transition: all 0.3s ease-in-out;
+        }
+        /* Notion-like reader styling */
+        .notion-content h1 { font-size: 1.75rem; font-weight: 800; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.4rem; }
+        .notion-content h2 { font-size: 1.35rem; font-weight: 700; margin-top: 1.25rem; margin-bottom: 0.5rem; color: #334155; }
+        .notion-content h3 { font-size: 1.15rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.4rem; color: #475569; }
+        .notion-content p { margin-bottom: 0.85rem; line-height: 1.75; color: #334155; font-size: 0.95rem; }
+        .notion-content ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.85rem; color: #334155; }
+        .notion-content ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 0.85rem; color: #334155; }
+        .notion-content img { border-radius: 1rem; margin: 1.5rem auto; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); max-width: 100%; height: auto; }
+        .notion-content blockquote { border-left: 4px solid #0284c7; padding-left: 1rem; font-style: italic; color: #64748b; margin: 1rem 0; background: #f0f9ff; padding: 0.75rem 1rem; border-radius: 0 0.5rem 0.5rem 0; }
+        .notion-content code { background-color: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 0.3rem; font-family: monospace; font-size: 0.9em; color: #0f172a; }
+        .notion-content pre { background-color: #1e293b; color: #f8fafc; padding: 1rem; border-radius: 0.75rem; overflow-x: auto; margin-bottom: 1rem; }
+        .notion-content pre code { background-color: transparent; color: inherit; padding: 0; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col relative">
+
+    <!-- A. STANDALONE LESSON VIEWER (새 탭에서 수업자료 열릴 때 표시되는 화면) -->
+    <div id="standaloneViewer" class="hidden min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-12 shadow-sm border border-slate-200 space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                <span id="viewerUnitBadge" class="text-xs font-bold px-3 py-1 rounded-full bg-sky-100 text-sky-700">1단원</span>
+                <span id="viewerLessonNum" class="text-xs text-slate-400">1차시</span>
+            </div>
+            
+            <div id="viewerCoverContainer" class="hidden w-full h-64 rounded-2xl overflow-hidden shadow-inner">
+                <img id="viewerCoverImg" src="" alt="Cover" class="w-full h-full object-cover">
+            </div>
+
+            <h1 id="viewerTitle" class="text-2xl sm:text-4xl font-extrabold text-slate-800 leading-tight"></h1>
+            <p id="viewerSummary" class="text-sm sm:text-base text-slate-500 italic bg-slate-50 p-4 rounded-xl border border-slate-100"></p>
+
+            <div id="viewerMarkdownBody" class="notion-content pt-4 border-t border-slate-100"></div>
+
+            <div class="pt-8 border-t border-slate-100 text-center">
+                <p class="text-xs text-slate-400">정보과 교육과정 수업 자료실 | 무단 배포를 금지합니다.</p>
+            </div>
+        </div>
     </div>
 
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-        <!-- 1. Scratch -->
-        <a href="https://scratch.mit.edu" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
-            <div class="w-11 h-11 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
-                <i class="fa-solid fa-cat"></i>
-            </div>
-            <span class="font-bold text-slate-800 text-xs sm:text-sm">스크래치</span>
-            <span class="text-[10px] text-slate-400 mt-0.5">MIT 코딩</span>
-        </a>
+    <!-- B. MAIN DASHBOARD APPLICATION -->
+    <div id="mainDashboardApp">
+        <!-- 1. Header & Navigation Bar -->
+        <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-gradient-to-r from-sky-500 to-teal-500 text-white p-2.5 rounded-xl shadow-md">
+                        <i class="fa-solid fa-laptop-code text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-slate-800 leading-tight">정보 수업 대시보드</h1>
+                        <p class="text-xs text-slate-500">중학교 정보과 수업 & 자료실</p>
+                    </div>
+                </div>
 
-        <!-- 2. Python / Replit -->
-        <a href="https://replit.com" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
-            <div class="w-11 h-11 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
-                <i class="fa-brands fa-python"></i>
-            </div>
-            <span class="font-bold text-slate-800 text-xs sm:text-sm">파이썬</span>
-            <span class="text-[10px] text-slate-400 mt-0.5">Replit 코딩</span>
-        </a>
+                <!-- Global Search & Teacher Status -->
+                <div class="flex items-center gap-3">
+                    <div class="relative w-36 sm:w-64">
+                        <input type="text" id="globalSearch" placeholder="수업자료, 링크 검색..." 
+                            class="w-full pl-9 pr-4 py-1.5 text-xs sm:text-sm bg-slate-100 rounded-full border-0 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 sm:top-3 text-slate-400 text-xs"></i>
+                    </div>
 
-        <!-- 3. Google Classroom -->
-        <a href="https://classroom.google.com" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
-            <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
-                <i class="fa-solid fa-chalkboard-user"></i>
+                    <div id="authStatusContainer">
+                        <button id="openLoginModalBtn" class="bg-sky-600 hover:bg-sky-700 text-white text-xs px-3 py-2 rounded-xl font-medium transition-all shadow-sm flex items-center gap-1.5">
+                            <i class="fa-solid fa-user-lock"></i> <span class="hidden sm:inline">교사 로그인</span>
+                        </button>
+                    </div>
+                </div>
             </div>
-            <span class="font-bold text-slate-800 text-xs sm:text-sm">구글 클래스룸</span>
-            <span class="text-[10px] text-slate-400 mt-0.5">수업 및 과제</span>
-        </a>
+        </header>
 
-        <!-- 4. Notion -->
-        <a href="https://notion.so" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
-            <div class="w-11 h-11 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
-                <i class="fa-solid fa-note-sticky"></i>
-            </div>
-            <span class="font-bold text-slate-800 text-xs sm:text-sm">Notion</span>
-            <span class="text-[10px] text-slate-400 mt-0.5">수업 위키</span>
-        </a>
+        <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
 
-        <!-- 5. Programmers -->
-        <a href="https://programmers.co.kr" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
-            <div class="w-11 h-11 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
-                <i class="fa-solid fa-code"></i>
-            </div>
-            <span class="font-bold text-slate-800 text-xs sm:text-sm">프로그래머스</span>
-            <span class="text-[10px] text-slate-400 mt-0.5">알고리즘 연습</span>
-        </a>
+            <!-- 2. Profile & Welcome Section -->
+            <section class="bg-gradient-to-r from-sky-600 to-teal-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+                <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+                <div class="absolute right-40 -top-10 w-32 h-32 bg-teal-300/20 rounded-full blur-xl pointer-events-none"></div>
 
-        <!-- 6. Mentimeter (menti.com) [신규 추가] -->
-        <a href="https://www.menti.com" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
-            <div class="w-11 h-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
-                <i class="fa-solid fa-chart-simple"></i>
-            </div>
-            <span class="font-bold text-slate-800 text-xs sm:text-sm">멘티미터</span>
-            <span class="text-[10px] text-slate-400 mt-0.5">실시간 설문</span>
-        </a>
+                <div class="relative z-10 flex flex-col md:flex-row items-center gap-6">
+                    <div class="relative">
+                        <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white/20 backdrop-blur-md p-1 border-2 border-white/40 shadow-inner flex items-center justify-center">
+                            <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Teacher" alt="Profile" class="w-full h-full rounded-full bg-slate-100">
+                        </div>
+                        <span class="absolute bottom-1 right-1 bg-emerald-400 w-5 h-5 rounded-full border-2 border-white" title="온라인"></span>
+                    </div>
 
-        <!-- 7. icedu.kr [신규 추가] -->
-        <a href="https://www.icedu.kr" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
-            <div class="w-11 h-11 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
-                <i class="fa-solid fa-school"></i>
+                    <div class="text-center md:text-left flex-1">
+                        <div class="flex items-center justify-center md:justify-start gap-2 mb-1">
+                            <span class="bg-white/20 text-xs px-2.5 py-0.5 rounded-full font-medium backdrop-blur-sm">정보 교사</span>
+                            <span class="text-sky-100 text-xs">💻 컴퓨팅 사고력 증진</span>
+                        </div>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">
+                            안녕하세요! 즐거운 정보 수업 공간입니다 👋
+                        </h2>
+                        <p class="text-sky-100 text-sm sm:text-base max-w-2xl leading-relaxed">
+                            단원별 학습 자료, 실습 플랫폼 바로가기, 수행평가 과제 제출을 한곳에서 편리하게 확인하세요!
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. Notice Section -->
+            <section class="bg-white rounded-2xl border border-sky-100 shadow-sm overflow-hidden transition-all-custom">
+                <div class="p-5 bg-sky-50/50 flex items-center justify-between border-b border-sky-100">
+                    <div class="flex items-center gap-3">
+                        <span class="bg-sky-500 text-white text-xs font-bold px-2.5 py-1 rounded-md animate-pulse">
+                            <i class="fa-solid fa-bullhorn mr-1"></i> 주요 공지
+                        </span>
+                        <h3 class="font-bold text-slate-800 text-base sm:text-lg">오늘의 수업 및 수행평가 안내</h3>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="teacherEditNoticeBtn" class="hidden text-xs bg-amber-500 hover:bg-amber-600 text-white font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1">
+                            <i class="fa-solid fa-pen-to-square"></i> 공지 관리
+                        </button>
+                        <button id="toggleNoticeBtn" class="text-slate-500 hover:text-sky-600 focus:outline-none transition-colors p-1">
+                            <i class="fa-solid fa-chevron-up text-lg transition-transform duration-300" id="noticeIcon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="noticeEditControls" class="hidden bg-amber-50 border-b border-amber-200 p-4 space-y-3">
+                    <p class="text-xs font-bold text-amber-800 flex items-center gap-1">
+                        <i class="fa-solid fa-gear"></i> 교사 공지 관리 모드
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <select id="newNoticeType" class="text-xs p-2 rounded-lg border border-amber-300 bg-white">
+                            <option value="sky">안내 (파랑)</option>
+                            <option value="amber">주의 (노랑)</option>
+                            <option value="rose">긴급 (빨강)</option>
+                            <option value="emerald">성공 (초록)</option>
+                        </select>
+                        <input type="text" id="newNoticeTitle" placeholder="공지 제목 입력" class="text-xs p-2 rounded-lg border border-amber-300 bg-white sm:col-span-2">
+                    </div>
+                    <textarea id="newNoticeBody" placeholder="공지 세부 내용 입력..." class="w-full text-xs p-2 rounded-lg border border-amber-300 bg-white h-16"></textarea>
+                    <div class="flex justify-end gap-2">
+                        <button id="addNoticeFirebaseBtn" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all">
+                            <i class="fa-solid fa-plus mr-1"></i> 새 공지 등록
+                        </button>
+                    </div>
+                </div>
+
+                <div id="noticeContent" class="p-5 space-y-3 text-sm text-slate-600 transition-all duration-300">
+                    <div id="noticeLoadingState" class="text-center py-4 text-xs text-slate-400">
+                        <i class="fa-solid fa-spinner fa-spin mr-1"></i> 공지사항을 불러오는 중입니다...
+                    </div>
+                    <div id="noticeListContainer" class="space-y-3"></div>
+                </div>
+            </section>
+
+            <!-- 4. Quick Links Grid (7개 사이트) -->
+            <section class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-rocket text-sky-500"></i> 수업 바로가기 (실습 플랫폼)
+                    </h3>
+                    <span class="text-xs text-slate-400">자주 쓰는 실습 사이트 모음</span>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+                    <a href="https://scratch.mit.edu" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                        <div class="w-11 h-11 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-cat"></i>
+                        </div>
+                        <span class="font-bold text-slate-800 text-xs sm:text-sm">스크래치</span>
+                        <span class="text-[10px] text-slate-400 mt-0.5">MIT 코딩</span>
+                    </a>
+
+                    <a href="https://replit.com" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                        <div class="w-11 h-11 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-brands fa-python"></i>
+                        </div>
+                        <span class="font-bold text-slate-800 text-xs sm:text-sm">파이썬</span>
+                        <span class="text-[10px] text-slate-400 mt-0.5">Replit 코딩</span>
+                    </a>
+
+                    <a href="https://classroom.google.com" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                        <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-chalkboard-user"></i>
+                        </div>
+                        <span class="font-bold text-slate-800 text-xs sm:text-sm">구글 클래스룸</span>
+                        <span class="text-[10px] text-slate-400 mt-0.5">수업 및 과제</span>
+                    </a>
+
+                    <a href="https://notion.so" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                        <div class="w-11 h-11 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-note-sticky"></i>
+                        </div>
+                        <span class="font-bold text-slate-800 text-xs sm:text-sm">Notion</span>
+                        <span class="text-[10px] text-slate-400 mt-0.5">수업 위키</span>
+                    </a>
+
+                    <a href="https://programmers.co.kr" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                        <div class="w-11 h-11 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-code"></i>
+                        </div>
+                        <span class="font-bold text-slate-800 text-xs sm:text-sm">프로그래머스</span>
+                        <span class="text-[10px] text-slate-400 mt-0.5">알고리즘 연습</span>
+                    </a>
+
+                    <a href="https://www.menti.com" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                        <div class="w-11 h-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-chart-simple"></i>
+                        </div>
+                        <span class="font-bold text-slate-800 text-xs sm:text-sm">멘티미터</span>
+                        <span class="text-[10px] text-slate-400 mt-0.5">실시간 설문</span>
+                    </a>
+
+                    <a href="https://www.icedu.kr" target="_blank" class="searchable-card bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all group flex flex-col items-center text-center">
+                        <div class="w-11 h-11 rounded-xl bg-cyan-100 text-cyan-600 flex items-center justify-center text-xl mb-2 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-school"></i>
+                        </div>
+                        <span class="font-bold text-slate-800 text-xs sm:text-sm">ICEDU</span>
+                        <span class="text-[10px] text-slate-400 mt-0.5">인천교육 포털</span>
+                    </a>
+                </div>
+            </section>
+
+            <!-- 5. 단원별 수업 자료실 (5개 단원 + 교사 자료 등록/수정/토글 + 노션형 뷰어) -->
+            <section class="space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-folder-open text-teal-500"></i> 단원별 수업 자료실
+                        </h3>
+                        <span class="text-xs text-slate-400 hidden sm:inline">카드를 클릭하면 새 탭에서 학습 페이지가 열립니다</span>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <!-- 교사용 새 자료 작성 버튼 (교사만 표시) -->
+                        <button id="openNewLessonModalBtn" class="hidden text-xs bg-teal-600 hover:bg-teal-700 text-white font-semibold px-3 py-1.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5">
+                            <i class="fa-solid fa-plus"></i> 새 수업 자료 작성
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 5단원 필터 버튼들 -->
+                <div class="flex flex-wrap gap-1.5" id="categoryFilter">
+                    <button class="filter-btn active text-xs font-medium px-3 py-1.5 rounded-full bg-sky-500 text-white transition-all shadow-sm" data-category="all">전체 보기</button>
+                    <button class="filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit1">1단원. 컴퓨팅 시스템</button>
+                    <button class="filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit2">2단원. 데이터</button>
+                    <button class="filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit3">3단원. 알고리즘과 프로그래밍</button>
+                    <button class="filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit4">4단원. 인공지능</button>
+                    <button class="filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-all" data-category="unit5">5단원. 디지털 문화</button>
+                </div>
+
+                <!-- 수업 자료 카드 그리드 -->
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5" id="resourceContainer">
+                    <p class="text-xs text-slate-400 text-center py-10 col-span-full">수업 자료를 불러오는 중입니다...</p>
+                </div>
+            </section>
+
+            <!-- 6. Student Assignment Submission & Teacher List Section -->
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-paper-plane text-sky-500"></i> 과제 제출 및 질의응답
+                        </h3>
+                        <span class="text-xs text-slate-400">Firebase DB 저장</span>
+                    </div>
+
+                    <form id="assignmentForm" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">학번 (예: 10101)</label>
+                                <input type="text" id="studentNum" placeholder="10101" required 
+                                    class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">이름</label>
+                                <input type="text" id="studentName" placeholder="홍길동" required 
+                                    class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">과제 제출 내용 또는 질문</label>
+                            <textarea id="assignmentText" rows="3" placeholder="수업 중 완성한 코드 주소(URL)나 질문 내용을 작성해 주세요..." required
+                                class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500"></textarea>
+                        </div>
+                        <button type="submit" id="submitBtn" class="w-full bg-gradient-to-r from-sky-500 to-teal-500 hover:from-sky-600 hover:to-teal-600 text-white font-bold py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> 제출하기
+                        </button>
+                    </form>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 flex flex-col">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-teal-600"></i> 제출된 과제 목록
+                        </h3>
+                        <span id="assignmentTeacherBadge" class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">일반 모드</span>
+                    </div>
+
+                    <div id="assignmentList" class="space-y-3 flex-grow max-h-[300px] overflow-y-auto pr-1">
+                        <p class="text-xs text-slate-400 text-center py-8">제출된 과제를 불러오는 중입니다...</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-white border-t border-slate-200 py-6 mt-12">
+            <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
+                <p class="text-xs text-slate-500">© 2026 정보교사 수업 대시보드. All rights reserved.</p>
+                <p class="text-xs text-slate-400">Powered by <span class="font-bold text-sky-600">Firebase Cloud Database</span></p>
             </div>
-            <span class="font-bold text-slate-800 text-xs sm:text-sm">ICEDU</span>
-            <span class="text-[10px] text-slate-400 mt-0.5">인천교육 포털</span>
-        </a>
+        </footer>
     </div>
-</section>
+
+    <!-- 7. 교사용 수업자료 등록/수정 모달 (노션 스타일 마크다운 작성기) -->
+    <div id="lessonModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
+            <button id="closeLessonModalBtn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl p-1">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            
+            <div class="border-b border-slate-100 pb-3">
+                <h3 id="lessonModalTitle" class="text-xl font-bold text-slate-800">새 수업 자료 작성</h3>
+                <p class="text-xs text-slate-500">노션처럼 텍스트, 이미지 URL, 마크다운 서식을 사용하여 자유롭게 작성하세요.</p>
+            </div>
+
+            <form id="lessonForm" class="space-y-3.5">
+                <input type="hidden" id="editLessonId">
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">단원 선택</label>
+                        <select id="lessonUnitSelect" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-sky-500">
+                            <option value="unit1">1단원. 컴퓨팅 시스템</option>
+                            <option value="unit2">2단원. 데이터</option>
+                            <option value="unit3">3단원. 알고리즘과 프로그래밍</option>
+                            <option value="unit4">4단원. 인공지능</option>
+                            <option value="unit5">5단원. 디지털 문화</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">차시 표기 (예: 1차시, 3-4차시)</label>
+                        <input type="text" id="lessonNumInput" placeholder="1차시" required
+                            class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">수업 주제 (제목)</label>
+                    <input type="text" id="lessonTitleInput" placeholder="예: 인공지능 윤리와 딥페이크 문제 탐구" required
+                        class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 font-bold">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">간단 요약 (카드에 노출될 1~2줄 요약)</label>
+                    <input type="text" id="lessonSummaryInput" placeholder="수업의 핵심 목표나 요약 설명을 간단히 적어주세요." required
+                        class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">대표 커버 이미지 URL (선택 사항)</label>
+                    <input type="url" id="lessonCoverInput" placeholder="https://images.unsplash.com/... (비워두면 기본 그래픽 적용)"
+                        class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500">
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-semibold text-slate-600">수업 본문 (노션/마크다운 문법 지원)</label>
+                        <span class="text-[10px] text-sky-600"># 제목 | - 목록 | ![이미지](URL) | > 인용</span>
+                    </div>
+                    <textarea id="lessonContentInput" rows="8" placeholder="# 오늘 배울 내용&#10;&#10;1. 개념 정리&#10;2. 실습 활동&#10;&#10;> 사진 삽입 예시: ![설명](https://이미지주소.jpg)" required
+                        class="w-full text-xs p-3 rounded-xl border border-slate-200 font-mono leading-relaxed focus:ring-2 focus:ring-sky-500"></textarea>
+                </div>
+
+                <!-- 공개 여부 체크박스 -->
+                <div class="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <input type="checkbox" id="lessonVisibilityCheckbox" checked class="w-4 h-4 text-sky-600 rounded focus:ring-sky-500">
+                    <label for="lessonVisibilityCheckbox" class="text-xs font-medium text-slate-700 cursor-pointer">
+                        즉시 학생들에게 공개하기 (체크 해제 시 교사에게만 보이고 학생에겐 비공개됩니다)
+                    </label>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" id="cancelLessonModalBtn" class="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl">취소</button>
+                    <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-md">저장 완료</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 8. Teacher Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl relative space-y-5">
+            <button id="closeLoginModalBtn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg p-1">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="text-center space-y-1">
+                <div class="w-12 h-12 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center text-xl mx-auto mb-2">
+                    <i class="fa-solid fa-user-gear"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800">교사 인증 로그인</h3>
+                <p class="text-xs text-slate-500">Firebase Authentication</p>
+            </div>
+            <form id="loginForm" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">이메일 계정</label>
+                    <input type="email" id="loginEmail" placeholder="teacher@school.kr" required 
+                        class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">비밀번호</label>
+                    <input type="password" id="loginPassword" placeholder="••••••••" required 
+                        class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                </div>
+                <p id="loginErrorMsg" class="text-xs text-rose-500 font-medium hidden text-center"></p>
+                <button type="submit" id="loginSubmitBtn" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-2.5 rounded-xl shadow-md transition-all text-sm mt-2">
+                    로그인
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (v10 JS Modules) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword, 
+            signOut, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            updateDoc,
+            deleteDoc, 
+            doc, 
+            getDoc,
+            onSnapshot, 
+            query, 
+            orderBy, 
+            serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // 선생님의 Firebase 연결 설정 (class-208a0)
+        const firebaseConfig = {
+          apiKey: "AIzaSyBvT2aTTuFfu6tQ-PqE4_nkuo9sotAp1cs",
+          authDomain: "class-208a0.firebaseapp.com",
+          projectId: "class-208a0",
+          storageBucket: "class-208a0.firebasestorage.app",
+          messagingSenderId: "973163972554",
+          appId: "1:973163972554:web:fc295757ef1057fa123133",
+          measurementId: "G-2XQC6FVS2P"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let allLessonDocs = [];
+        let currentSelectedCategory = 'all';
+
+        // 단원별 고유 명칭 및 배지 컬러 매핑
+        const unitMeta = {
+            'unit1': { name: '1단원. 컴퓨팅 시스템', badgeClass: 'bg-sky-50 text-sky-600 border-sky-200' },
+            'unit2': { name: '2단원. 데이터', badgeClass: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+            'unit3': { name: '3단원. 알고리즘과 프로그래밍', badgeClass: 'bg-indigo-50 text-indigo-600 border-indigo-200' },
+            'unit4': { name: '4단원. 인공지능', badgeClass: 'bg-purple-50 text-purple-600 border-purple-200' },
+            'unit5': { name: '5단원. 디지털 문화', badgeClass: 'bg-amber-50 text-amber-600 border-amber-200' }
+        };
+
+        // DOM 요소들
+        const authStatusContainer = document.getElementById('authStatusContainer');
+        const loginModal = document.getElementById('loginModal');
+        const openLoginModalBtn = document.getElementById('openLoginModalBtn');
+        const closeLoginModalBtn = document.getElementById('closeLoginModalBtn');
+        const loginForm = document.getElementById('loginForm');
+        const loginEmail = document.getElementById('loginEmail');
+        const loginPassword = document.getElementById('loginPassword');
+        const loginErrorMsg = document.getElementById('loginErrorMsg');
+
+        const teacherEditNoticeBtn = document.getElementById('teacherEditNoticeBtn');
+        const noticeEditControls = document.getElementById('noticeEditControls');
+        const noticeListContainer = document.getElementById('noticeListContainer');
+        const noticeLoadingState = document.getElementById('noticeLoadingState');
+        const addNoticeFirebaseBtn = document.getElementById('addNoticeFirebaseBtn');
+
+        const assignmentForm = document.getElementById('assignmentForm');
+        const assignmentList = document.getElementById('assignmentList');
+        const assignmentTeacherBadge = document.getElementById('assignmentTeacherBadge');
+
+        const openNewLessonModalBtn = document.getElementById('openNewLessonModalBtn');
+        const lessonModal = document.getElementById('lessonModal');
+        const closeLessonModalBtn = document.getElementById('closeLessonModalBtn');
+        const cancelLessonModalBtn = document.getElementById('cancelLessonModalBtn');
+        const lessonForm = document.getElementById('lessonForm');
+        const resourceContainer = document.getElementById('resourceContainer');
+
+        // URL 파라미터 확인: 새 탭에서 수업 자료가 호출되었는지 체크 (?lesson=ID)
+        const urlParams = new URLSearchParams(window.location.search);
+        const viewLessonId = urlParams.get('lesson');
+
+        if (viewLessonId) {
+            // 새 탭 뷰어 모드로 전환
+            document.getElementById('mainDashboardApp').classList.add('hidden');
+            document.getElementById('standaloneViewer').classList.remove('hidden');
+            loadStandaloneLesson(viewLessonId);
+        }
+
+        async function loadStandaloneLesson(id) {
+            try {
+                const docRef = doc(db, "lessons", id);
+                const snap = await getDoc(docRef);
+                if (!snap.exists()) {
+                    document.getElementById('viewerTitle').textContent = "자료를 찾을 수 없습니다.";
+                    return;
+                }
+                const data = snap.data();
+                
+                document.title = `${data.title} | 정보 수업 자료실`;
+                document.getElementById('viewerTitle').textContent = data.title;
+                document.getElementById('viewerSummary').textContent = data.summary || '';
+                document.getElementById('viewerLessonNum').textContent = data.lessonNum || '수업 자료';
+
+                const meta = unitMeta[data.unit] || { name: '정보', badgeClass: 'bg-slate-100 text-slate-600' };
+                const badge = document.getElementById('viewerUnitBadge');
+                badge.textContent = meta.name;
+                badge.className = `text-xs font-bold px-3 py-1 rounded-full ${meta.badgeClass}`;
+
+                if (data.coverImage) {
+                    document.getElementById('viewerCoverImg').src = data.coverImage;
+                    document.getElementById('viewerCoverContainer').classList.remove('hidden');
+                }
+
+                // Marked.js로 마크다운을 서식 있는 HTML로 렌더링
+                document.getElementById('viewerMarkdownBody').innerHTML = marked.parse(data.content || '');
+            } catch (err) {
+                document.getElementById('viewerTitle').textContent = "자료 로드 중 오류가 발생했습니다.";
+            }
+        }
+
+        // 로그인 모달 이벤트
+        openLoginModalBtn?.addEventListener('click', () => loginModal.classList.remove('hidden'));
+        closeLoginModalBtn?.addEventListener('click', () => loginModal.classList.add('hidden'));
+
+        // Firebase Auth 상태 감지
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                authStatusContainer.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-sky-700 font-semibold hidden sm:inline"><i class="fa-solid fa-user-check mr-1"></i>교사 인증됨</span>
+                        <button id="logoutBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs px-3 py-1.5 rounded-xl font-medium transition-all">
+                            로그아웃
+                        </button>
+                    </div>
+                `;
+                document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+                teacherEditNoticeBtn.classList.remove('hidden');
+                openNewLessonModalBtn.classList.remove('hidden');
+                assignmentTeacherBadge.textContent = '교사 관리 모드';
+                assignmentTeacherBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-bold';
+            } else {
+                authStatusContainer.innerHTML = `
+                    <button id="openLoginModalBtn" class="bg-sky-600 hover:bg-sky-700 text-white text-xs px-3 py-2 rounded-xl font-medium transition-all shadow-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-lock"></i> <span class="hidden sm:inline">교사 로그인</span>
+                    </button>
+                `;
+                document.getElementById('openLoginModalBtn').addEventListener('click', () => loginModal.classList.remove('hidden'));
+                teacherEditNoticeBtn.classList.add('hidden');
+                noticeEditControls.classList.add('hidden');
+                openNewLessonModalBtn.classList.add('hidden');
+                assignmentTeacherBadge.textContent = '일반 모드';
+                assignmentTeacherBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium';
+            }
+            renderLessons(); // 로그인 상태에 따라 수정 버튼/비공개 토글 재렌더링
+        });
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            loginErrorMsg.classList.add('hidden');
+            try {
+                await signInWithEmailAndPassword(auth, loginEmail.value, loginPassword.value);
+                loginModal.classList.add('hidden');
+                loginForm.reset();
+            } catch (err) {
+                loginErrorMsg.textContent = "로그인 실패: 이메일과 비밀번호를 확인하세요.";
+                loginErrorMsg.classList.remove('hidden');
+            }
+        });
+
+        // 1. 수업 자료실 (Lessons) 실시간 데이터베이스 연동
+        const lessonsRef = collection(db, "lessons");
+        const lessonsQuery = query(lessonsRef, orderBy("createdAt", "desc"));
+
+        onSnapshot(lessonsQuery, (snapshot) => {
+            allLessonDocs = [];
+            snapshot.forEach(docSnap => {
+                allLessonDocs.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            renderLessons();
+        });
+
+        function renderLessons() {
+            if (!resourceContainer) return;
+
+            // 학생일 경우 공개(`isVisible === true`)된 것만 필터링, 교사는 전체 열람
+            let filtered = allLessonDocs.filter(item => {
+                if (!currentUser && item.isVisible === false) return false;
+                if (currentSelectedCategory !== 'all' && item.unit !== currentSelectedCategory) return false;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                resourceContainer.innerHTML = `
+                    <div class="col-span-full text-center py-12 bg-white rounded-2xl border border-slate-100 p-6 space-y-2">
+                        <i class="fa-solid fa-folder-open text-3xl text-slate-300"></i>
+                        <p class="text-xs text-slate-500">등록되었거나 공개된 수업 자료가 없습니다.</p>
+                        ${currentUser ? '<p class="text-xs text-teal-600 font-semibold cursor-pointer" onclick="document.getElementById(\'openNewLessonModalBtn\').click()">+ 새로운 수업 자료를 등록해 보세요</p>' : ''}
+                    </div>
+                `;
+                return;
+            }
+
+            resourceContainer.innerHTML = '';
+            filtered.forEach(lesson => {
+                const meta = unitMeta[lesson.unit] || { name: '수업 자료', badgeClass: 'bg-slate-100 text-slate-600' };
+                const isHiddenForStudent = lesson.isVisible === false;
+
+                const card = document.createElement('div');
+                card.className = `searchable-card bg-white p-5 rounded-2xl border ${isHiddenForStudent ? 'border-dashed border-amber-300 bg-amber-50/20' : 'border-slate-100'} shadow-sm hover:shadow-md transition-all flex flex-col justify-between relative group`;
+                card.setAttribute('data-category', lesson.unit);
+
+                card.innerHTML = `
+                    <div>
+                        <!-- 상단 단원 뱃지 및 차시 -->
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-md border ${meta.badgeClass}">
+                                ${meta.name}
+                            </span>
+                            <div class="flex items-center gap-1.5">
+                                ${isHiddenForStudent ? '<span class="text-[10px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded">비공개</span>' : ''}
+                                <span class="text-xs text-slate-400 font-medium">${lesson.lessonNum || ''}</span>
+                            </div>
+                        </div>
+
+                        <!-- 제목 및 요약 설명 -->
+                        <h4 class="font-bold text-slate-800 text-base mb-1 group-hover:text-sky-600 transition-colors">${lesson.title}</h4>
+                        <p class="text-xs text-slate-500 line-clamp-2 mb-4 leading-relaxed">${lesson.summary}</p>
+                    </div>
+
+                    <!-- 하단 액션 버튼 & 교사용 관리 툴바 -->
+                    <div class="pt-3 border-t border-slate-100 flex flex-col gap-2">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-slate-400"><i class="fa-regular fa-file-lines mr-1"></i> 수업 노트</span>
+                            <a href="?lesson=${lesson.id}" target="_blank" class="text-sky-600 font-semibold hover:underline flex items-center gap-1">
+                                새 탭에서 열기 <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                            </a>
+                        </div>
+
+                        <!-- 교사 전용 토글 스위치 및 수정/삭제 -->
+                        ${currentUser ? `
+                            <div class="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between bg-slate-50 p-2 rounded-xl">
+                                <label class="flex items-center gap-2 cursor-pointer select-none">
+                                    <input type="checkbox" data-id="${lesson.id}" class="visibility-toggle sr-only" ${lesson.isVisible !== false ? 'checked' : ''}>
+                                    <div class="w-8 h-4 bg-slate-300 rounded-full transition-colors relative toggle-bg ${lesson.isVisible !== false ? 'bg-teal-500' : ''}">
+                                        <div class="dot absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform ${lesson.isVisible !== false ? 'transform translate-x-4' : ''}"></div>
+                                    </div>
+                                    <span class="text-[10px] font-semibold ${lesson.isVisible !== false ? 'text-teal-700' : 'text-slate-400'}">${lesson.isVisible !== false ? '공개중' : '숨김'}</span>
+                                </label>
+                                <div class="flex items-center gap-2">
+                                    <button data-id="${lesson.id}" class="edit-lesson-btn text-xs text-slate-500 hover:text-sky-600 p-1" title="수정"><i class="fa-solid fa-pen"></i></button>
+                                    <button data-id="${lesson.id}" class="delete-lesson-btn text-xs text-slate-400 hover:text-rose-500 p-1" title="삭제"><i class="fa-solid fa-trash-can"></i></button>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                resourceContainer.appendChild(card);
+            });
+
+            // 교사용 공개/비공개 토글 스위치 이벤트 리스너
+            document.querySelectorAll('.visibility-toggle').forEach(chk => {
+                chk.addEventListener('change', async (e) => {
+                    const docId = e.target.getAttribute('data-id');
+                    const newState = e.target.checked;
+                    try {
+                        await updateDoc(doc(db, "lessons", docId), { isVisible: newState });
+                    } catch (err) {
+                        alert("상태 변경에 실패했습니다.");
+                    }
+                });
+            });
+
+            // 자료 수정 버튼
+            document.querySelectorAll('.edit-lesson-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const docId = e.currentTarget.getAttribute('data-id');
+                    const lesson = allLessonDocs.find(l => l.id === docId);
+                    if (!lesson) return;
+
+                    document.getElementById('lessonModalTitle').textContent = "수업 자료 수정";
+                    document.getElementById('editLessonId').value = docId;
+                    document.getElementById('lessonUnitSelect').value = lesson.unit;
+                    document.getElementById('lessonNumInput').value = lesson.lessonNum || '';
+                    document.getElementById('lessonTitleInput').value = lesson.title || '';
+                    document.getElementById('lessonSummaryInput').value = lesson.summary || '';
+                    document.getElementById('lessonCoverInput').value = lesson.coverImage || '';
+                    document.getElementById('lessonContentInput').value = lesson.content || '';
+                    document.getElementById('lessonVisibilityCheckbox').checked = lesson.isVisible !== false;
+
+                    lessonModal.classList.remove('hidden');
+                });
+            });
+
+            // 자료 삭제 버튼
+            document.querySelectorAll('.delete-lesson-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const docId = e.currentTarget.getAttribute('data-id');
+                    if (confirm("이 수업 자료를 완전히 삭제하시겠습니까? 학생들도 더 이상 볼 수 없습니다.")) {
+                        await deleteDoc(doc(db, "lessons", docId));
+                    }
+                });
+            });
+        }
+
+        // 모달 열기/닫기
+        openNewLessonModalBtn.addEventListener('click', () => {
+            document.getElementById('lessonModalTitle').textContent = "새 수업 자료 작성";
+            document.getElementById('editLessonId').value = '';
+            lessonForm.reset();
+            document.getElementById('lessonVisibilityCheckbox').checked = true;
+            lessonModal.classList.remove('hidden');
+        });
+        closeLessonModalBtn.addEventListener('click', () => lessonModal.classList.add('hidden'));
+        cancelLessonModalBtn.addEventListener('click', () => lessonModal.classList.add('hidden'));
+
+        // 수업자료 폼 제출 (추가 or 수정)
+        lessonForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const editId = document.getElementById('editLessonId').value;
+            const unit = document.getElementById('lessonUnitSelect').value;
+            const lessonNum = document.getElementById('lessonNumInput').value.trim();
+            const title = document.getElementById('lessonTitleInput').value.trim();
+            const summary = document.getElementById('lessonSummaryInput').value.trim();
+            const coverImage = document.getElementById('lessonCoverInput').value.trim();
+            const content = document.getElementById('lessonContentInput').value;
+            const isVisible = document.getElementById('lessonVisibilityCheckbox').checked;
+
+            try {
+                if (editId) {
+                    await updateDoc(doc(db, "lessons", editId), {
+                        unit, lessonNum, title, summary, coverImage, content, isVisible,
+                        updatedAt: serverTimestamp()
+                    });
+                    alert("수업 자료가 성공적으로 수정되었습니다!");
+                } else {
+                    await addDoc(collection(db, "lessons"), {
+                        unit, lessonNum, title, summary, coverImage, content, isVisible,
+                        createdAt: serverTimestamp()
+                    });
+                    alert("새 수업 자료가 등록되었습니다!");
+                }
+                lessonModal.classList.add('hidden');
+                lessonForm.reset();
+            } catch (err) {
+                alert("저장 중 오류가 발생했습니다: " + err.message);
+            }
+        });
+
+        // 2. 단원 카테고리 필터링 탭
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterBtns.forEach(b => {
+                    b.classList.remove('bg-sky-500', 'text-white', 'shadow-sm', 'active');
+                    b.classList.add('bg-slate-200', 'text-slate-600');
+                });
+                btn.classList.add('bg-sky-500', 'text-white', 'shadow-sm', 'active');
+                btn.classList.remove('bg-slate-200', 'text-slate-600');
+
+                currentSelectedCategory = btn.getAttribute('data-category');
+                renderLessons();
+            });
+        });
+
+        // 3. 공지사항 실시간 동기화
+        const noticesRef = collection(db, "notices");
+        const noticesQuery = query(noticesRef, orderBy("createdAt", "desc"));
+
+        onSnapshot(noticesQuery, (snapshot) => {
+            noticeLoadingState.classList.add('hidden');
+            if (snapshot.empty) {
+                noticeListContainer.innerHTML = `
+                    <div class="p-4 bg-sky-50 rounded-xl border border-sky-100 text-xs text-slate-600">
+                        <p class="font-bold text-slate-800">공지사항</p>
+                        <p class="mt-0.5">등록된 공지사항이 없습니다. 교사로 로그인 후 공지를 작성해 보세요.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            noticeListContainer.innerHTML = '';
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const id = docSnap.id;
+                
+                let bgStyle = "bg-sky-50 border-sky-100 text-sky-500";
+                if(data.type === 'amber') bgStyle = "bg-amber-50 border-amber-100 text-amber-500";
+                if(data.type === 'rose') bgStyle = "bg-rose-50 border-rose-100 text-rose-500";
+                if(data.type === 'emerald') bgStyle = "bg-emerald-50 border-emerald-100 text-emerald-500";
+
+                const div = document.createElement('div');
+                div.className = `flex items-start justify-between gap-3 p-3.5 rounded-xl border ${bgStyle.split(' ')[0]} ${bgStyle.split(' ')[1]}`;
+                div.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <i class="fa-solid fa-circle-info ${bgStyle.split(' ')[2]} mt-0.5"></i>
+                        <div>
+                            <p class="font-semibold text-slate-800 text-xs sm:text-sm">${data.title}</p>
+                            <p class="text-slate-600 text-xs mt-0.5 leading-relaxed">${data.body}</p>
+                        </div>
+                    </div>
+                    ${currentUser ? `<button data-id="${id}" class="delete-notice-btn text-rose-400 hover:text-rose-600 text-xs p-1"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+                `;
+                noticeListContainer.appendChild(div);
+            });
+
+            document.querySelectorAll('.delete-notice-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const docId = e.currentTarget.getAttribute('data-id');
+                    if(confirm("이 공지사항을 삭제하시겠습니까?")) {
+                        await deleteDoc(doc(db, "notices", docId));
+                    }
+                });
+            });
+        });
+
+        teacherEditNoticeBtn.addEventListener('click', () => {
+            noticeEditControls.classList.toggle('hidden');
+        });
+
+        addNoticeFirebaseBtn.addEventListener('click', async () => {
+            const title = document.getElementById('newNoticeTitle').value.trim();
+            const body = document.getElementById('newNoticeBody').value.trim();
+            const type = document.getElementById('newNoticeType').value;
+
+            if(!title || !body) {
+                alert("제목과 내용을 모두 입력해 주세요.");
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, "notices"), {
+                    title, body, type, createdAt: serverTimestamp()
+                });
+                document.getElementById('newNoticeTitle').value = '';
+                document.getElementById('newNoticeBody').value = '';
+            } catch (err) {
+                alert("공지 등록 중 오류가 발생했습니다.");
+            }
+        });
+
+        // 4. 과제 제출 실시간 동기화
+        const assignmentRef = collection(db, "assignments");
+        const assignmentQuery = query(assignmentRef, orderBy("createdAt", "desc"));
+
+        onSnapshot(assignmentQuery, (snapshot) => {
+            if (snapshot.empty) {
+                assignmentList.innerHTML = `<p class="text-xs text-slate-400 text-center py-8">제출된 과제가 없습니다.</p>`;
+                return;
+            }
+
+            assignmentList.innerHTML = '';
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const id = docSnap.id;
+
+                const div = document.createElement('div');
+                div.className = "p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1 relative group";
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-xs text-slate-800">${data.studentNum} ${data.studentName}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-slate-400">${data.timeStr || ''}</span>
+                            ${currentUser ? `<button data-id="${id}" class="delete-assign-btn text-slate-300 hover:text-rose-500 text-xs p-0.5"><i class="fa-solid fa-xmark"></i></button>` : ''}
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-600 leading-relaxed">${data.text}</p>
+                `;
+                assignmentList.appendChild(div);
+            });
+
+            document.querySelectorAll('.delete-assign-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const docId = e.currentTarget.getAttribute('data-id');
+                    if(confirm("이 과제 제출 내역을 삭제하시겠습니까?")) {
+                        await deleteDoc(doc(db, "assignments", docId));
+                    }
+                });
+            });
+        });
+
+        assignmentForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const studentNum = document.getElementById('studentNum').value.trim();
+            const studentName = document.getElementById('studentName').value.trim();
+            const text = document.getElementById('assignmentText').value.trim();
+
+            const now = new Date();
+            const timeStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+            try {
+                await addDoc(collection(db, "assignments"), {
+                    studentNum, studentName, text, timeStr, createdAt: serverTimestamp()
+                });
+                alert("과제가 정상적으로 제출되었습니다!");
+                assignmentForm.reset();
+            } catch(err) {
+                alert("과제 제출에 실패했습니다. 다시 시도해 주세요.");
+            }
+        });
+
+        // 5. 기타 UI (공지 접기 및 검색)
+        const toggleNoticeBtn = document.getElementById('toggleNoticeBtn');
+        const noticeContent = document.getElementById('noticeContent');
+        const noticeIcon = document.getElementById('noticeIcon');
+
+        toggleNoticeBtn.addEventListener('click', () => {
+            noticeContent.classList.toggle('hidden');
+            noticeIcon.classList.toggle('rotate-180');
+        });
+
+        const globalSearch = document.getElementById('globalSearch');
+        globalSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            document.querySelectorAll('.searchable-card').forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(query) ? '' : 'none';
+            });
+        });
+    </script>
+</body>
+</html>
