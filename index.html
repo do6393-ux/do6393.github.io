@@ -296,4 +296,864 @@
                             <div>
                                 <label class="block text-xs font-semibold text-slate-600 mb-1">과제 제출 내용 또는 질문</label>
                                 <textarea id="assignmentText" rows="3" placeholder="과제 내용을 작성해 주세요..." required
-                                    class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky
+                                    class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500"></textarea>
+                            </div>
+                            <button type="submit" id="submitBtn" class="w-full bg-gradient-to-r from-sky-500 to-teal-500 hover:from-sky-600 hover:to-teal-600 text-white font-bold py-2.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> 제출하기
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 flex flex-col">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-list-check text-teal-600"></i> 제출된 과제 목록
+                            </h3>
+                            <span id="assignmentTeacherBadge" class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">일반 모드</span>
+                        </div>
+
+                        <div id="assignmentList" class="space-y-3 flex-grow max-h-[300px] overflow-y-auto pr-1">
+                            <p class="text-xs text-slate-400 text-center py-8">제출된 과제를 불러오는 중입니다...</p>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <!-- D. TAB 2: 교사 전용 정보업무 관제탑 (신규 탭!) -->
+        <div id="tabContentWork" class="tab-view-content hidden">
+            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
+                <!-- 업무용 상단 배너 -->
+                <section class="bg-gradient-to-r from-slate-800 via-slate-900 to-indigo-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+                    <div class="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6">
+                        <div class="space-y-2 text-center sm:text-left">
+                            <span class="bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 text-xs px-3 py-1 rounded-full font-bold">
+                                🔒 교사 전용 보안구역
+                            </span>
+                            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">부원여중 정보부 업무 관제 시스템</h2>
+                            <p class="text-slate-300 text-xs sm:text-sm max-w-xl">
+                                정보화기기 관리, 네트워크, 라이선스, 개인정보보호 및 보안 업무 현황을 체계적으로 수립하고 기록합니다.
+                            </p>
+                        </div>
+                        <button id="openNewTaskModalBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-lg transition-all flex items-center gap-2 whitespace-nowrap">
+                            <i class="fa-solid fa-plus-circle text-base"></i> 새 업무/매뉴얼 추가
+                        </button>
+                    </div>
+                </section>
+
+                <!-- 비로그인자 접근 제한 안내 메시지 (비로그인시 스위칭됨) -->
+                <div id="workAccessDeniedState" class="hidden bg-amber-50 border border-amber-200 rounded-3xl p-12 text-center space-y-4">
+                    <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-2xl mx-auto">
+                        <i class="fa-solid fa-lock"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-800">교사 로그인이 필요한 공간입니다</h3>
+                    <p class="text-xs text-slate-500 max-w-md mx-auto">
+                        정보부 업무 관제탑은 신정훈 선생님 전용 관리 공간입니다. 우측 상단의 [교사 로그인]을 진행해 주세요.
+                    </p>
+                </div>
+
+                <!-- 로그인 시만 활성화되는 업무 관리 메인 대시보드 -->
+                <div id="workMainDashboard" class="space-y-6">
+                    <!-- 업무 카테고리 필터 -->
+                    <div class="flex flex-wrap gap-2" id="taskCategoryFilter">
+                        <button class="task-filter-btn active text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-800 text-white transition-all shadow-sm" data-workcat="all">전체 업무</button>
+                        <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all" data-workcat="devices">💻 정보화 기기 관리</button>
+                        <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all" data-workcat="network">🌐 학내망 & 네트워크</button>
+                        <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all" data-workcat="privacy">🛡️ 개인정보보호 & 보안</button>
+                        <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all" data-workcat="software">🔑 SW & 라이선스</button>
+                        <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all" data-workcat="disposal">♻️ 불용/불용물품 폐기</button>
+                        <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all" data-workcat="etc">📌 기타 부서 업무</button>
+                    </div>
+
+                    <!-- 업무 타일 카드 그리드 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="taskContainer">
+                        <p class="text-xs text-slate-400 text-center py-12 col-span-full">업무 데이터를 불러오는 중입니다...</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-white border-t border-slate-200 py-6 mt-12">
+            <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
+                <p class="text-xs text-slate-500">© 부원여중 정보&문프교사 신정훈. All rights reserved.</p>
+                <p class="text-xs text-slate-400">Powered by <span class="font-bold text-sky-600">Firebase Cloud Database</span></p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 7. 교사용 수업자료 등록/수정 모달 -->
+    <div id="lessonModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
+            <button id="closeLessonModalBtn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl p-1">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="border-b border-slate-100 pb-3">
+                <h3 id="lessonModalTitle" class="text-xl font-bold text-slate-800">새 수업 자료 작성</h3>
+            </div>
+            <form id="lessonForm" class="space-y-3.5">
+                <input type="hidden" id="editLessonId">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">단원 선택</label>
+                        <select id="lessonUnitSelect" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
+                            <option value="unit1">1단원. 컴퓨팅 시스템</option>
+                            <option value="unit2">2단원. 데이터</option>
+                            <option value="unit3">3단원. 알고리즘과 프로그래밍</option>
+                            <option value="unit4">4단원. 인공지능</option>
+                            <option value="unit5">5단원. 디지털 문화</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">차시 표기</label>
+                        <input type="text" id="lessonNumInput" placeholder="1차시" required class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">수업 주제 (제목)</label>
+                    <input type="text" id="lessonTitleInput" placeholder="주제 입력" required class="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">간단 요약</label>
+                    <input type="text" id="lessonSummaryInput" placeholder="요약 적기" required class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">대표 커버 이미지 URL</label>
+                    <input type="url" id="lessonCoverInput" placeholder="https://..." class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">📷 이미지 첨부 (드래그 앤 드롭)</label>
+                    <div id="imageDropZone" class="border-2 border-dashed border-sky-300 bg-sky-50/50 p-4 rounded-xl text-center cursor-pointer">
+                        <i class="fa-solid fa-cloud-arrow-up text-sky-500 text-xl mb-1"></i>
+                        <p class="text-xs text-slate-700 font-semibold">이미지를 이곳으로 마우스로 마우스 드래그하세요</p>
+                        <input type="file" id="imageFileInput" accept="image/*" class="hidden">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-600">수업 본문 (마크다운 지원)</label>
+                    <textarea id="lessonContentInput" rows="6" placeholder="수업 본문 작성..." required class="w-full text-xs p-3 rounded-xl border border-slate-200 font-mono"></textarea>
+                </div>
+                <div class="flex items-center gap-2 p-3 bg-slate-50 rounded-xl">
+                    <input type="checkbox" id="lessonVisibilityCheckbox" checked class="w-4 h-4 text-sky-600 rounded">
+                    <label for="lessonVisibilityCheckbox" class="text-xs font-medium text-slate-700">즉시 학생들에게 공개하기</label>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" id="cancelLessonModalBtn" class="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl">취소</button>
+                    <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-teal-600 rounded-xl">저장 완료</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 8. 교사업무 등록/수정 모달 (신규!) -->
+    <div id="taskModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
+            <button id="closeTaskModalBtn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl p-1">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div class="border-b border-slate-100 pb-3">
+                <h3 id="taskModalTitle" class="text-xl font-bold text-slate-800">새 정보 업무 추가</h3>
+                <p class="text-xs text-slate-500">정보부 관련 업무 지침, 매뉴얼, 기기 리스트 및 세부 메모를 작성하세요.</p>
+            </div>
+
+            <form id="taskForm" class="space-y-3.5">
+                <input type="hidden" id="editTaskId">
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">업무 카테고리</label>
+                        <select id="taskCatSelect" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
+                            <option value="devices">💻 정보화 기기 관리</option>
+                            <option value="network">🌐 학내망 & 네트워크</option>
+                            <option value="privacy">🛡️ 개인정보보호 & 보안</option>
+                            <option value="software">🔑 SW & 라이선스</option>
+                            <option value="disposal">♻️ 불용/불용물품 폐기</option>
+                            <option value="etc">📌 기타 부서 업무</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">진행 상태</label>
+                        <select id="taskStatusSelect" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-bold">
+                            <option value="todo">⏳ 대기중 (예정)</option>
+                            <option value="doing">🚀 진행중 (처리중)</option>
+                            <option value="done">✅ 완료됨</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">업무명 (제목)</label>
+                    <input type="text" id="taskTitleInput" placeholder="예: 학학실 노트북 인벤토리 수량 점검 및 라벨링" required class="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-bold">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">요약 설명</label>
+                    <input type="text" id="taskSummaryInput" placeholder="업무의 목적이나 주요 일정 요약" required class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-600 mb-1 block">업무 세부 지침 및 메모 (마크다운 지원)</label>
+                    <textarea id="taskContentInput" rows="8" placeholder="# 업무 처리 순서&#10;1. 행정실 계약건 확인&#10;2. 업체 기기 검수 후 등록&#10;&#10;> 참고 링크: https://..." required class="w-full text-xs p-3 rounded-xl border border-slate-200 font-mono leading-relaxed"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" id="cancelTaskModalBtn" class="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-xl">취소</button>
+                    <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md">저장하기</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 9. Teacher Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl relative space-y-5">
+            <button id="closeLoginModalBtn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg p-1">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="text-center space-y-1">
+                <div class="w-12 h-12 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center text-xl mx-auto mb-2">
+                    <i class="fa-solid fa-user-gear"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800">교사 인증 로그인</h3>
+                <p class="text-xs text-slate-500">Firebase Authentication</p>
+            </div>
+            <form id="loginForm" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">이메일 계정</label>
+                    <input type="email" id="loginEmail" placeholder="teacher@school.kr" required class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">비밀번호</label>
+                    <input type="password" id="loginPassword" placeholder="••••••••" required class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                </div>
+                <p id="loginErrorMsg" class="text-xs text-rose-500 font-medium hidden text-center"></p>
+                <button type="submit" id="loginSubmitBtn" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-2.5 rounded-xl shadow-md text-sm mt-2">
+                    로그인
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (v10 JS Modules) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword, 
+            signOut, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            updateDoc,
+            deleteDoc, 
+            doc, 
+            getDoc,
+            onSnapshot, 
+            query, 
+            orderBy, 
+            serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyBvT2aTTuFfu6tQ-PqE4_nkuo9sotAp1cs",
+          authDomain: "class-208a0.firebaseapp.com",
+          projectId: "class-208a0",
+          storageBucket: "class-208a0.firebasestorage.app",
+          messagingSenderId: "973163972554",
+          appId: "1:973163972554:web:fc295757ef1057fa123133",
+          measurementId: "G-2XQC6FVS2P"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+        let allLessonDocs = [];
+        let allTaskDocs = [];
+        let currentSelectedCategory = 'all';
+        let currentWorkCategory = 'all';
+
+        const unitMeta = {
+            'unit1': { name: '1단원. 컴퓨팅 시스템', badgeClass: 'bg-sky-50 text-sky-600 border-sky-200' },
+            'unit2': { name: '2단원. 데이터', badgeClass: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+            'unit3': { name: '3단원. 알고리즘과 프로그래밍', badgeClass: 'bg-indigo-50 text-indigo-600 border-indigo-200' },
+            'unit4': { name: '4단원. 인공지능', badgeClass: 'bg-purple-50 text-purple-600 border-purple-200' },
+            'unit5': { name: '5단원. 디지털 문화', badgeClass: 'bg-amber-50 text-amber-600 border-amber-200' }
+        };
+
+        const workCatMeta = {
+            'devices': { name: '💻 정보화 기기', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
+            'network': { name: '🌐 학내망 네트워크', badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+            'privacy': { name: '🛡️ 개인정보보호', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' },
+            'software': { name: '🔑 SW 라이선스', badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
+            'disposal': { name: '♻️ 불용 물품 폐기', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
+            'etc': { name: '📌 기타 부서 업무', badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' }
+        };
+
+        // 🔀 탭 스위칭 로직
+        const navTabClass = document.getElementById('navTabClass');
+        const navTabWork = document.getElementById('navTabWork');
+        const mobileNavTabClass = document.getElementById('mobileNavTabClass');
+        const mobileNavTabWork = document.getElementById('mobileNavTabWork');
+        const tabContentClass = document.getElementById('tabContentClass');
+        const tabContentWork = document.getElementById('tabContentWork');
+
+        function switchTab(target) {
+            if (target === 'work') {
+                tabContentClass.classList.add('hidden');
+                tabContentWork.classList.remove('hidden');
+
+                navTabClass.className = "nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5";
+                navTabWork.className = "nav-tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-indigo-700 shadow-sm transition-all flex items-center gap-1.5";
+
+                mobileNavTabClass.className = "flex-1 py-1.5 text-center text-xs font-medium text-slate-600";
+                mobileNavTabWork.className = "flex-1 py-1.5 text-center text-xs font-bold bg-white text-indigo-700 rounded-lg shadow-sm";
+            } else {
+                tabContentWork.classList.add('hidden');
+                tabContentClass.classList.remove('hidden');
+
+                navTabWork.className = "nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5";
+                navTabClass.className = "nav-tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-sky-700 shadow-sm transition-all flex items-center gap-1.5";
+
+                mobileNavTabClass.className = "flex-1 py-1.5 text-center text-xs font-bold bg-white text-sky-700 rounded-lg shadow-sm";
+                mobileNavTabWork.className = "flex-1 py-1.5 text-center text-xs font-medium text-slate-600";
+            }
+        }
+
+        navTabClass.addEventListener('click', () => switchTab('class'));
+        navTabWork.addEventListener('click', () => switchTab('work'));
+        mobileNavTabClass.addEventListener('click', () => switchTab('class'));
+        mobileNavTabWork.addEventListener('click', () => switchTab('work'));
+
+        // Elements
+        const authStatusContainer = document.getElementById('authStatusContainer');
+        const loginModal = document.getElementById('loginModal');
+        const openLoginModalBtn = document.getElementById('openLoginModalBtn');
+        const closeLoginModalBtn = document.getElementById('closeLoginModalBtn');
+        const loginForm = document.getElementById('loginForm');
+        const loginEmail = document.getElementById('loginEmail');
+        const loginPassword = document.getElementById('loginPassword');
+        const loginErrorMsg = document.getElementById('loginErrorMsg');
+
+        const teacherEditNoticeBtn = document.getElementById('teacherEditNoticeBtn');
+        const noticeEditControls = document.getElementById('noticeEditControls');
+        const noticeListContainer = document.getElementById('noticeListContainer');
+        const noticeLoadingState = document.getElementById('noticeLoadingState');
+        const addNoticeFirebaseBtn = document.getElementById('addNoticeFirebaseBtn');
+
+        const assignmentForm = document.getElementById('assignmentForm');
+        const assignmentList = document.getElementById('assignmentList');
+        const assignmentTeacherBadge = document.getElementById('assignmentTeacherBadge');
+
+        const openNewLessonModalBtn = document.getElementById('openNewLessonModalBtn');
+        const lessonModal = document.getElementById('lessonModal');
+        const closeLessonModalBtn = document.getElementById('closeLessonModalBtn');
+        const cancelLessonModalBtn = document.getElementById('cancelLessonModalBtn');
+        const lessonForm = document.getElementById('lessonForm');
+        const resourceContainer = document.getElementById('resourceContainer');
+
+        const openNewTaskModalBtn = document.getElementById('openNewTaskModalBtn');
+        const taskModal = document.getElementById('taskModal');
+        const closeTaskModalBtn = document.getElementById('closeTaskModalBtn');
+        const cancelTaskModalBtn = document.getElementById('cancelTaskModalBtn');
+        const taskForm = document.getElementById('taskForm');
+        const taskContainer = document.getElementById('taskContainer');
+        const workAccessDeniedState = document.getElementById('workAccessDeniedState');
+        const workMainDashboard = document.getElementById('workMainDashboard');
+
+        // 이미지 파일 처리
+        const imageDropZone = document.getElementById('imageDropZone');
+        const imageFileInput = document.getElementById('imageFileInput');
+        const lessonContentInput = document.getElementById('lessonContentInput');
+
+        imageDropZone?.addEventListener('click', () => imageFileInput.click());
+        imageDropZone?.addEventListener('dragover', (e) => { e.preventDefault(); imageDropZone.classList.add('bg-sky-100'); });
+        imageDropZone?.addEventListener('dragleave', () => imageDropZone.classList.remove('bg-sky-100'));
+        imageDropZone?.addEventListener('drop', (e) => {
+            e.preventDefault();
+            imageDropZone.classList.remove('bg-sky-100');
+            if (e.dataTransfer.files.length > 0) processImageUpload(e.dataTransfer.files[0]);
+        });
+        imageFileInput?.addEventListener('change', (e) => { if (e.target.files.length > 0) processImageUpload(e.target.files[0]); });
+
+        function processImageUpload(file) {
+            if (!file.type.startsWith('image/')) { alert('이미지 파일만 지원됩니다.'); return; }
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                lessonContentInput.value += `\n\n![${file.name}](${evt.target.result})\n\n`;
+                alert(`'${file.name}' 이미지가 본문에 첨부되었습니다.`);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Standalone lesson viewer check
+        const urlParams = new URLSearchParams(window.location.search);
+        const viewLessonId = urlParams.get('lesson');
+        if (viewLessonId) {
+            document.getElementById('mainDashboardApp').classList.add('hidden');
+            document.getElementById('standaloneViewer').classList.remove('hidden');
+            loadStandaloneLesson(viewLessonId);
+        }
+
+        async function loadStandaloneLesson(id) {
+            try {
+                const docRef = doc(db, "lessons", id);
+                const snap = await getDoc(docRef);
+                if (!snap.exists()) { document.getElementById('viewerTitle').textContent = "자료를 찾을 수 없습니다."; return; }
+                const data = snap.data();
+                document.title = `${data.title} | 정보 수업 자료실`;
+                document.getElementById('viewerTitle').textContent = data.title;
+                document.getElementById('viewerSummary').textContent = data.summary || '';
+                document.getElementById('viewerLessonNum').textContent = data.lessonNum || '수업 자료';
+
+                const meta = unitMeta[data.unit] || { name: '정보', badgeClass: 'bg-slate-100 text-slate-600' };
+                const badge = document.getElementById('viewerUnitBadge');
+                badge.textContent = meta.name;
+                badge.className = `text-xs font-bold px-3 py-1 rounded-full ${meta.badgeClass}`;
+
+                if (data.coverImage) {
+                    document.getElementById('viewerCoverImg').src = data.coverImage;
+                    document.getElementById('viewerCoverContainer').classList.remove('hidden');
+                }
+                document.getElementById('viewerMarkdownBody').innerHTML = marked.parse(data.content || '');
+            } catch (err) { document.getElementById('viewerTitle').textContent = "자료 로드 오류"; }
+        }
+
+        openLoginModalBtn?.addEventListener('click', () => loginModal.classList.remove('hidden'));
+        closeLoginModalBtn?.addEventListener('click', () => loginModal.classList.add('hidden'));
+
+        // Firebase Auth Listener
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                authStatusContainer.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-sky-700 font-semibold hidden sm:inline"><i class="fa-solid fa-user-check mr-1"></i>신정훈 선생님</span>
+                        <button id="logoutBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs px-3 py-1.5 rounded-xl font-medium transition-all">
+                            로그아웃
+                        </button>
+                    </div>
+                `;
+                document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+                teacherEditNoticeBtn?.classList.remove('hidden');
+                openNewLessonModalBtn?.classList.remove('hidden');
+                assignmentTeacherBadge.textContent = '교사 관리 모드';
+                assignmentTeacherBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-bold';
+
+                // 업무 탭 권한 풀기
+                workAccessDeniedState.classList.add('hidden');
+                workMainDashboard.classList.remove('hidden');
+            } else {
+                authStatusContainer.innerHTML = `
+                    <button id="openLoginModalBtn" class="bg-sky-600 hover:bg-sky-700 text-white text-xs px-3 py-2 rounded-xl font-medium transition-all shadow-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-lock"></i> <span class="hidden sm:inline">교사 로그인</span>
+                    </button>
+                `;
+                document.getElementById('openLoginModalBtn').addEventListener('click', () => loginModal.classList.remove('hidden'));
+                teacherEditNoticeBtn?.classList.add('hidden');
+                noticeEditControls?.classList.add('hidden');
+                openNewLessonModalBtn?.classList.add('hidden');
+                assignmentTeacherBadge.textContent = '일반 모드';
+                assignmentTeacherBadge.className = 'text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium';
+
+                // 업무 탭 권한 가리기
+                workAccessDeniedState.classList.remove('hidden');
+                workMainDashboard.classList.add('hidden');
+            }
+            renderLessons();
+            renderTasks();
+        });
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            loginErrorMsg.classList.add('hidden');
+            try {
+                await signInWithEmailAndPassword(auth, loginEmail.value, loginPassword.value);
+                loginModal.classList.add('hidden');
+                loginForm.reset();
+            } catch (err) {
+                loginErrorMsg.textContent = "로그인 실패: 계정 정보를 확인해 주세요.";
+                loginErrorMsg.classList.remove('hidden');
+            }
+        });
+
+        // 1. Lessons Sync
+        const lessonsRef = collection(db, "lessons");
+        const lessonsQuery = query(lessonsRef, orderBy("createdAt", "desc"));
+        onSnapshot(lessonsQuery, (snapshot) => {
+            allLessonDocs = [];
+            snapshot.forEach(docSnap => allLessonDocs.push({ id: docSnap.id, ...docSnap.data() }));
+            renderLessons();
+        });
+
+        function renderLessons() {
+            if (!resourceContainer) return;
+            let filtered = allLessonDocs.filter(item => {
+                if (!currentUser && item.isVisible === false) return false;
+                if (currentSelectedCategory !== 'all' && item.unit !== currentSelectedCategory) return false;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                resourceContainer.innerHTML = `<div class="col-span-full text-center py-12 bg-white rounded-2xl border border-slate-100 p-6 text-xs text-slate-500">등록되었거나 공개된 수업 자료가 없습니다.</div>`;
+                return;
+            }
+
+            resourceContainer.innerHTML = '';
+            filtered.forEach(lesson => {
+                const meta = unitMeta[lesson.unit] || { name: '수업 자료', badgeClass: 'bg-slate-100 text-slate-600' };
+                const isHiddenForStudent = lesson.isVisible === false;
+
+                const card = document.createElement('div');
+                card.className = `searchable-card bg-white p-5 rounded-2xl border ${isHiddenForStudent ? 'border-dashed border-amber-300 bg-amber-50/20' : 'border-slate-100'} shadow-sm hover:shadow-md transition-all flex flex-col justify-between relative group`;
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-md border ${meta.badgeClass}">${meta.name}</span>
+                            <span class="text-xs text-slate-400 font-medium">${lesson.lessonNum || ''}</span>
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-base mb-1 group-hover:text-sky-600 transition-colors">${lesson.title}</h4>
+                        <p class="text-xs text-slate-500 line-clamp-2 mb-4 leading-relaxed">${lesson.summary}</p>
+                    </div>
+                    <div class="pt-3 border-t border-slate-100 flex flex-col gap-2">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-slate-400"><i class="fa-regular fa-file-lines mr-1"></i> 수업 노트</span>
+                            <a href="?lesson=${lesson.id}" target="_blank" class="text-sky-600 font-semibold hover:underline flex items-center gap-1">
+                                새 탭에서 열기 <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                            </a>
+                        </div>
+                        ${currentUser ? `
+                            <div class="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between bg-slate-50 p-2 rounded-xl">
+                                <label class="flex items-center gap-2 cursor-pointer select-none">
+                                    <input type="checkbox" data-id="${lesson.id}" class="visibility-toggle sr-only" ${lesson.isVisible !== false ? 'checked' : ''}>
+                                    <div class="w-8 h-4 bg-slate-300 rounded-full transition-colors relative toggle-bg ${lesson.isVisible !== false ? 'bg-teal-500' : ''}">
+                                        <div class="dot absolute left-0.5 top-0.5 bg-white w-3 h-3 rounded-full transition-transform ${lesson.isVisible !== false ? 'transform translate-x-4' : ''}"></div>
+                                    </div>
+                                    <span class="text-[10px] font-semibold ${lesson.isVisible !== false ? 'text-teal-700' : 'text-slate-400'}">${lesson.isVisible !== false ? '공개중' : '숨김'}</span>
+                                </label>
+                                <div class="flex items-center gap-2">
+                                    <button data-id="${lesson.id}" class="edit-lesson-btn text-xs text-slate-500 hover:text-sky-600 p-1"><i class="fa-solid fa-pen"></i></button>
+                                    <button data-id="${lesson.id}" class="delete-lesson-btn text-xs text-slate-400 hover:text-rose-500 p-1"><i class="fa-solid fa-trash-can"></i></button>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                resourceContainer.appendChild(card);
+            });
+
+            document.querySelectorAll('.visibility-toggle').forEach(chk => {
+                chk.addEventListener('change', async (e) => {
+                    await updateDoc(doc(db, "lessons", e.target.getAttribute('data-id')), { isVisible: e.target.checked });
+                });
+            });
+            document.querySelectorAll('.edit-lesson-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const lesson = allLessonDocs.find(l => l.id === e.currentTarget.getAttribute('data-id'));
+                    if (!lesson) return;
+                    document.getElementById('editLessonId').value = lesson.id;
+                    document.getElementById('lessonUnitSelect').value = lesson.unit;
+                    document.getElementById('lessonNumInput').value = lesson.lessonNum || '';
+                    document.getElementById('lessonTitleInput').value = lesson.title || '';
+                    document.getElementById('lessonSummaryInput').value = lesson.summary || '';
+                    document.getElementById('lessonCoverInput').value = lesson.coverImage || '';
+                    document.getElementById('lessonContentInput').value = lesson.content || '';
+                    document.getElementById('lessonVisibilityCheckbox').checked = lesson.isVisible !== false;
+                    lessonModal.classList.remove('hidden');
+                });
+            });
+            document.querySelectorAll('.delete-lesson-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if (confirm("이 수업 자료를 삭제하시겠습니까?")) await deleteDoc(doc(db, "lessons", e.currentTarget.getAttribute('data-id')));
+                });
+            });
+        }
+
+        openNewLessonModalBtn?.addEventListener('click', () => {
+            document.getElementById('editLessonId').value = '';
+            lessonForm.reset();
+            lessonModal.classList.remove('hidden');
+        });
+        closeLessonModalBtn?.addEventListener('click', () => lessonModal.classList.add('hidden'));
+        cancelLessonModalBtn?.addEventListener('click', () => lessonModal.classList.add('hidden'));
+
+        lessonForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const editId = document.getElementById('editLessonId').value;
+            const payload = {
+                unit: document.getElementById('lessonUnitSelect').value,
+                lessonNum: document.getElementById('lessonNumInput').value.trim(),
+                title: document.getElementById('lessonTitleInput').value.trim(),
+                summary: document.getElementById('lessonSummaryInput').value.trim(),
+                coverImage: document.getElementById('lessonCoverInput').value.trim(),
+                content: document.getElementById('lessonContentInput').value,
+                isVisible: document.getElementById('lessonVisibilityCheckbox').checked,
+                createdAt: serverTimestamp()
+            };
+            if (editId) await updateDoc(doc(db, "lessons", editId), payload);
+            else await addDoc(collection(db, "lessons"), payload);
+            lessonModal.classList.add('hidden');
+            lessonForm.reset();
+        });
+
+        // 2. Work Tasks Sync (신규 업무 탭 파이어베이스 연결)
+        const tasksRef = collection(db, "work_tasks");
+        const tasksQuery = query(tasksRef, orderBy("createdAt", "desc"));
+        onSnapshot(tasksQuery, (snapshot) => {
+            allTaskDocs = [];
+            snapshot.forEach(docSnap => allTaskDocs.push({ id: docSnap.id, ...docSnap.data() }));
+            renderTasks();
+        });
+
+        function renderTasks() {
+            if (!taskContainer) return;
+            let filtered = allTaskDocs.filter(item => {
+                if (currentWorkCategory !== 'all' && item.category !== currentWorkCategory) return false;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                taskContainer.innerHTML = `
+                    <div class="col-span-full text-center py-12 bg-white rounded-3xl border border-slate-200 p-8 space-y-3">
+                        <i class="fa-solid fa-clipboard-list text-3xl text-slate-300"></i>
+                        <p class="text-xs text-slate-500">등록된 정보부 업무 항목이 없습니다.</p>
+                        <p class="text-xs text-indigo-600 font-semibold cursor-pointer" onclick="document.getElementById('openNewTaskModalBtn').click()">+ 새로운 업무 및 지침 추가하기</p>
+                    </div>
+                `;
+                return;
+            }
+
+            taskContainer.innerHTML = '';
+            filtered.forEach(task => {
+                const meta = workCatMeta[task.category] || { name: '일반 업무', badgeClass: 'bg-slate-100 text-slate-700' };
+                
+                let statusBadge = `<span class="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-md font-bold">⏳ 대기중</span>`;
+                if (task.status === 'doing') statusBadge = `<span class="bg-sky-100 text-sky-800 text-[10px] px-2 py-0.5 rounded-md font-bold">🚀 진행중</span>`;
+                if (task.status === 'done') statusBadge = `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-md font-bold">✅ 완료됨</span>`;
+
+                const card = document.createElement('div');
+                card.className = "searchable-card bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-3";
+                card.innerHTML = `
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-md border ${meta.badgeClass}">${meta.name}</span>
+                            ${statusBadge}
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-base leading-snug">${task.title}</h4>
+                        <p class="text-xs text-slate-500 leading-relaxed">${task.summary}</p>
+                    </div>
+
+                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 notion-content max-h-36 overflow-y-auto text-xs">
+                        ${marked.parse(task.content || '')}
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <span class="text-[10px] text-slate-400">부원여중 정보부 메모</span>
+                        <div class="flex items-center gap-2">
+                            <button data-id="${task.id}" class="edit-task-btn text-xs text-slate-500 hover:text-indigo-600 p-1"><i class="fa-solid fa-pen"></i></button>
+                            <button data-id="${task.id}" class="delete-task-btn text-xs text-slate-400 hover:text-rose-500 p-1"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
+                    </div>
+                `;
+                taskContainer.appendChild(card);
+            });
+
+            document.querySelectorAll('.edit-task-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const task = allTaskDocs.find(t => t.id === e.currentTarget.getAttribute('data-id'));
+                    if (!task) return;
+                    document.getElementById('editTaskId').value = task.id;
+                    document.getElementById('taskCatSelect').value = task.category;
+                    document.getElementById('taskStatusSelect').value = task.status;
+                    document.getElementById('taskTitleInput').value = task.title || '';
+                    document.getElementById('taskSummaryInput').value = task.summary || '';
+                    document.getElementById('taskContentInput').value = task.content || '';
+                    taskModal.classList.remove('hidden');
+                });
+            });
+
+            document.querySelectorAll('.delete-task-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if (confirm("이 업무 지침 항목을 삭제하시겠습니까?")) await deleteDoc(doc(db, "work_tasks", e.currentTarget.getAttribute('data-id')));
+                });
+            });
+        }
+
+        openNewTaskModalBtn?.addEventListener('click', () => {
+            document.getElementById('editTaskId').value = '';
+            taskForm.reset();
+            taskModal.classList.remove('hidden');
+        });
+        closeTaskModalBtn?.addEventListener('click', () => taskModal.classList.add('hidden'));
+        cancelTaskModalBtn?.addEventListener('click', () => taskModal.classList.add('hidden'));
+
+        taskForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const editId = document.getElementById('editTaskId').value;
+            const payload = {
+                category: document.getElementById('taskCatSelect').value,
+                status: document.getElementById('taskStatusSelect').value,
+                title: document.getElementById('taskTitleInput').value.trim(),
+                summary: document.getElementById('taskSummaryInput').value.trim(),
+                content: document.getElementById('taskContentInput').value,
+                createdAt: serverTimestamp()
+            };
+            if (editId) await updateDoc(doc(db, "work_tasks", editId), payload);
+            else await addDoc(collection(db, "work_tasks"), payload);
+            taskModal.classList.add('hidden');
+            taskForm.reset();
+        });
+
+        // 3. Work Category Filters
+        const taskFilterBtns = document.querySelectorAll('.task-filter-btn');
+        taskFilterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                taskFilterBtns.forEach(b => {
+                    b.classList.remove('bg-slate-800', 'text-white');
+                    b.classList.add('bg-white', 'text-slate-600');
+                });
+                btn.classList.add('bg-slate-800', 'text-white');
+                btn.classList.remove('bg-white', 'text-slate-600');
+
+                currentWorkCategory = btn.getAttribute('data-workcat');
+                renderTasks();
+            });
+        });
+
+        // 4. Class Category Filters
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterBtns.forEach(b => {
+                    b.classList.remove('bg-sky-500', 'text-white', 'active');
+                    b.classList.add('bg-slate-200', 'text-slate-600');
+                });
+                btn.classList.add('bg-sky-500', 'text-white', 'active');
+                btn.classList.remove('bg-slate-200', 'text-slate-600');
+
+                currentSelectedCategory = btn.getAttribute('data-category');
+                renderLessons();
+            });
+        });
+
+        // 5. Notices Sync
+        const noticesRef = collection(db, "notices");
+        const noticesQuery = query(noticesRef, orderBy("createdAt", "desc"));
+        onSnapshot(noticesQuery, (snapshot) => {
+            noticeLoadingState?.classList.add('hidden');
+            if (snapshot.empty) {
+                noticeListContainer.innerHTML = `<div class="p-4 bg-sky-50 rounded-xl text-xs text-slate-600">등록된 공지가 없습니다.</div>`;
+                return;
+            }
+            noticeListContainer.innerHTML = '';
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const id = docSnap.id;
+                let bgStyle = "bg-sky-50 border-sky-100 text-sky-500";
+                if(data.type === 'amber') bgStyle = "bg-amber-50 border-amber-100 text-amber-500";
+                if(data.type === 'rose') bgStyle = "bg-rose-50 border-rose-100 text-rose-500";
+                if(data.type === 'emerald') bgStyle = "bg-emerald-50 border-emerald-100 text-emerald-500";
+
+                const div = document.createElement('div');
+                div.className = `flex items-start justify-between gap-3 p-3.5 rounded-xl border ${bgStyle.split(' ')[0]} ${bgStyle.split(' ')[1]}`;
+                div.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <i class="fa-solid fa-circle-info ${bgStyle.split(' ')[2]} mt-0.5"></i>
+                        <div>
+                            <p class="font-semibold text-slate-800 text-xs sm:text-sm">${data.title}</p>
+                            <p class="text-slate-600 text-xs mt-0.5 leading-relaxed">${data.body}</p>
+                        </div>
+                    </div>
+                    ${currentUser ? `<button data-id="${id}" class="delete-notice-btn text-rose-400 hover:text-rose-600 text-xs p-1"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+                `;
+                noticeListContainer.appendChild(div);
+            });
+
+            document.querySelectorAll('.delete-notice-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if(confirm("이 공지사항을 삭제하시겠습니까?")) await deleteDoc(doc(db, "notices", e.currentTarget.getAttribute('data-id')));
+                });
+            });
+        });
+
+        teacherEditNoticeBtn?.addEventListener('click', () => noticeEditControls?.classList.toggle('hidden'));
+        addNoticeFirebaseBtn?.addEventListener('click', async () => {
+            const title = document.getElementById('newNoticeTitle').value.trim();
+            const body = document.getElementById('newNoticeBody').value.trim();
+            const type = document.getElementById('newNoticeType').value;
+            if(!title || !body) return alert("제목과 내용을 모두 입력하세요.");
+            await addDoc(collection(db, "notices"), { title, body, type, createdAt: serverTimestamp() });
+            document.getElementById('newNoticeTitle').value = '';
+            document.getElementById('newNoticeBody').value = '';
+        });
+
+        // 6. Assignment Sync
+        const assignmentRef = collection(db, "assignments");
+        const assignmentQuery = query(assignmentRef, orderBy("createdAt", "desc"));
+        onSnapshot(assignmentQuery, (snapshot) => {
+            if (snapshot.empty) {
+                assignmentList.innerHTML = `<p class="text-xs text-slate-400 text-center py-8">제출된 과제가 없습니다.</p>`;
+                return;
+            }
+            assignmentList.innerHTML = '';
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const id = docSnap.id;
+                const div = document.createElement('div');
+                div.className = "p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1 relative group";
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-xs text-slate-800">${data.studentNum} ${data.studentName}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-slate-400">${data.timeStr || ''}</span>
+                            ${currentUser ? `<button data-id="${id}" class="delete-assign-btn text-slate-300 hover:text-rose-500 text-xs p-0.5"><i class="fa-solid fa-xmark"></i></button>` : ''}
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-600 leading-relaxed">${data.text}</p>
+                `;
+                assignmentList.appendChild(div);
+            });
+
+            document.querySelectorAll('.delete-assign-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if(confirm("이 과제 제출 항목을 삭제하시겠습니까?")) await deleteDoc(doc(db, "assignments", e.currentTarget.getAttribute('data-id')));
+                });
+            });
+        });
+
+        assignmentForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const studentNum = document.getElementById('studentNum').value.trim();
+            const studentName = document.getElementById('studentName').value.trim();
+            const text = document.getElementById('assignmentText').value.trim();
+            const now = new Date();
+            const timeStr = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+            await addDoc(collection(db, "assignments"), { studentNum, studentName, text, timeStr, createdAt: serverTimestamp() });
+            alert("과제가 성공적으로 제출되었습니다!");
+            assignmentForm.reset();
+        });
+
+        // 7. Global Search Filter
+        const globalSearch = document.getElementById('globalSearch');
+        globalSearch?.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            document.querySelectorAll('.searchable-card').forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(query) ? '' : 'none';
+            });
+        });
+
+        const toggleNoticeBtn = document.getElementById('toggleNoticeBtn');
+        toggleNoticeBtn?.addEventListener('click', () => {
+            document.getElementById('noticeContent')?.classList.toggle('hidden');
+            document.getElementById('noticeIcon')?.classList.toggle('rotate-180');
+        });
+    </script>
+</body>
+</html>
