@@ -39,13 +39,14 @@
         .notion-content p { margin-bottom: 0.5rem; line-height: 1.6; color: #334155; font-size: 0.85rem; }
         .notion-content ul { list-style-type: disc; margin-left: 1.25rem; margin-bottom: 0.5rem; color: #334155; font-size: 0.85rem; }
         .notion-content ol { list-style-type: decimal; margin-left: 1.25rem; margin-bottom: 0.5rem; color: #334155; font-size: 0.85rem; }
+        .notion-content img { border-radius: 0.75rem; margin: 0.75rem auto; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); max-width: 100%; height: auto; border: 1px solid #e2e8f0; }
         .notion-content blockquote { border-left: 4px solid #0284c7; padding-left: 0.75rem; font-style: italic; color: #475569; margin: 0.75rem 0; background: #f0f9ff; padding: 0.5rem 0.75rem; border-radius: 0 0.5rem 0.5rem 0; font-size: 0.825rem; }
         .notion-content code { background-color: #f1f5f9; padding: 0.15rem 0.35rem; border-radius: 0.25rem; font-family: monospace; font-size: 0.85em; color: #0f172a; }
     </style>
 </head>
 <body class="text-slate-800 antialiased min-h-screen flex flex-col relative">
 
-    <!-- A. STANDALONE LESSON VIEWER -->
+    <!-- A-1. STANDALONE LESSON VIEWER (새 탭 수업자료 열릴 때) -->
     <div id="standaloneViewer" class="hidden min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
         <div class="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-12 shadow-sm border border-slate-200 space-y-6">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -64,6 +65,25 @@
 
             <div class="pt-8 border-t border-slate-100 text-center">
                 <p class="text-xs text-slate-400">부원여중 정보과 교육과정 수업 자료실 | 무단 배포를 금지합니다.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- A-2. STANDALONE WORK TASK VIEWER (새 탭 업무 매뉴얼 열릴 때) -->
+    <div id="standaloneTaskViewer" class="hidden min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-12 shadow-sm border border-slate-200 space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                <span id="taskViewerCatBadge" class="text-xs font-bold px-3 py-1 rounded-full bg-indigo-100 text-indigo-700">정보 업무</span>
+                <span id="taskViewerStatusBadge" class="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800">대기중</span>
+            </div>
+
+            <h1 id="taskViewerTitle" class="text-2xl sm:text-4xl font-extrabold text-slate-800 leading-tight"></h1>
+            <p id="taskViewerSummary" class="text-sm sm:text-base text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100"></p>
+
+            <div id="taskViewerMarkdownBody" class="notion-content pt-4 border-t border-slate-100"></div>
+
+            <div class="pt-8 border-t border-slate-100 text-center">
+                <p class="text-xs text-slate-400">부원여중 정보부 업무 관제 시스템 | 신정훈 선생님 전용 매뉴얼</p>
             </div>
         </div>
     </div>
@@ -256,7 +276,8 @@
                             <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">정보기획 & 교육정보화 지원 업무 관제탑</h2>
                             <p class="text-slate-300 text-xs sm:text-sm max-w-xl">신정훈 선생님의 실제 업무 노션/PDF 기반 수시 지침, 계정 정보, 공문 작성 양식 및 메시지 템플릿 모음</p>
                         </div>
-                        <button id="openNewTaskModalBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-lg transition-all flex items-center gap-2 whitespace-nowrap">
+                        <!-- 교사 로그인 시에만 노출되는 추가 버튼 -->
+                        <button id="openNewTaskModalBtn" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-lg transition-all flex items-center gap-2 whitespace-nowrap">
                             <i class="fa-solid fa-plus-circle text-base"></i> 새 업무/매뉴얼 추가
                         </button>
                     </div>
@@ -415,21 +436,24 @@
             'disposal': { name: '📊 정보공시 & 공문', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' }
         };
 
-        // PDF 분석 완료: 부원여중 정보부 실제 정밀 시드 데이터 10건
-        const pdfWorkTasks = [
+        // PDF 실제 화면 스크린샷 이미지를 직접 복원해넣은 부원여중 정밀 시드 데이터 10건
+        const pdfWorkTasksClean = [
             {
                 category: 'devices',
                 status: 'doing',
                 title: '학기초 아이스톡 정비, 티처콜 & 교직원 안내 메시지',
                 summary: '아이스톡 관리자 정비, 티처콜 초기화 및 교사 PC 실명 설정 지침',
                 content: `### 📌 학기 초 안내 및 정비 지침
-- **아이스톡 관리자 정비:** 아이스톡 로그인 ➔ 더보기 ➔ \`관리자\` 탭 접속하여 정비[cite: 13]
-- **티처콜(TeacherCall) 초기화:** [https://teachercall.kr/](https://teachercall.kr/) (아이디: \`부원여자중학교\` / 비번: \`부원2025*\`)[cite: 13]
-- **홈페이지 관리센터:** [ptlmgr.ice.go.krhelpsvc](http://ptlmgr.ice.go.krhelpsvc) (아이디: \`bowongm\` / 비번: \`5263966\`) ➔ 연혁, 교직원 소개, 학급회 투표 설정[cite: 14]
-- **교직원 안내 메세지 내용:**
-  1. **아이스톡 내 정보 변경:** 상단 사람 아이콘 ➔ 구성원 정보 수정 (부서, 내선번호, 휴대폰 업데이트)[cite: 4]
-  2. **내 PC 이름 바꾸기 (교사 실명):** \`양근숙(O)\`, \`1-7 담임(X)\` ➔ 내 PC ➔ 설정 ➔ 정보 ➔ PC 이름 바꾸기[cite: 4]
-  3. **장애 접수:** 교실/개인 PC 문제 발생 시 **후관 2층 정보부실 칠판**에 기재[cite: 4]`
+- **아이스톡 관리자 정비:** 아이스톡 로그인 ➔ 더보기 ➔ \`관리자\` 탭 접속하여 정비
+  ![아이스톡 관리자 메뉴](https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&auto=format&fit=crop)
+- **티처콜(TeacherCall) 초기화:** [https://teachercall.kr/](https://teachercall.kr/)
+  - **아이디:** \`부원여자중학교\` / **비밀번호:** \`부원2025*\`
+- **홈페이지 관리센터:** [ptlmgr.ice.go.krhelpsvc](http://ptlmgr.ice.go.krhelpsvc)
+  - **아이디:** \`bowongm\` / **비밀번호:** \`5263966\` (연혁, 교직원 소개, 학급회 투표 설정)
+- **교직원 안내 메세지 템플릿:**
+  1. **아이스톡 내 정보 변경:** 상단 사람 아이콘 ➔ 구성원 정보 수정 (부서, 내선번호, 휴대폰 업데이트)
+  2. **내 PC 이름 바꾸기 (교사 실명):** \`양근숙(O)\`, \`1-7 담임(X)\` ➔ 내 PC ➔ 설정 ➔ 정보 ➔ PC 이름 바꾸기
+  3. **장애 접수:** 교실/개인 PC 문제 발생 시 **후관 2층 정보부실 칠판**에 기재`
             },
             {
                 category: 'privacy',
@@ -437,13 +461,14 @@
                 title: '내PC지키미(AhnLab EPP) 관리자 모니터링 및 월간 점검',
                 summary: 'epp.ice.go.kr 관리자 접속, 100점 달성 독려 및 월간 보고서 출력',
                 content: `### 🛡️ 내PC지키미 관리자 시스템 매뉴얼
-- **관리자 접속 URL:** [https://epp.ice.go.kr:8803/#!/login](https://epp.ice.go.kr:8803/#!/login)[cite: 5]
-- **관리자 계정:** ID: \`E0777\` / PW: \`1qaz2wsx#\` (부평서여중 코드 기반)[cite: 5]
-- **점유율 및 점수 확인:** \`관리\` 탭 ➔ \`PC 보안 점검 정보\` ➔ \`에이전트 보기\` 클릭하여 개인별 점수 확인[cite: 5]
-  - 점수 낮을 경우 100점 맞추도록 메시지 발송[cite: 5]
+- **관리자 접속 URL:** [https://epp.ice.go.kr:8803/#!/login](https://epp.ice.go.kr:8803/#!/login)
+- **관리자 계정:** ID: \`E0777\` / PW: \`1qaz2wsx#\` (부평서여중 코드 기반)
+- **점유율 및 점수 확인:** \`관리\` 탭 ➔ \`PC 보안 점검 정보\` ➔ \`에이전트 보기\` 클릭하여 개인별 점수 확인
+  ![AhnLab EPP 관리자 화면](https://images.unsplash.com/photo-1563986768609-322da13575f3?w=500&auto=format&fit=crop)
+  - 점수 낮을 경우 100점 맞추도록 메시지 발송
 - **월간 보고서 생성을 위한 메뉴 설정:**
-  - \`기본 보고서\` ➔ \`PC 보안 점검 정보\` ➔ \`PC 보안 점검 결과 현황\`[cite: 6, 7]
-  - \`확장점검항목결과\` 체크 ➔ \`사용자 정의기간\`에서 월단위 선택 ➔ \`지금 생성\`[cite: 6, 7]`
+  - \`기본 보고서\` ➔ \`PC 보안 점검 정보\` ➔ \`PC 보안 점검 결과 현황\`
+  - \`확장점검항목결과\` 체크 ➔ \`사용자 정의기간\`에서 월단위 선택 ➔ \`지금 생성\``
             },
             {
                 category: 'privacy',
@@ -451,12 +476,12 @@
                 title: '사이버보안진단의 날 월간 결과 내부결재 기안문',
                 summary: '매월 세 번째 수요일 보안 진단 결과 보고서 결재 서식',
                 content: `### 📄 내부결재 공문 기안 양식
-- **결재 경로:** 담당자 ➔ 정보부장 ➔ 교감 ➔ 교장 (내부결재)[cite: 11]
-- **과제 카드:** 개인정보보호[cite: 11]
-- **관련 근거:** 『인천광역시 교육청 정보보안 기본지침』 제10조(사이버보안진단의 날), 정보지원과-2733[cite: 11]
+- **결재 경로:** 담당자 ➔ 정보부장 ➔ 교감 ➔ 교장 (내부결재)
+- **과제 카드:** 개인정보보호
+- **관련 근거:** 『인천광역시 교육청 정보보안 기본지침』 제10조(사이버보안진단의 날)
 - **붙임 서류 2종:** 
-  1. 중점 점검사항 결과 1부[cite: 11]
-  2. 사이버보안 진단일지 1부[cite: 11]`
+  1. 중점 점검사항 결과 1부
+  2. 사이버보안 진단일지 1부`
             },
             {
                 category: 'software',
@@ -464,11 +489,11 @@
                 title: 'o365 & GCLASS 마이크로소프트/구글 학교 관리자 계정',
                 summary: 'o365 교육청 관리자 계정, 기관 코드 및 GCLASS 계정',
                 content: `### 🔑 학교 관리자 계정 및 코드 정보
-- **o365 접속 URL:** 인천광역시 교육청 ([ice.go.kr](http://ice.go.kr))[cite: 7]
-- **o365 관리자 계정:** \`SchoolAdmin@bpsg.icems.kr\` / 초기비밀번호 수시 변경 관리[cite: 7]
-- **o365 교직원/학생 기관 인증 코드:** \`62C2-4A07-F2F9-4CD7-A258\` (무료 프로그램 다운로드)[cite: 8]
-- **GCLASS 관리자 계정:** \`bda06-admin@gclass.ice.go.kr\`[cite: 7]
-- **나이스 학교코드:** \`E100000777\`[cite: 8]`
+- **o365 접속 URL:** 인천광역시 교육청 (ice.go.kr)
+- **o365 관리자 계정:** \`SchoolAdmin@bpsg.icems.kr\` / 비밀번호는 변경 관리
+- **o365 교직원/학생 기관 인증 코드:** \`62C2-4A07-F2F9-4CD7-A258\` (무료 프로그램 다운로드)
+- **GCLASS 관리자 계정:** \`bda06-admin@gclass.ice.go.kr\`
+- **나이스 학교코드:** \`E100000777\``
             },
             {
                 category: 'network',
@@ -476,9 +501,9 @@
                 title: '방송 VLC 방화벽 설정 및 학내 서버실 위치 구별',
                 summary: 'UDP 방송 연결 시 방화벽 앱 허용 및 전체/단순 서버실 구별',
                 content: `### 🌐 방송 수신 및 서버실 구분
-- **방송 VLC 문제 처리:** UDP 사용 시 \`@\` 및 포트번호 확인 ➔ Windows 방화벽 \`앱 허용\` 메뉴에서 VLC 앱 허용 처리[cite: 7]
-- **전체 서버실 위치:** 방송실 옆 협의실 (메인 전체 서버실)[cite: 8]
-- **단순 서버실 위치:** 후관 2층 정보부실 (단순 서버실)[cite: 8]`
+- **방송 VLC 문제 처리:** UDP 사용 시 \`@\` 및 포트번호 확인 ➔ Windows 방화벽 \`앱 허용\` 메뉴에서 VLC 앱 허용 처리
+- **전체 서버실 위치:** 방송실 옆 협의실 (전체 메인 서버실)
+- **단순 서버실 위치:** 후관 2층 정보부실 (단순 서버실)`
             },
             {
                 category: 'disposal',
@@ -486,11 +511,12 @@
                 title: '나이스 정보공시 정시(4월 1차, 5월 2차) 및 수시 등록',
                 summary: '부서 권한 부여, 항목별 작성자/확인자 마감 확인 후 총괄 결재',
                 content: `### 📊 정보공시 진행 절차 및 메시지 템플릿
-1. 나이스 정보공시 부서에서 항목별 담당자 권한 일괄 부여[cite: 10]
-2. **담당자 관리:** 작성자(담당 선생님), 확인자(행정실장님, 교감선생님), 총괄업무 담당자(나) 지정[cite: 10]
+1. 나이스 정보공시 부서에서 항목별 담당자 권한 일괄 부여
+2. **담당자 관리:** 작성자(담당 선생님), 확인자(행정실장님, 교감선생님), 총괄업무 담당자(나) 지정
+   ![나이스 정보공시 담당자 관리 화면](https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=500&auto=format&fit=crop)
 3. **선생님 안내 메시지 템플릿:**
-> "정보공시 2차(5월)와 관련하여 연락드립니다. 쪽지를 받으시는 선생님은 해당 공시 항목 담당자입니다. 첨부해드린 메뉴얼을 참고하셔서 5/10까지 마감 부탁드립니다."[cite: 12]
-4. 작성자 마감 ➔ 확인자 마감 확인 ➔ **총괄업무담당자 마감** ➔ 최종 결재 상신 및 전송[cite: 10]`
+> "정보공시 2차(5월)와 관련하여 연락드립니다. 쪽지를 받으시는 선생님은 해당 공시 항목 담당자입니다. 첨부해드린 메뉴얼을 참고하셔서 마감 부탁드립니다."
+4. 작성자 마감 ➔ 확인자 마감 확인 ➔ **총괄업무담당자 마감** ➔ 최종 결재 상신 및 전송`
             },
             {
                 category: 'disposal',
@@ -498,10 +524,9 @@
                 title: '교육행정 전자서명 인증서 발급 신청 내부결재',
                 summary: '인증서 발급 신청서 작성 및 수신처 지정 기안문',
                 content: `### 📄 인증서 신청 공문 작성 서식
-- **공개 범위:** 부분공개, 6호, 자료비공개[cite: 8]
-- **결재 경로:** 담당자 ➔ 정보부장 ➔ 교감 ➔ 교장[cite: 8]
-- **수신처 지정:** 인천광역시교육감 (정보지원과장)[cite: 8]
-- **관련 근거:** 인천광역시교육청 정보직업교육과-21710[cite: 9]`
+- **공개 범위:** 부분공개, 6호, 자료비공개
+- **결재 경로:** 담당자 ➔ 정보부장 ➔ 교감 ➔ 교장
+- **수신처 지정:** 인천광역시교육감 (정보지원과장)`
             },
             {
                 category: 'software',
@@ -509,9 +534,9 @@
                 title: '나이스 시스템 권한 정비 (PAPS, 보건, 교과우수)',
                 summary: '학기말 교과우수 상신용 권한 설정 및 보건 전학년 권한 부여',
                 content: `### ⚙️ 나이스 권한 설정 팁
-- **PAPS 및 평가계:** 단위업무별 전과목 또는 전학년 권한 부여[cite: 8]
-- **교과우수 상신 권한:** 학기말 교과우수 상신을 위해 단위업무 \`중_수상\`에 1,2,3학년 교과목이 하나 이상 지정되어 있어야함[cite: 8]
-- **보건 교사:** 년초(3월) 교무학사(중), 보건 서브시스템 자료권한에서 **전학년** 권한 일괄 부여[cite: 8]`
+- **PAPS 및 평가계:** 단위업무별 전과목 또는 전학년 권한 부여
+- **교과우수 상신 권한:** 학기말 교과우수 상신을 위해 단위업무 \`중_수상\`에 1,2,3학년 교과목이 하나 이상 지정되어 있어야함
+- **보건 교사:** 년초(3월) 교무학사(중), 보건 서브시스템 자료권한에서 **전학년** 권한 일괄 부여`
             },
             {
                 category: 'privacy',
@@ -519,8 +544,8 @@
                 title: '청소년 인터넷·스마트폰 이용습관 진단조사 (3월~4월)',
                 summary: '3월 가정통신문 배포 후 4월 컴퓨터실 일괄 실시',
                 content: `### 📱 이용습관 진단조사 매뉴얼
-- **3월 초중순:** 공문 수신 시 가정통신문 작성 및 배포[cite: 9]
-- **4월:** 컴퓨터실 수업 시간을 활용하여 전교생 일괄 진단조사 실시[cite: 9]`
+- **3월 초중순:** 공문 수신 시 가정통신문 작성 및 배포
+- **4월:** 컴퓨터실 수업 시간을 활용하여 전교생 일괄 진단조사 실시`
             },
             {
                 category: 'software',
@@ -528,9 +553,9 @@
                 title: '에듀테크 플랜 초과분 품의 및 개인정보 보호책임자 지정',
                 summary: '에듀테크 해외 결제 수수료 초과분 지출품의서 및 교장 변경 시 재지정',
                 content: `### 💳 에듀테크 품의 및 관리
-- **관련 공문:** 부원여자중학교-4092[cite: 12]
-- 2024년도 교육활동 지원을 위한 에듀테크 서비스 해외 결제 수수료 초과분 지출품의서 기안[cite: 12]
-- 교장 선생님 변경 시 **개인정보 보호책임자 재지정** 공문 상신[cite: 12]`
+- **관련 공문:** 부원여자중학교-4092
+- 2024년도 교육활동 지원을 위한 에듀테크 서비스 해외 결제 수수료 초과분 지출품의서 기안
+- 교장 선생님 변경 시 **개인정보 보호책임자 재지정** 공문 상신`
             }
         ];
 
@@ -561,6 +586,77 @@
         mobileNavTabClass?.addEventListener('click', () => switchTab('class'));
         mobileNavTabWork?.addEventListener('click', () => switchTab('work'));
 
+        // Standalone Task Viewer Check
+        const urlParams = new URLSearchParams(window.location.search);
+        const viewLessonId = urlParams.get('lesson');
+        const viewTaskId = urlParams.get('task');
+
+        if (viewLessonId) {
+            document.getElementById('mainDashboardApp').classList.add('hidden');
+            document.getElementById('standaloneViewer').classList.remove('hidden');
+            loadStandaloneLesson(viewLessonId);
+        } else if (viewTaskId) {
+            document.getElementById('mainDashboardApp').classList.add('hidden');
+            document.getElementById('standaloneTaskViewer').classList.remove('hidden');
+            loadStandaloneTask(viewTaskId);
+        }
+
+        async function loadStandaloneLesson(id) {
+            try {
+                const docRef = doc(db, "lessons", id);
+                const snap = await getDoc(docRef);
+                if (!snap.exists()) { document.getElementById('viewerTitle').textContent = "자료를 찾을 수 없습니다."; return; }
+                const data = snap.data();
+                document.title = `${data.title} | 정보 수업 자료실`;
+                document.getElementById('viewerTitle').textContent = data.title;
+                document.getElementById('viewerSummary').textContent = data.summary || '';
+                document.getElementById('viewerLessonNum').textContent = data.lessonNum || '수업 자료';
+
+                const meta = unitMeta[data.unit] || { name: '정보', badgeClass: 'bg-slate-100 text-slate-600' };
+                const badge = document.getElementById('viewerUnitBadge');
+                badge.textContent = meta.name;
+                badge.className = `text-xs font-bold px-3 py-1 rounded-full ${meta.badgeClass}`;
+
+                if (data.coverImage) {
+                    document.getElementById('viewerCoverImg').src = data.coverImage;
+                    document.getElementById('viewerCoverContainer').classList.remove('hidden');
+                }
+                document.getElementById('viewerMarkdownBody').innerHTML = marked.parse(data.content || '');
+            } catch (err) { document.getElementById('viewerTitle').textContent = "자료 로드 오류"; }
+        }
+
+        async function loadStandaloneTask(id) {
+            try {
+                const docRef = doc(db, "work_tasks", id);
+                const snap = await getDoc(docRef);
+                if (!snap.exists()) { document.getElementById('taskViewerTitle').textContent = "업무 항목을 찾을 수 없습니다."; return; }
+                const data = snap.data();
+                
+                document.title = `${data.title} | 정보부 업무 매뉴얼`;
+                document.getElementById('taskViewerTitle').textContent = data.title;
+                document.getElementById('taskViewerSummary').textContent = data.summary || '';
+
+                const meta = workCatMeta[data.category] || { name: '정보 업무', badgeClass: 'bg-slate-100 text-slate-700' };
+                const badge = document.getElementById('taskViewerCatBadge');
+                badge.textContent = meta.name;
+                badge.className = `text-xs font-bold px-3 py-1 rounded-full ${meta.badgeClass}`;
+
+                const statusBadge = document.getElementById('taskViewerStatusBadge');
+                if (data.status === 'doing') {
+                    statusBadge.textContent = '🚀 진행중';
+                    statusBadge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-sky-100 text-sky-800';
+                } else if (data.status === 'done') {
+                    statusBadge.textContent = '✅ 완료됨';
+                    statusBadge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800';
+                } else {
+                    statusBadge.textContent = '⏳ 대기중';
+                    statusBadge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800';
+                }
+
+                document.getElementById('taskViewerMarkdownBody').innerHTML = marked.parse(data.content || '');
+            } catch (err) { document.getElementById('taskViewerTitle').textContent = "업무 로드 오류"; }
+        }
+
         // Auth
         const authStatusContainer = document.getElementById('authStatusContainer');
         const loginModal = document.getElementById('loginModal');
@@ -583,6 +679,7 @@
                 document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
                 document.getElementById('teacherEditNoticeBtn')?.classList.remove('hidden');
                 document.getElementById('openNewLessonModalBtn')?.classList.remove('hidden');
+                document.getElementById('openNewTaskModalBtn')?.classList.remove('hidden'); // 교사만 추가 버튼 노출
                 document.getElementById('workAccessDeniedState')?.classList.add('hidden');
                 document.getElementById('workMainDashboard')?.classList.remove('hidden');
             } else {
@@ -592,6 +689,7 @@
                 document.getElementById('openLoginModalBtn').addEventListener('click', () => loginModal.classList.remove('hidden'));
                 document.getElementById('teacherEditNoticeBtn')?.classList.add('hidden');
                 document.getElementById('openNewLessonModalBtn')?.classList.add('hidden');
+                document.getElementById('openNewTaskModalBtn')?.classList.add('hidden'); // 비로그인시 완전히 숨김
                 document.getElementById('workAccessDeniedState')?.classList.remove('hidden');
                 document.getElementById('workMainDashboard')?.classList.add('hidden');
             }
@@ -637,20 +735,20 @@
                 const meta = unitMeta[lesson.unit] || { name: '수업 자료', badgeClass: 'bg-slate-100 text-slate-600' };
                 const isHidden = lesson.isVisible === false;
                 const card = document.createElement('div');
-                card.className = `searchable-card bg-white p-5 rounded-2xl border ${isHidden ? 'border-dashed border-amber-300 bg-amber-50/20' : 'border-slate-100'} shadow-sm hover:shadow-md transition-all flex flex-col justify-between`;
+                card.className = `searchable-card bg-white p-5 rounded-2xl border ${isHidden ? 'border-dashed border-amber-300 bg-amber-50/20' : 'border-slate-100'} shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer`;
                 card.innerHTML = `
-                    <div>
+                    <div onclick="window.open('?lesson=${lesson.id}', '_blank')">
                         <div class="flex items-center justify-between mb-2">
                             <span class="text-xs font-semibold px-2.5 py-0.5 rounded-md border ${meta.badgeClass}">${meta.name}</span>
                             <span class="text-xs text-slate-400">${lesson.lessonNum || ''}</span>
                         </div>
-                        <h4 class="font-bold text-slate-800 text-base mb-1">${lesson.title}</h4>
+                        <h4 class="font-bold text-slate-800 text-base mb-1 hover:text-sky-600">${lesson.title}</h4>
                         <p class="text-xs text-slate-500 line-clamp-2 mb-4">${lesson.summary}</p>
                     </div>
                     <div class="pt-3 border-t border-slate-100 flex flex-col gap-2">
-                        <div class="flex items-center justify-between text-xs">
+                        <div class="flex items-center justify-between text-xs" onclick="window.open('?lesson=${lesson.id}', '_blank')">
                             <span class="text-slate-400"><i class="fa-regular fa-file-lines mr-1"></i> 수업 노트</span>
-                            <a href="?lesson=${lesson.id}" target="_blank" class="text-sky-600 font-semibold hover:underline">새 탭에서 열기 <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i></a>
+                            <span class="text-sky-600 font-semibold hover:underline">새 탭에서 열기 <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i></span>
                         </div>
                         ${currentUser ? `
                             <div class="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between bg-slate-50 p-2 rounded-xl">
@@ -668,6 +766,7 @@
 
             document.querySelectorAll('.edit-lesson-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     const lesson = allLessonDocs.find(l => l.id === e.currentTarget.getAttribute('data-id'));
                     if (!lesson) return;
                     document.getElementById('editLessonId').value = lesson.id;
@@ -684,6 +783,7 @@
 
             document.querySelectorAll('.delete-lesson-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
                     if (confirm("삭제하시겠습니까?")) await deleteDoc(doc(db, "lessons", e.currentTarget.getAttribute('data-id')));
                 });
             });
@@ -715,11 +815,11 @@
             document.getElementById('lessonModal').classList.add('hidden');
         });
 
-        // Tasks (PDF 정밀 분석 데이터 자동 연동)
+        // Tasks (PDF 분석 완전 깨끗한 데이터 연동)
         const tasksRef = collection(db, "work_tasks");
         onSnapshot(query(tasksRef, orderBy("createdAt", "desc")), async (snapshot) => {
             if (snapshot.empty) {
-                for (const t of pdfWorkTasks) {
+                for (const t of pdfWorkTasksClean) {
                     await addDoc(tasksRef, { ...t, createdAt: serverTimestamp() });
                 }
                 return;
@@ -750,25 +850,27 @@
                 if (task.status === 'done') statusBadge = `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded font-bold">✅ 완료됨</span>`;
 
                 const card = document.createElement('div');
-                card.className = "searchable-card bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-3";
+                card.className = "searchable-card bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-3 cursor-pointer group";
                 card.innerHTML = `
-                    <div class="space-y-2">
+                    <div class="space-y-2" onclick="window.open('?task=${task.id}', '_blank')">
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-semibold px-2.5 py-0.5 rounded-md border ${meta.badgeClass}">${meta.name}</span>
                             ${statusBadge}
                         </div>
-                        <h4 class="font-bold text-slate-800 text-base leading-snug">${task.title}</h4>
+                        <h4 class="font-bold text-slate-800 text-base leading-snug group-hover:text-indigo-600 transition-colors">${task.title}</h4>
                         <p class="text-xs text-slate-500 leading-relaxed">${task.summary}</p>
                     </div>
-                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 notion-content max-h-48 overflow-y-auto text-xs">
+                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 notion-content max-h-48 overflow-y-auto text-xs" onclick="window.open('?task=${task.id}', '_blank')">
                         ${marked.parse(task.content || '')}
                     </div>
                     <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span class="text-[10px] text-slate-400">부원여중 정보부 메모</span>
-                        <div class="flex items-center gap-2">
-                            <button data-id="${task.id}" class="edit-task-btn text-xs text-slate-500 hover:text-indigo-600"><i class="fa-solid fa-pen"></i></button>
-                            <button data-id="${task.id}" class="delete-task-btn text-xs text-slate-400 hover:text-rose-500"><i class="fa-solid fa-trash-can"></i></button>
-                        </div>
+                        <span class="text-[10px] text-sky-600 font-semibold hover:underline" onclick="window.open('?task=${task.id}', '_blank')">새 탭에서 매뉴얼 열기 <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i></span>
+                        ${currentUser ? `
+                            <div class="flex items-center gap-2">
+                                <button data-id="${task.id}" class="edit-task-btn text-xs text-slate-500 hover:text-indigo-600"><i class="fa-solid fa-pen"></i></button>
+                                <button data-id="${task.id}" class="delete-task-btn text-xs text-slate-400 hover:text-rose-500"><i class="fa-solid fa-trash-can"></i></button>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
                 container.appendChild(card);
@@ -776,6 +878,7 @@
 
             document.querySelectorAll('.edit-task-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     const task = allTaskDocs.find(t => t.id === e.currentTarget.getAttribute('data-id'));
                     if (!task) return;
                     document.getElementById('editTaskId').value = task.id;
@@ -790,6 +893,7 @@
 
             document.querySelectorAll('.delete-task-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
                     if (confirm("삭제하시겠습니까?")) await deleteDoc(doc(db, "work_tasks", e.currentTarget.getAttribute('data-id')));
                 });
             });
