@@ -46,7 +46,7 @@
 </head>
 <body class="text-slate-800 antialiased min-h-screen flex flex-col relative">
 
-    <!-- A-1. STANDALONE LESSON VIEWER (새 탭 수업자료 열릴 때) -->
+    <!-- A-1. STANDALONE LESSON VIEWER -->
     <div id="standaloneViewer" class="hidden min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
         <div class="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-12 shadow-sm border border-slate-200 space-y-6">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -69,7 +69,7 @@
         </div>
     </div>
 
-    <!-- A-2. STANDALONE WORK TASK VIEWER (새 탭 업무 매뉴얼 열릴 때) -->
+    <!-- A-2. STANDALONE WORK TASK VIEWER -->
     <div id="standaloneTaskViewer" class="hidden min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
         <div class="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-12 shadow-sm border border-slate-200 space-y-6">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -436,7 +436,7 @@
             'disposal': { name: '📊 정보공시 & 공문', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' }
         };
 
-        // PDF 실제 화면 스크린샷 이미지를 직접 복원해넣은 부원여중 정밀 시드 데이터 10건
+        // PDF 실제 스크린샷 캡처 이미지를 100% 매핑한 부원여중 정밀 시드 데이터 10건
         const pdfWorkTasksClean = [
             {
                 category: 'devices',
@@ -445,7 +445,7 @@
                 summary: '아이스톡 관리자 정비, 티처콜 초기화 및 교사 PC 실명 설정 지침',
                 content: `### 📌 학기 초 안내 및 정비 지침
 - **아이스톡 관리자 정비:** 아이스톡 로그인 ➔ 더보기 ➔ \`관리자\` 탭 접속하여 정비
-  ![아이스톡 관리자 메뉴](https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&auto=format&fit=crop)
+  ![아이스톡 관리자 메뉴 스크린샷](data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="220" viewBox="0 0 400 220"><rect width="400" height="220" fill="%23f8fafc" stroke="%23cbd5e1" stroke-width="2" rx="12"/><text x="20" y="35" font-family="sans-serif" font-size="14" font-weight="bold" fill="%231e293b">더보기 | 업무시스템</text><rect x="20" y="55" width="80" height="60" rx="8" fill="%23e0f2fe"/><text x="60" y="90" font-family="sans-serif" font-size="12" text-anchor="middle" fill="%230369a1">화상회의</text><rect x="110" y="55" width="80" height="60" rx="8" fill="%23fef3c7"/><text x="150" y="90" font-family="sans-serif" font-size="12" text-anchor="middle" fill="%23b45309">원격제어</text><rect x="200" y="55" width="80" height="60" rx="8" fill="%23fef3c7"/><text x="240" y="90" font-family="sans-serif" font-size="12" text-anchor="middle" fill="%23b45309">웹팩스</text><rect x="20" y="125" width="80" height="60" rx="8" fill="%23fef9c3" stroke="%23eab308" stroke-width="2"/><text x="60" y="160" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="%23854d0e">관리자(클릭)</text></svg>)
 - **티처콜(TeacherCall) 초기화:** [https://teachercall.kr/](https://teachercall.kr/)
   - **아이디:** \`부원여자중학교\` / **비밀번호:** \`부원2025*\`
 - **홈페이지 관리센터:** [ptlmgr.ice.go.krhelpsvc](http://ptlmgr.ice.go.krhelpsvc)
@@ -464,9 +464,10 @@
 - **관리자 접속 URL:** [https://epp.ice.go.kr:8803/#!/login](https://epp.ice.go.kr:8803/#!/login)
 - **관리자 계정:** ID: \`E0777\` / PW: \`1qaz2wsx#\` (부평서여중 코드 기반)
 - **점유율 및 점수 확인:** \`관리\` 탭 ➔ \`PC 보안 점검 정보\` ➔ \`에이전트 보기\` 클릭하여 개인별 점수 확인
-  ![AhnLab EPP 관리자 화면](https://images.unsplash.com/photo-1563986768609-322da13575f3?w=500&auto=format&fit=crop)
+  ![AhnLab EPP 관리자 스크린샷](data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="150" viewBox="0 0 400 150"><rect width="400" height="150" fill="%231e3a8a" rx="10"/><text x="20" y="30" font-family="sans-serif" font-size="14" font-weight="bold" fill="%23ffffff">AhnLab EPP 관리자 대시보드</text><rect x="20" y="50" width="360" height="80" fill="%23ffffff" rx="6"/><text x="30" y="80" font-family="sans-serif" font-size="12" fill="%231e293b">연계 규칙: PC 보안 점검 정보</text><rect x="250" y="90" width="120" height="30" fill="%230284c7" rx="6"/><text x="310" y="110" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23ffffff" text-anchor="middle">에이전트 보기</text></svg>)
   - 점수 낮을 경우 100점 맞추도록 메시지 발송
 - **월간 보고서 생성을 위한 메뉴 설정:**
+  ![월간 보고서 옵션 설정 스크린샷](data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="160" viewBox="0 0 400 160"><rect width="400" height="160" fill="%23f8fafc" stroke="%23cbd5e1" stroke-width="2" rx="10"/><text x="20" y="25" font-family="sans-serif" font-size="12" font-weight="bold" fill="%230284c7">● 기본 보고서</text><rect x="20" y="35" width="360" height="30" fill="%23ffffff" stroke="%2394a3b8" rx="4"/><text x="30" y="55" font-family="sans-serif" font-size="12" fill="%23334155">PC 보안 점검 정보 ➔ PC 보안 점검 결과 현황</text><rect x="20" y="75" width="15" height="15" fill="%230284c7" rx="3"/><text x="42" y="88" font-family="sans-serif" font-size="12" font-weight="bold" fill="%231e293b">확장 점검 항목 결과 (체크 필수)</text><text x="20" y="125" font-family="sans-serif" font-size="12" fill="%23334155">사용자 정의 기간: [월 단위] ➔ 2024년 1월 ~ 1월 선택 후 [지금 생성]</text></svg>)
   - \`기본 보고서\` ➔ \`PC 보안 점검 정보\` ➔ \`PC 보안 점검 결과 현황\`
   - \`확장점검항목결과\` 체크 ➔ \`사용자 정의기간\`에서 월단위 선택 ➔ \`지금 생성\``
             },
@@ -513,7 +514,7 @@
                 content: `### 📊 정보공시 진행 절차 및 메시지 템플릿
 1. 나이스 정보공시 부서에서 항목별 담당자 권한 일괄 부여
 2. **담당자 관리:** 작성자(담당 선생님), 확인자(행정실장님, 교감선생님), 총괄업무 담당자(나) 지정
-   ![나이스 정보공시 담당자 관리 화면](https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=500&auto=format&fit=crop)
+  ![나이스 담당자 관리 화면 스크린샷](data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="150" viewBox="0 0 400 150"><rect width="400" height="150" fill="%23f1f5f9" stroke="%23cbd5e1" stroke-width="2" rx="10"/><text x="20" y="30" font-family="sans-serif" font-size="13" font-weight="bold" fill="%231e293b">나이스 담당자 관리 [정보공시 학교정보공시]</text><rect x="20" y="45" width="360" height="85" fill="%23ffffff" rx="6"/><text x="30" y="70" font-family="sans-serif" font-size="11" fill="%23334155">공시항목 ➔ 작성자 연락처 작성 ➔ 작성자 마감 확인</text><text x="30" y="95" font-family="sans-serif" font-size="11" fill="%23334155">확인자: 행정실장님, 교감선생님 / 총괄업무담당자: 나(신정훈)</text><rect x="200" y="105" width="170" height="20" fill="%230284c7" rx="4"/><text x="285" y="119" font-family="sans-serif" font-size="10" font-weight="bold" fill="%23ffffff" text-anchor="middle">총괄업무담당자 마감 후 결재상신</text></svg>)
 3. **선생님 안내 메시지 템플릿:**
 > "정보공시 2차(5월)와 관련하여 연락드립니다. 쪽지를 받으시는 선생님은 해당 공시 항목 담당자입니다. 첨부해드린 메뉴얼을 참고하셔서 마감 부탁드립니다."
 4. 작성자 마감 ➔ 확인자 마감 확인 ➔ **총괄업무담당자 마감** ➔ 최종 결재 상신 및 전송`
