@@ -501,7 +501,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">부원여중 학교코드</label>
-                        <input type="text" id="neisSchoolCodeInput" value="E100000171" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
+                        <input type="text" id="neisSchoolCodeInput" value="7310058" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
                     </div>
                 </div>
             </div>
@@ -935,9 +935,10 @@
             }
         });
 
-        // 🍱 [NEIS API 및 교무실 기능 구현]
-        const defaultNeisKey = localStorage.getItem('neis_api_key') || '';
-        const defaultSchoolCode = localStorage.getItem('neis_school_code') || 'E100000171'; // 부원여중 코드
+        // 🍱 [NEIS API 및 교무실 기능 연동 - 수정 적용된 부분]
+        // 발급받으신 인증키와 부원여중의 정확한 행정 학교코드(7310058) 연동
+        const defaultNeisKey = localStorage.getItem('neis_api_key') || 'eef66f5e27514000a29ff08ba4060cd7';
+        const defaultSchoolCode = localStorage.getItem('neis_school_code') || '7310058'; // 부원여중 정확한 나이스 학교코드
         const officeCode = 'E10'; // 인천광역시교육청
 
         // 오늘 날짜 YYYY-MM-DD
@@ -961,8 +962,10 @@
             mealBox.textContent = '';
             calBox.textContent = '';
 
-            const keyParam = defaultNeisKey ? `&KEY=${defaultNeisKey}` : '';
-            const url = `https://open.neis.go.kr/hub/mealServiceDietInfo?Type=json&pIndex=1&pSize=5&ATPT_OFCDC_SC_CODE=${officeCode}&SD_SCHUL_CODE=${defaultSchoolCode}&MLSV_YMD=${dateYmd}${keyParam}`;
+            const currentKey = localStorage.getItem('neis_api_key') || defaultNeisKey;
+            const currentSchoolCode = localStorage.getItem('neis_school_code') || defaultSchoolCode;
+
+            const url = `https://open.neis.go.kr/hub/mealServiceDietInfo?KEY=${currentKey}&Type=json&pIndex=1&pSize=5&ATPT_OFCDC_SC_CODE=${officeCode}&SD_SCHUL_CODE=${currentSchoolCode}&MLSV_YMD=${dateYmd}`;
 
             try {
                 const res = await fetch(url);
@@ -992,19 +995,22 @@
             loading.classList.remove('hidden');
             container.innerHTML = '';
 
-            const keyParam = defaultNeisKey ? `&KEY=${defaultNeisKey}` : '';
-            const url = `https://open.neis.go.kr/hub/misTimetable?Type=json&pIndex=1&pSize=15&ATPT_OFCDC_SC_CODE=${officeCode}&SD_SCHUL_CODE=${defaultSchoolCode}&ALL_TI_YMD=${dateYmd}&GRADE=${grade}&CLASS_NM=${classNm}${keyParam}`;
+            const currentKey = localStorage.getItem('neis_api_key') || defaultNeisKey;
+            const currentSchoolCode = localStorage.getItem('neis_school_code') || defaultSchoolCode;
+
+            const url = `https://open.neis.go.kr/hub/hisTimetable?KEY=${currentKey}&Type=json&pIndex=1&pSize=15&ATPT_OFCDC_SC_CODE=${officeCode}&SD_SCHUL_CODE=${currentSchoolCode}&ALL_TI_YMD=${dateYmd}&GRADE=${grade}&CLASS_NM=${classNm}`;
 
             try {
                 const res = await fetch(url);
                 const data = await res.json();
                 loading.classList.add('hidden');
 
-                if (data.misTimetable && data.misTimetable[1]?.row?.length > 0) {
-                    const rows = data.misTimetable[1].row;
-                    rows.sort((a, b) => parseInt(a.PERIO) - parseInt(b.PERIO));
+                const timetableRows = data.hisTimetable ? data.hisTimetable[1]?.row : (data.misTimetable ? data.misTimetable[1]?.row : null);
 
-                    rows.forEach(r => {
+                if (timetableRows && timetableRows.length > 0) {
+                    timetableRows.sort((a, b) => parseInt(a.PERIO) - parseInt(b.PERIO));
+
+                    timetableRows.forEach(r => {
                         const card = document.createElement('div');
                         card.className = "bg-sky-50/70 border border-sky-100 rounded-2xl p-3 text-center space-y-1 shadow-sm";
                         card.innerHTML = `
@@ -1014,7 +1020,7 @@
                         container.appendChild(card);
                     });
                 } else {
-                    container.innerHTML = `<p class="col-span-full text-center py-8 text-xs text-slate-400">당일 시간표 정보가 없거나 휴업일입니다.</p>`;
+                    container.innerHTML = `<p class="col-span-full text-center py-8 text-xs text-slate-400">당일 시간표 정보가 없거나 주말/휴업일입니다.</p>`;
                 }
             } catch (err) {
                 loading.classList.add('hidden');
@@ -1097,8 +1103,8 @@
         // NEIS 설정 모달
         const neisConfigModal = document.getElementById('neisConfigModal');
         document.getElementById('openNeisConfigModalBtn')?.addEventListener('click', () => {
-            document.getElementById('neisApiKeyInput').value = localStorage.getItem('neis_api_key') || '';
-            document.getElementById('neisSchoolCodeInput').value = localStorage.getItem('neis_school_code') || 'E100000171';
+            document.getElementById('neisApiKeyInput').value = localStorage.getItem('neis_api_key') || defaultNeisKey;
+            document.getElementById('neisSchoolCodeInput').value = localStorage.getItem('neis_school_code') || defaultSchoolCode;
             neisConfigModal.classList.remove('hidden');
         });
         document.getElementById('closeNeisConfigModalBtn')?.addEventListener('click', () => neisConfigModal.classList.add('hidden'));
@@ -1110,6 +1116,7 @@
             localStorage.setItem('neis_school_code', codeVal);
             neisConfigModal.classList.add('hidden');
             alert("NEIS API 설정이 저장되었습니다. 데이터를 다시 조회해 보세요!");
+            fetchNeisMeal(todayYmd);
         });
 
         // 첫 진입 시 급식 기본 조회
@@ -1258,12 +1265,6 @@
         // Tasks 실시간 동기화
         const tasksRef = collection(db, "work_tasks");
         onSnapshot(query(tasksRef, orderBy("createdAt", "desc")), async (snapshot) => {
-            if (snapshot.empty) {
-                for (const t of pdfWorkTasksClean) {
-                    await addDoc(tasksRef, { ...t, createdAt: serverTimestamp() });
-                }
-                return;
-            }
             allTaskDocs = [];
             snapshot.forEach(docSnap => allTaskDocs.push({ id: docSnap.id, ...docSnap.data() }));
             renderTasks();
