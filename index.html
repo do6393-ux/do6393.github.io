@@ -276,7 +276,6 @@
                             <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">정보기획 & 교육정보화 지원 업무 관제탑</h2>
                             <p class="text-slate-300 text-xs sm:text-sm max-w-xl">신정훈 선생님의 실제 업무 노션/PDF 기반 수시 지침, 계정 정보, 공문 작성 양식 및 메시지 템플릿 모음</p>
                         </div>
-                        <!-- 교사 로그인 시에만 노출되는 추가 버튼 -->
                         <button id="openNewTaskModalBtn" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-lg transition-all flex items-center gap-2 whitespace-nowrap">
                             <i class="fa-solid fa-plus-circle text-base"></i> 새 업무/매뉴얼 추가
                         </button>
@@ -290,7 +289,10 @@
                 </div>
 
                 <div id="workMainDashboard" class="space-y-6">
-                    <div class="flex flex-wrap gap-2" id="taskCategoryFilter">
+                    <div class="flex flex-wrap gap-2 items-center" id="taskCategoryFilter">
+                        <button id="addCategoryBtn" class="hidden text-xs font-bold px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all flex items-center gap-1">
+                            <i class="fa-solid fa-folder-plus"></i> 카테고리 추가
+                        </button>
                         <button class="task-filter-btn active text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-800 text-white shadow-sm" data-workcat="all">전체 업무</button>
                         <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-workcat="devices">💻 아이스톡 & 사이트계정</button>
                         <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-workcat="network">🌐 네트워크 & 서버실</button>
@@ -428,7 +430,7 @@
             'unit5': { name: '5단원. 디지털 문화', badgeClass: 'bg-amber-50 text-amber-600 border-amber-200' }
         };
 
-        const workCatMeta = {
+        let workCatMeta = {
             'devices': { name: '💻 아이스톡 & 계정', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
             'network': { name: '🌐 네트워크 & 서버', badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
             'privacy': { name: '🛡️ 내PC지키미 보안', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' },
@@ -436,7 +438,7 @@
             'disposal': { name: '📊 정보공시 & 공문', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' }
         };
 
-        // PDF 실제 스크린샷 캡처 이미지를 100% 매핑한 부원여중 정밀 시드 데이터 10건
+        // PDF 실제 화면 스크린샷 5종이 포함된 정밀 데이터 10건 (AI 문구 전체 제거)
         const pdfWorkTasksClean = [
             {
                 category: 'devices',
@@ -680,7 +682,8 @@
                 document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
                 document.getElementById('teacherEditNoticeBtn')?.classList.remove('hidden');
                 document.getElementById('openNewLessonModalBtn')?.classList.remove('hidden');
-                document.getElementById('openNewTaskModalBtn')?.classList.remove('hidden'); // 교사만 추가 버튼 노출
+                document.getElementById('openNewTaskModalBtn')?.classList.remove('hidden');
+                document.getElementById('addCategoryBtn')?.classList.remove('hidden');
                 document.getElementById('workAccessDeniedState')?.classList.add('hidden');
                 document.getElementById('workMainDashboard')?.classList.remove('hidden');
             } else {
@@ -690,7 +693,8 @@
                 document.getElementById('openLoginModalBtn').addEventListener('click', () => loginModal.classList.remove('hidden'));
                 document.getElementById('teacherEditNoticeBtn')?.classList.add('hidden');
                 document.getElementById('openNewLessonModalBtn')?.classList.add('hidden');
-                document.getElementById('openNewTaskModalBtn')?.classList.add('hidden'); // 비로그인시 완전히 숨김
+                document.getElementById('openNewTaskModalBtn')?.classList.add('hidden');
+                document.getElementById('addCategoryBtn')?.classList.add('hidden');
                 document.getElementById('workAccessDeniedState')?.classList.remove('hidden');
                 document.getElementById('workMainDashboard')?.classList.add('hidden');
             }
@@ -816,7 +820,40 @@
             document.getElementById('lessonModal').classList.add('hidden');
         });
 
-        // Tasks (PDF 분석 완전 깨끗한 데이터 연동)
+        // Dynamic Category Adding Logic
+        document.getElementById('addCategoryBtn')?.addEventListener('click', () => {
+            const catName = prompt("새로 추가할 카테고리 이름을 입력하세요 (예: 📋 신학기 준비):");
+            if (!catName || !catName.trim()) return;
+
+            const catId = 'cat_' + Date.now();
+            workCatMeta[catId] = { name: catName.trim(), badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+
+            const filterContainer = document.getElementById('taskCategoryFilter');
+            const newBtn = document.createElement('button');
+            newBtn.className = 'task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200';
+            newBtn.setAttribute('data-workcat', catId);
+            newBtn.textContent = catName.trim();
+            newBtn.addEventListener('click', () => {
+                document.querySelectorAll('.task-filter-btn').forEach(b => {
+                    b.classList.remove('bg-slate-800', 'text-white');
+                    b.classList.add('bg-white', 'text-slate-600');
+                });
+                newBtn.classList.add('bg-slate-800', 'text-white');
+                currentWorkCategory = catId;
+                renderTasks();
+            });
+            filterContainer.appendChild(newBtn);
+
+            const selectEl = document.getElementById('taskCatSelect');
+            const opt = document.createElement('option');
+            opt.value = catId;
+            opt.textContent = catName.trim();
+            selectEl.appendChild(opt);
+
+            alert(`'${catName}' 카테고리가 새로 추가되었습니다!`);
+        });
+
+        // Tasks
         const tasksRef = collection(db, "work_tasks");
         onSnapshot(query(tasksRef, orderBy("createdAt", "desc")), async (snapshot) => {
             if (snapshot.empty) {
