@@ -131,6 +131,7 @@
                         </div>
                     </div>
 
+                    <!-- 3대 메인 탭 내비게이션 -->
                     <nav class="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 ml-4">
                         <button id="navTabClass" class="nav-tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-sky-700 shadow-sm transition-all flex items-center gap-1.5">
                             <i class="fa-solid fa-graduation-cap"></i> 정보 수업
@@ -333,11 +334,12 @@
                 <section class="bg-gradient-to-r from-teal-700 via-sky-800 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
                     <div class="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6">
                         <div class="space-y-1.5 text-center sm:text-left">
-                            <span class="bg-white/20 text-teal-100 text-xs px-3 py-1 rounded-full font-bold backdrop-blur-sm">
-                                🍱 NEIS & 컴시간 일과 알리미 교무실
+                            <span class="bg-white/20 text-teal-100 text-xs px-3 py-1 rounded-full font-bold backdrop-blur-sm flex items-center gap-2 inline-flex">
+                                🍱 컴시간 알리미 자동 수집 연동
+                                <span id="syncBadgeHeader" class="text-[10px] bg-emerald-500 text-white px-2 py-0.5 rounded-full font-bold">동기화 대기</span>
                             </span>
                             <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">부원여중 실시간 일과·시간표 & 급식</h2>
-                            <p class="text-teal-100 text-xs sm:text-sm">타이틀에서 교사 및 주차를 직접 클릭하여 변경하고, 학급별 나이스 실제 시간표와 급식을 확인하세요.</p>
+                            <p class="text-teal-100 text-xs sm:text-sm">타이틀을 클릭하여 교사와 주차를 즉시 변경할 수 있습니다.</p>
                         </div>
                         <div class="flex items-center gap-2">
                             <a href="http://comci.net:4082/st" target="_blank" class="bg-white/20 hover:bg-white/30 text-white font-semibold text-xs px-3.5 py-2.5 rounded-2xl border border-white/30 transition-all flex items-center gap-1.5">
@@ -360,12 +362,11 @@
                 <!-- 교무실 메인 GUI -->
                 <div id="officeMainDashboard" class="space-y-8">
                     
-                    <!-- 1️⃣ [최상단] 교사별 시간표 (사용자 요청: 타이틀에서 교사명 및 주차 직접 클릭 변경) -->
+                    <!-- 1️⃣ [최상단] 교사별 시간표 (컴시간 실시간 수집 데이터 연동) -->
                     <div class="bg-white rounded-3xl border border-slate-200 p-5 sm:p-7 shadow-sm space-y-4">
                         <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span class="w-2.5 h-6 bg-indigo-600 rounded-full"></span>
-                                <!-- 사용자 요청 타이틀: 교사명 누르면 교사변경, 주차 누르면 주차변경 -->
                                 <h3 class="font-bold text-slate-800 text-base sm:text-lg flex items-center gap-1 flex-wrap">
                                     <span id="titleTeacherNameBtn" class="cursor-pointer underline decoration-dotted decoration-indigo-500 hover:text-indigo-600 transition-colors" title="클릭하여 교사 변경">신정훈(32)</span>
                                     <span>시간표</span>
@@ -373,6 +374,7 @@
                                 </h3>
                             </div>
                             <div class="flex items-center gap-3 text-xs">
+                                <span id="teacherSyncStatusBadge" class="text-[11px] text-emerald-600 font-bold"><i class="fa-solid fa-cloud-arrow-down mr-1"></i>컴시간 연동</span>
                                 <button id="saveTeacherTimetableBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow transition-all flex items-center gap-1">
                                     <i class="fa-solid fa-floppy-disk"></i> 저장
                                 </button>
@@ -400,10 +402,10 @@
                         </div>
                     </div>
 
-                    <!-- 2️⃣ [중간] 학급별 시간표 (NEIS API 실시간 연동) & 3️⃣ [하단] 오늘의 급식 -->
+                    <!-- 2️⃣ [중간] 학급별 시간표 (컴시간 크롤링 실시간 연동) & 3️⃣ [하단] 오늘의 급식 -->
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                         
-                        <!-- 학급별 시간표 (NEIS 실제 API 호출) -->
+                        <!-- 학급별 시간표 -->
                         <div class="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-5 sm:p-7 shadow-sm space-y-4">
                             <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
                                 <div class="flex items-center gap-2">
@@ -411,10 +413,10 @@
                                     <h3 class="font-bold text-slate-800 text-base sm:text-lg flex items-center gap-1">
                                         <span>제</span>
                                         <span id="titleClassNameBtn" class="cursor-pointer text-sky-700 bg-sky-50 hover:bg-sky-100 px-2 py-0.5 rounded-lg border border-sky-200 transition-all font-bold" title="클릭하여 학급 변경">1학년 7반</span>
-                                        <span>시간표 (나이스 API 실시간)</span>
+                                        <span>시간표</span>
                                     </h3>
                                 </div>
-                                <span id="neisStatusNotice" class="text-xs text-sky-600 font-semibold"><i class="fa-solid fa-cloud-arrow-down mr-1"></i>NEIS 실시간 연동 중</span>
+                                <span id="classSyncStatusBadge" class="text-xs text-sky-600 font-semibold"><i class="fa-solid fa-cloud-arrow-down mr-1"></i>컴시간 실시간 수집</span>
                             </div>
 
                             <div class="overflow-x-auto border border-slate-200 rounded-2xl">
@@ -434,7 +436,7 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <p id="classTimetableMsg" class="text-xs text-slate-400 text-right">나이스 교육정보개방포털(open.neis.go.kr) misTimetable 연동</p>
+                            <p id="classTimetableMsg" class="text-xs text-slate-400 text-right">부원여자중학교 컴시간 알리미 자동 수집 데이터</p>
                         </div>
 
                         <!-- 오늘의 급식 -->
@@ -766,12 +768,12 @@
         mobileNavTabOffice?.addEventListener('click', () => switchTab('office'));
 
         // ==========================================
-        // 🍱 [NEIS 급식 & 주차별 시간표 시스템]
+        // 🍱 [NEIS 급식 & 컴시간 크롤링 연동 시간표 시스템]
         // ==========================================
         const officeCode = 'E10'; // 인천광역시교육청
         const buwonSchoolCode = '7331057'; // 부원여자중학교 나이스 표준코드
 
-        // 오늘 날짜
+        // 날짜 세팅
         const today = new Date();
         const yyyy = today.getFullYear();
         const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -820,7 +822,7 @@
             fetchNeisMeal(d || todayYmd);
         });
 
-        // 2. 주차별 데이터 (2024~2026 연동 계산 지원 구조)
+        // 2. 주차별 데이터
         const weeksData = [
             { week: 9,  range: '10-12 ~ 10-17', fromYmd: '20241012', toYmd: '20241016', dates: ['월(12)', '화(13)', '수(14)', '목(15)', '금(16)'] },
             { week: 10, range: '10-19 ~ 10-24', fromYmd: '20241019', toYmd: '20241023', dates: ['월(19)', '화(20)', '수(21)', '목(22)', '금(23)'], current: true },
@@ -853,14 +855,28 @@
         let activeClassSchedule = {};
 
         function initOfficeTimetables() {
-            renderTeacherScheduleGrid();
-            fetchNeisClassTimetableWeek();
+            updateHeaderTitles();
+            fetchComciganSyncStatus();
+            loadTeacherTimetableReal();
+            loadClassTimetableReal();
+        }
+
+        // 컴시간 수집 상태 모니터링 배지 갱신
+        async function fetchComciganSyncStatus() {
+            try {
+                const snap = await getDoc(doc(db, "timetable_meta", "sync_status"));
+                if (snap.exists()) {
+                    const data = snap.data();
+                    const d = new Date(data.lastSyncedAt);
+                    const timeStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                    document.getElementById('syncBadgeHeader').textContent = `동기화 완료 (${timeStr})`;
+                }
+            } catch (err) {}
         }
 
         // ==========================================
         // 🎯 [사용자 요청] 헤더 타이틀 클릭 시 변경 팝업
         // ==========================================
-        // 1) 교사명 클릭 -> 교사 변경 모달 오픈
         document.getElementById('titleTeacherNameBtn')?.addEventListener('click', () => {
             const modal = document.getElementById('teacherSelectModal');
             const list = document.getElementById('modalTeacherList');
@@ -874,7 +890,7 @@
                     selectedTeacher = t;
                     modal.classList.add('hidden');
                     updateHeaderTitles();
-                    renderTeacherScheduleGrid();
+                    loadTeacherTimetableReal();
                 };
                 list.appendChild(btn);
             });
@@ -885,7 +901,6 @@
             document.getElementById('teacherSelectModal').classList.add('hidden');
         });
 
-        // 2) 주차 클릭 -> 주차 변경 모달 오픈 (이전주/다음주 완벽 이동)
         document.getElementById('titleWeekRangeBtn')?.addEventListener('click', () => {
             const modal = document.getElementById('weekSelectModal');
             const list = document.getElementById('modalWeekList');
@@ -899,8 +914,8 @@
                     selectedWeekObj = w;
                     modal.classList.add('hidden');
                     updateHeaderTitles();
-                    renderTeacherScheduleGrid();
-                    fetchNeisClassTimetableWeek(); // 학급 시간표도 해당 주차로 나이스 재호출
+                    loadTeacherTimetableReal();
+                    loadClassTimetableReal();
                 };
                 list.appendChild(btn);
             });
@@ -911,7 +926,6 @@
             document.getElementById('weekSelectModal').classList.add('hidden');
         });
 
-        // 3) 학급명 클릭 -> 학급 변경 모달 오픈
         document.getElementById('titleClassNameBtn')?.addEventListener('click', () => {
             const modal = document.getElementById('classSelectModal');
             const list = document.getElementById('modalClassList');
@@ -928,7 +942,7 @@
                         selectedClassNum = c;
                         modal.classList.add('hidden');
                         updateHeaderTitles();
-                        fetchNeisClassTimetableWeek();
+                        loadClassTimetableReal();
                     };
                     list.appendChild(btn);
                 }
@@ -947,34 +961,49 @@
         }
 
         // ==========================================
-        // 1️⃣ 교사별 시간표 렌더링 (더미데이터 완전 제거 및 Firebase 실시간 연동)
+        // 1️⃣ 교사별 시간표 로드 (컴시간 GitHub Actions 수집 데이터 우선 연동)
         // ==========================================
-        async function renderTeacherScheduleGrid() {
+        async function loadTeacherTimetableReal() {
             const tbody = document.getElementById('teacherTimetableGridBody');
             const thRow = document.getElementById('teacherThRow');
             if (!tbody || !thRow) return;
 
-            // 헤더 날짜
             let thHtml = `<th class="py-2.5 px-2 w-16 border-r border-slate-200">교시</th>`;
             selectedWeekObj.dates.forEach(d => {
                 thHtml += `<th class="py-2.5 px-2 border-r border-slate-200">${d}</th>`;
             });
             thRow.innerHTML = thHtml;
 
-            // 교사 시간표 데이터 로드 (Firebase에서 주차별로 불러옴. 없으면 깨끗하게 빈 상태로 유지)
-            const weekKey = `tt_teacher_${selectedWeekObj.week}_${selectedTeacher.id}`;
+            // 1) 컴시간이 오늘 수집한 최신 데이터 키
+            const currentCrawlerKey = selectedTeacher.name.includes('신정') ? 'tt_teacher_current_32' : `tt_teacher_${encodeURIComponent(selectedTeacher.name)}`;
+            // 2) 주차별 저장 데이터 키
+            const weekSavedKey = `tt_teacher_${selectedWeekObj.week}_${selectedTeacher.id}`;
+
             try {
-                const snap = await getDoc(doc(db, "timetable_schedules", weekKey));
+                // 주차별 저장본 우선 조회 -> 없으면 컴시간 최신 크롤링 데이터 조회
+                let snap = await getDoc(doc(db, "timetable_schedules", weekSavedKey));
                 if (snap.exists()) {
                     activeTeacherSchedule = snap.data().schedule || {};
                 } else {
-                    activeTeacherSchedule = {}; // 더미데이터를 넣지 않고 비워둠
+                    snap = await getDoc(doc(db, "timetable_schedules", currentCrawlerKey));
+                    if (snap.exists()) {
+                        activeTeacherSchedule = snap.data().schedule || {};
+                    } else {
+                        activeTeacherSchedule = {}; // 가짜 예시 더미데이터 배제
+                    }
                 }
             } catch (err) {
                 activeTeacherSchedule = {};
             }
 
+            renderTeacherScheduleGrid();
+        }
+
+        function renderTeacherScheduleGrid() {
+            const tbody = document.getElementById('teacherTimetableGridBody');
+            if (!tbody) return;
             tbody.innerHTML = '';
+
             for (let p = 1; p <= 7; p++) {
                 const tr = document.createElement('tr');
                 tr.className = "border-b border-slate-200";
@@ -1008,7 +1037,6 @@
                 tbody.appendChild(tr);
             }
 
-            // 셀 클릭 수정 이벤트
             document.querySelectorAll('.tt-teacher-cell').forEach(td => {
                 td.onclick = () => {
                     if (!currentUser) return alert("시간표를 변경하려면 교사 로그인이 필요합니다.");
@@ -1031,7 +1059,7 @@
             });
         }
 
-        // 교사 시간표 저장
+        // 교사 시간표 Firebase 저장
         document.getElementById('saveTeacherTimetableBtn')?.addEventListener('click', async () => {
             if (!currentUser) return alert("교사 로그인이 필요합니다.");
             const weekKey = `tt_teacher_${selectedWeekObj.week}_${selectedTeacher.id}`;
@@ -1050,64 +1078,49 @@
         });
 
         // ==========================================
-        // 2️⃣ 학급별 시간표 (NEIS API 실시간 호출, 가짜 데이터 없음)
+        // 2️⃣ 학급별 시간표 로드 (컴시간 크롤링 실시간 연동)
         // ==========================================
-        async function fetchNeisClassTimetableWeek() {
+        async function loadClassTimetableReal() {
             const tbody = document.getElementById('classTimetableGridBody');
             const thRow = document.getElementById('classThRow');
-            const statusNotice = document.getElementById('neisStatusNotice');
+            const statusNotice = document.getElementById('classSyncStatusBadge');
             const msgEl = document.getElementById('classTimetableMsg');
-            const apiKey = localStorage.getItem('neis_api_key') || '';
 
             if (!tbody || !thRow) return;
 
-            // 헤더 날짜 동기화
             let thHtml = `<th class="py-2.5 px-2 w-16 border-r border-slate-200">교시</th>`;
             selectedWeekObj.dates.forEach(d => {
                 thHtml += `<th class="py-2.5 px-2 border-r border-slate-200">${d}</th>`;
             });
             thRow.innerHTML = thHtml;
 
-            statusNotice.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i>나이스 시간표 수신 중...`;
-
-            const keyParam = apiKey ? `&KEY=${apiKey}` : '';
-            // 주간 기간(TI_FROM_YMD ~ TI_TO_YMD)으로 호출
-            const url = `https://open.neis.go.kr/hub/misTimetable?Type=json&pIndex=1&pSize=100&ATPT_OFCDC_SC_CODE=${officeCode}&SD_SCHUL_CODE=${buwonSchoolCode}&GRADE=${selectedGrade}&CLASS_NM=${selectedClassNum}&TI_FROM_YMD=${selectedWeekObj.fromYmd}&TI_TO_YMD=${selectedWeekObj.toYmd}${keyParam}`;
-
-            let neisDataMap = {};
-            let hasRealData = false;
+            // 크롤러가 저장한 문서 키
+            const classCurrentKey = `tt_class_current_${selectedGrade}-${selectedClassNum}`;
 
             try {
-                const res = await fetch(url);
-                const data = await res.json();
-
-                if (data.misTimetable && data.misTimetable[1]?.row?.length > 0) {
-                    hasRealData = true;
-                    statusNotice.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i>NEIS 데이터 수신 완료`;
-                    msgEl.textContent = `부원여자중학교 ${selectedGrade}학년 ${selectedClassNum}반 나이스 공식 정규 시간표`;
-
-                    data.misTimetable[1].row.forEach(r => {
-                        const dateStr = r.ALL_TI_YMD; // YYYYMMDD
-                        const perio = parseInt(r.PERIO);
-                        const subject = r.ITRT_CNTNT || '';
-
-                        // 월~금 인덱스 계산
-                        const dayIndex = getDayIndexFromYmd(dateStr);
-                        if (dayIndex >= 0 && dayIndex < 5 && perio >= 1 && perio <= 7) {
-                            neisDataMap[`${perio}_${dayIndex}`] = subject;
-                        }
-                    });
+                const snap = await getDoc(doc(db, "timetable_schedules", classCurrentKey));
+                if (snap.exists()) {
+                    activeClassSchedule = snap.data().schedule || {};
+                    statusNotice.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i>컴시간 연동 완료`;
+                    msgEl.textContent = `부원여자중학교 ${selectedGrade}학년 ${selectedClassNum}반 컴시간 실시간 시간표`;
                 } else {
-                    statusNotice.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-500 mr-1"></i>나이스 데이터 없음`;
-                    msgEl.textContent = `해당 주차(${selectedWeekObj.range})는 나이스에 등록된 정규 시간표가 없습니다 (휴업일 또는 미등록 기간). 더미데이터를 표시하지 않습니다.`;
+                    activeClassSchedule = {};
+                    statusNotice.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-500 mr-1"></i>데이터 없음`;
+                    msgEl.textContent = `해당 반의 컴시간 수집 데이터가 없습니다. GitHub Actions를 실행해 주세요.`;
                 }
             } catch (err) {
-                statusNotice.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-500 mr-1"></i>나이스 호출 실패`;
-                msgEl.textContent = `나이스 오픈 API 통신 오류. 인증키 또는 네트워크를 확인하세요.`;
+                activeClassSchedule = {};
+                statusNotice.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-500 mr-1"></i>로드 오류`;
             }
 
-            // 테이블 렌더링 (나이스에서 받아온 실제 과목명만 채우고 없으면 빈칸)
+            renderClassScheduleGrid();
+        }
+
+        function renderClassScheduleGrid() {
+            const tbody = document.getElementById('classTimetableGridBody');
+            if (!tbody) return;
             tbody.innerHTML = '';
+
             for (let p = 1; p <= 7; p++) {
                 const tr = document.createElement('tr');
                 tr.className = "border-b border-slate-200";
@@ -1124,26 +1137,22 @@
                 let rowHtml = `<td class="py-2.5 px-1 text-slate-500 font-bold bg-slate-50 border-r border-slate-200 text-xs">${periodLabel}</td>`;
 
                 for (let d = 0; d < 5; d++) {
-                    const subject = neisDataMap[`${p}_${d}`] || '';
+                    const cellKey = `${p}_${d}`;
+                    const cell = activeClassSchedule[cellKey] || { text: '', type: 'normal' };
+
+                    let styleClass = 'tt-cell-normal';
+                    if (cell.type === 'red') styleClass = 'tt-cell-changed-red';
+                    if (cell.type === 'green') styleClass = 'tt-cell-changed-green';
+
                     rowHtml += `
-                        <td class="p-2 border-r border-slate-200 bg-white">
-                            <span class="block font-bold text-xs sm:text-sm text-slate-800">${subject}</span>
+                        <td class="p-2 border-r border-slate-200 ${styleClass}">
+                            <span class="block font-bold text-xs sm:text-sm">${cell.text || ''}</span>
                         </td>
                     `;
                 }
                 tr.innerHTML = rowHtml;
                 tbody.appendChild(tr);
             }
-        }
-
-        // 날짜 문자열(YYYYMMDD)을 주간 월(0)~금(4) 인덱스로 변환하는 헬퍼
-        function getDayIndexFromYmd(ymd) {
-            const y = parseInt(ymd.substring(0, 4));
-            const m = parseInt(ymd.substring(4, 6)) - 1;
-            const d = parseInt(ymd.substring(6, 8));
-            const dt = new Date(y, m, d);
-            const day = dt.getDay(); // 1=월, 2=화, 3=수, 4=목, 5=금
-            return day - 1;
         }
 
         // NEIS 설정 모달
@@ -1158,9 +1167,8 @@
             const keyVal = document.getElementById('neisApiKeyInput').value.trim();
             localStorage.setItem('neis_api_key', keyVal);
             neisConfigModal.classList.add('hidden');
-            alert("NEIS API 설정이 저장되었습니다. 실제 나이스 데이터를 다시 불러옵니다.");
+            alert("NEIS API 설정이 저장되었습니다. 급식을 다시 조회합니다.");
             fetchNeisMeal(todayYmd);
-            fetchNeisClassTimetableWeek();
         });
 
         // 초기 로드
@@ -1337,11 +1345,11 @@
                 
                 let statusBadgeHtml = '';
                 if (task.status === 'doing') {
-                    statusBadgeHtml = `<button data-id="${task.id}" data-status="doing" class="status-toggle-btn bg-sky-100 hover:bg-sky-200 text-sky-800 text-[10px] px-2.5 py-1 rounded-md font-bold transition-all shadow-sm flex items-center gap-1" title="클릭하면 다음 상태로 변경됩니다">🚀 진행중 <i class="fa-solid fa-arrows-rotate text-[8px]"></i></button>`;
+                    statusBadgeHtml = `<button data-id="${task.id}" data-status="doing" class="status-toggle-btn bg-sky-100 hover:bg-sky-200 text-sky-800 text-[10px] px-2.5 py-1 rounded-md font-bold transition-all shadow-sm flex items-center gap-1">🚀 진행중 <i class="fa-solid fa-arrows-rotate text-[8px]"></i></button>`;
                 } else if (task.status === 'done') {
-                    statusBadgeHtml = `<button data-id="${task.id}" data-status="done" class="status-toggle-btn bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] px-2.5 py-1 rounded-md font-bold transition-all shadow-sm flex items-center gap-1" title="클릭하면 다음 상태로 변경됩니다">✅ 완료됨 <i class="fa-solid fa-arrows-rotate text-[8px]"></i></button>`;
+                    statusBadgeHtml = `<button data-id="${task.id}" data-status="done" class="status-toggle-btn bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] px-2.5 py-1 rounded-md font-bold transition-all shadow-sm flex items-center gap-1">✅ 완료됨 <i class="fa-solid fa-arrows-rotate text-[8px]"></i></button>`;
                 } else {
-                    statusBadgeHtml = `<button data-id="${task.id}" data-status="todo" class="status-toggle-btn bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] px-2.5 py-1 rounded-md font-bold transition-all shadow-sm flex items-center gap-1" title="클릭하면 다음 상태로 변경됩니다">⏳ 대기중 <i class="fa-solid fa-arrows-rotate text-[8px]"></i></button>`;
+                    statusBadgeHtml = `<button data-id="${task.id}" data-status="todo" class="status-toggle-btn bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] px-2.5 py-1 rounded-md font-bold transition-all shadow-sm flex items-center gap-1">⏳ 대기중 <i class="fa-solid fa-arrows-rotate text-[8px]"></i></button>`;
                 }
 
                 const card = document.createElement('div');
