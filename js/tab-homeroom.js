@@ -11,7 +11,6 @@ export function initHomeroomTab(currentUser) {
         renderContacts();
     });
 
-    // 🎯 1. 여러 명 일괄 붙여넣기 모달 열기/닫기
     document.getElementById('openBulkPasteModalBtn')?.addEventListener('click', () => {
         document.getElementById('bulkPasteTextarea').value = '';
         document.getElementById('bulkPasteModal').classList.remove('hidden');
@@ -25,81 +24,80 @@ export function initHomeroomTab(currentUser) {
         document.getElementById('bulkPasteModal').classList.add('hidden');
     });
 
-    // 🎯 2. 여러 명 일괄 붙여넣기 저장 로직 (이 알고리즘이 핵심입니다!)
+    // 🎯 다중 일괄 등록 파싱 알고리즘 완벽 교체
     document.getElementById('saveBulkPasteBtn')?.addEventListener('click', async () => {
         const rawText = document.getElementById('bulkPasteTextarea').value;
         if (!rawText.trim()) return alert("입력된 데이터가 없습니다.");
 
-        const lines = rawText.split('\n');
+        let parsedStudents = [];
+
+        // 1. 엑셀에서 복사하여 탭(Tab)이 존재하는 경우
+        if (rawText.includes('\t')) {
+            const lines = rawText.split('\n');
+            for (let line of lines) {
+                const rowData = line.trim().split(/\t+/);
+                if (rowData.length < 2) continue;
+
+                const num = Number(rowData[0]);
+                const name = String(rowData[1] || "").trim();
+                if (isNaN(num) || !name) continue;
+
+                let sPhone = String(rowData[3] || "").trim();
+                let pPhone1 = String(rowData[4] || "").trim();
+                let pPhone2 = String(rowData[5] || "").trim();
+                
+                parsedStudents.push({ number: num, name, phones: [sPhone, pPhone1, pPhone2].filter(Boolean) });
+            }
+        } 
+        // 2. 웹 브라우저 표 복사로 줄바꿈(Enter)만 존재하는 경우 (수직 파싱)
+        else {
+            const lines = rawText.split('\n').map(l => l.trim()).filter(l => l !== '');
+            let current = null;
+
+            for (let line of lines) {
+                // 1~100 사이의 숫자이고 '010'처럼 0으로 시작하지 않으면 학생 번호로 인식
+                if (!isNaN(line) && Number(line) > 0 && Number(line) <= 100 && !line.startsWith('0')) {
+                    if (current) parsedStudents.push(current);
+                    current = { number: Number(line), name: '', phones: [] };
+                } else if (current) {
+                    if (!current.name) {
+                        current.name = line; 
+                    } else {
+                        current.phones.push(line); 
+                    }
+                }
+            }
+            if (current) parsedStudents.push(current);
+        }
+
+        if (parsedStudents.length === 0) return alert("파싱할 수 있는 데이터가 없습니다. 양식을 확인해주세요.");
+
         let importCount = 0;
-
-        for (let line of lines) {
-            line = line.trim();
-            if (!line) continue; // 빈 줄 스킵
-
-            // 탭(\t) 또는 다중 공백으로 열 분해
-            const cols = line.split(/\t+/); 
-            // 탭 분해가 안 되었다면 스페이스 한 칸 이상으로 시도
-            const finalCols = cols.length > 1 ? cols : line.split(/\s{2,}/); 
-            // 그것도 안 되면 그냥 일반 띄어쓰기로 분해
-            const rowData = finalCols.length > 1 ? finalCols : line.split(/\s+/);
-
-            if (rowData.length < 2) continue; // 데이터가 부족한 줄(제목 등) 무시
-
-            const num = Number(rowData[0]);
-            const name = String(rowData[1] || "").trim();
-
-            if (isNaN(num) || !name) continue; // 첫 칸이 숫자(번호)가 아니거나 이름이 없으면 스킵
-
-            // 순서: [번호(0)] [이름(1)] [집전화(2)-무시] [학생(3)] [학부모1(4)] [학부모2(5)-옵션]
-            // 데이터가 밀렸거나 집전화가 공란이어도 3, 4, 5번 인덱스를 유연하게 포착합니다.
-            let sPhone = "";
-            let pPhone1 = "";
-            let pPhone2 = "";
-
-            if (rowData.length >= 4) {
-                // 인덱스 2는 집전화이므로 무조건 생략. 인덱스 3을 학생 폰으로 취급
-                sPhone = String(rowData[3] || "").trim();
-            }
-            if (rowData.length >= 5) {
-                pPhone1 = String(rowData[4] || "").trim();
-            }
-            if (rowData.length >= 6) {
-                pPhone2 = String(rowData[5] || "").trim();
-            }
-
-            // 학부모 2 번호가 존재한다면 학부모 1 번호 뒤에 가독성 있게 덧붙여서 한눈에 보이게 병합
-            let finalParentPhone = pPhone1;
-            if (pPhone2 && pPhone2 !== "없다") {
-                finalParentPhone = pPhone1 ? `${pPhone1} / (학부모2) ${pPhone2}` : pPhone2;
+        for (let st of parsedStudents) {
+            let finalParentPhone = st.phones[1] || "";
+            if (st.phones[2] && st.phones[2] !== "없다") {
+                finalParentPhone = st.phones[1] ? `${st.phones[1]} / (학부모2) ${st.phones[2]}` : st.phones[2];
             }
 
             const payload = {
-                number: num,
-                name: name,
-                studentPhone: sPhone,
+                number: st.number,
+                name: st.name,
+                studentPhone: st.phones[0] || "",
                 parentPhone: finalParentPhone
             };
 
-            // 기존에 같은 번호로 이미 등록된 학생 카드가 있다면 교체(오버라이트), 없으면 새 카드 생성
-            const existing = students.find(s => s.number === num);
+            const existing = students.find(s => s.number === st.number);
             try {
-                if (existing) {
-                    await updateDoc(doc(db, "homeroom_contacts", existing.id), payload);
-                } else {
-                    await addDoc(collection(db, "homeroom_contacts"), payload);
-                }
+                if (existing) await updateDoc(doc(db, "homeroom_contacts", existing.id), payload);
+                else await addDoc(collection(db, "homeroom_contacts"), payload);
                 importCount++;
-            } catch (err) {
-                console.error("저장 실패 행: ", line, err);
-            }
+            } catch (err) { console.error("저장 실패", err); }
         }
 
         alert(`✅ 일괄 등록이 완료되었습니다!\n(성공: 총 ${importCount}명 반영됨)`);
         document.getElementById('bulkPasteModal').classList.add('hidden');
     });
 
-    // 직접 추가 모달 열기/닫기
     document.getElementById('openNewContactModalBtn')?.addEventListener('click', () => {
         document.getElementById('editContactId').value = '';
         document.getElementById('contactNumInput').value = '';
@@ -209,7 +207,6 @@ function openContactModal(st) {
     const btnP = document.getElementById('callParentBtn');
     const txtP = document.getElementById('callParentText');
     if (st.parentPhone) {
-        // 전화번호가 병합되어 여러 개일 경우를 대비해 첫 번째 번호만 추출해서 연결
         const firstPhone = st.parentPhone.split('/')[0].replace('학부모1:', '').trim();
         btnP.href = `tel:${firstPhone}`;
         btnP.className = "flex items-center justify-center gap-2 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-emerald-200 shadow-sm";
