@@ -1,0 +1,29 @@
+name: Comcigan Timetable Auto Sync
+
+on:
+  schedule:
+    # 한국 시간 기준 월~금 매일 오전 8시 (UTC 23:00)
+    - cron: '0 23 * * 0-4'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 세팅
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 의존 패키지 설치
+        run: |
+          npm init -y
+          npm install comcigan-parser firebase-admin
+
+      - name: 컴시간 크롤링 실행
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node sync-comcigan.js
