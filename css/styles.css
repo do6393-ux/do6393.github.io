@@ -1,0 +1,7 @@
+body { font-family: 'Noto Sans KR', sans-serif; background-color: #f8fafc; }
+.notion-content h1 { font-size: 1.4rem; font-weight: 800; margin-top: 1rem; margin-bottom: 0.5rem; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.3rem; }
+.notion-content p { margin-bottom: 0.5rem; line-height: 1.6; color: #334155; font-size: 0.85rem; }
+.notion-content img { border-radius: 0.75rem; margin: 0.75rem auto; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); max-width: 100%; height: auto; border: 1px solid #e2e8f0; }
+.tt-cell-changed-red { background-color: #d8b4fe !important; color: #4c1d95 !important; font-weight: 900; border: 1px solid #c084fc; }
+.tt-cell-changed-green { background-color: #6ee7b7 !important; color: #064e3b !important; font-weight: 900; border: 1px solid #34d399; }
+.tt-cell-normal { background-color: #ffffff; color: #1e293b; }
