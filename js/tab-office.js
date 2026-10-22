@@ -24,42 +24,30 @@ export let officeState = {
 };
 
 export function initOfficeTab(currentUser) {
+    if(!document.getElementById('titleTeacherNameBtn')) return;
     initTimetables(currentUser);
     
-    const saveBtn = document.getElementById('setDefaultMyScheduleBtn');
-    if (saveBtn) {
-        saveBtn.onclick = async () => {
-            const user = auth.currentUser;
-            if (!user) return alert("교사 로그인이 필요합니다.");
-            
-            try {
-                await setDoc(doc(db, "user_preferences", user.uid), {
-                    teacherShort: officeState.selectedTeacher.short,
-                    classStr: `${officeState.selectedGrade}-${officeState.selectedClassNum}`
-                }, { merge: true });
-                
-                alert(`✅ 설정 완료!\n[${user.email}] 계정에 [${officeState.selectedTeacher.name}] 교사와 [${officeState.selectedGrade}-${officeState.selectedClassNum}] 학급이 기본값으로 저장되었습니다.`);
-            } catch(e) { 
-                alert("저장 중 오류가 발생했습니다.");
-            }
-        };
-    }
+    // 버튼 이벤트 중복 방지 (기존 거 제거)
+    const btnThis = document.getElementById('weekToggleThisBtn');
+    const btnNext = document.getElementById('weekToggleNextBtn');
+    const cloneThis = btnThis.cloneNode(true); btnThis.parentNode.replaceChild(cloneThis, btnThis);
+    const cloneNext = btnNext.cloneNode(true); btnNext.parentNode.replaceChild(cloneNext, btnNext);
 
-    document.getElementById('weekToggleThisBtn')?.addEventListener('click', (e) => {
+    document.getElementById('weekToggleThisBtn').addEventListener('click', (e) => {
         officeState.currentWeekMode = 'this';
         e.target.className = "px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all";
         document.getElementById('weekToggleNextBtn').className = "px-3 py-1 text-xs font-medium text-slate-600 rounded-lg transition-all";
         initTimetables(auth.currentUser);
     });
     
-    document.getElementById('weekToggleNextBtn')?.addEventListener('click', (e) => {
+    document.getElementById('weekToggleNextBtn').addEventListener('click', (e) => {
         officeState.currentWeekMode = 'next';
         e.target.className = "px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all";
         document.getElementById('weekToggleThisBtn').className = "px-3 py-1 text-xs font-medium text-slate-600 rounded-lg transition-all";
         initTimetables(auth.currentUser);
     });
 
-    document.getElementById('titleTeacherNameBtn')?.addEventListener('click', () => {
+    document.getElementById('titleTeacherNameBtn').onclick = () => {
         const list = document.getElementById('modalTeacherList'); list.innerHTML = '';
         teacherList.forEach(t => {
             const btn = document.createElement('button');
@@ -69,9 +57,9 @@ export function initOfficeTab(currentUser) {
             list.appendChild(btn);
         });
         document.getElementById('teacherSelectModal').classList.remove('hidden');
-    });
+    };
 
-    document.getElementById('titleClassNameBtn')?.addEventListener('click', () => {
+    document.getElementById('titleClassNameBtn').onclick = () => {
         const list = document.getElementById('modalClassList'); list.innerHTML = '';
         for (let g=1; g<=3; g++) {
             for(let c=1; c<=9; c++) {
@@ -83,14 +71,14 @@ export function initOfficeTab(currentUser) {
             }
         }
         document.getElementById('classSelectModal').classList.remove('hidden');
-    });
+    };
 
-    document.getElementById('closeTeacherSelectModalBtn')?.addEventListener('click', () => document.getElementById('teacherSelectModal').classList.add('hidden'));
-    document.getElementById('closeClassSelectModalBtn')?.addEventListener('click', () => document.getElementById('classSelectModal').classList.add('hidden'));
+    document.getElementById('closeTeacherSelectModalBtn').onclick = () => document.getElementById('teacherSelectModal').classList.add('hidden');
+    document.getElementById('closeClassSelectModalBtn').onclick = () => document.getElementById('classSelectModal').classList.add('hidden');
 
     const todayYmd = new Date().toISOString().slice(0,10).replace(/-/g, '');
     document.getElementById('mealDateInput').value = new Date().toISOString().slice(0,10);
-    document.getElementById('fetchMealBtn')?.addEventListener('click', () => { fetchNeisMeal(document.getElementById('mealDateInput').value.replace(/-/g, '')); });
+    document.getElementById('fetchMealBtn').onclick = () => fetchNeisMeal(document.getElementById('mealDateInput').value.replace(/-/g, ''));
     fetchNeisMeal(todayYmd);
 }
 
