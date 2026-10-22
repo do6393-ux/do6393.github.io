@@ -1,4 +1,4 @@
-import { db, doc, getDoc, setDoc } from './firebase-config.js';
+import { db, doc, getDoc, setDoc, auth } from './firebase-config.js'; // 🔥 auth와 setDoc 완벽 추가
 
 export const teacherList = [
     { id: '11', name: '김정애', short: '김정' }, { id: '32', name: '신정훈', short: '신정', default: true },
@@ -26,30 +26,40 @@ export let officeState = {
 export function initOfficeTab(currentUser) {
     initTimetables(currentUser);
     
+    // 🎯 기본저장 버튼 완벽 연결 (로그인한 사람별 고유 저장)
     const saveBtn = document.getElementById('setDefaultMyScheduleBtn');
     if (saveBtn) {
+        // 기존 이벤트를 덮어씌워 중복 실행 방지
         saveBtn.onclick = async () => {
-            if (!currentUser) return alert("교사 로그인이 필요합니다.");
+            const user = auth.currentUser; // 항상 최신 로그인 계정 확인
+            if (!user) return alert("교사 로그인이 필요합니다.");
+            
             try {
-                await setDoc(doc(db, "user_preferences", currentUser.uid), {
+                await setDoc(doc(db, "user_preferences", user.uid), {
                     teacherShort: officeState.selectedTeacher.short,
                     classStr: `${officeState.selectedGrade}-${officeState.selectedClassNum}`
                 }, { merge: true });
-                alert(`✅ 성공! 현재 계정에 [${officeState.selectedTeacher.name}] 교사와 [${officeState.selectedGrade}-${officeState.selectedClassNum}] 학급이 기본값으로 저장되었습니다.`);
-            } catch(e) { alert("저장 실패: " + e.message); }
+                
+                alert(`✅ 설정 완료!\n다음 번 [${user.email}] 계정으로 로그인하시면, [${officeState.selectedTeacher.name}] 선생님과 [${officeState.selectedGrade}학년 ${officeState.selectedClassNum}반]이 기본으로 뜹니다.`);
+            } catch(e) { 
+                alert("저장 중 오류가 발생했습니다.");
+                console.error(e);
+            }
         };
     }
+
     document.getElementById('weekToggleThisBtn')?.addEventListener('click', (e) => {
         officeState.currentWeekMode = 'this';
         e.target.className = "px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all";
         document.getElementById('weekToggleNextBtn').className = "px-3 py-1 text-xs font-medium text-slate-600 rounded-lg transition-all";
-        initTimetables(currentUser);
+        initTimetables(auth.currentUser);
     });
+    
     document.getElementById('weekToggleNextBtn')?.addEventListener('click', (e) => {
         officeState.currentWeekMode = 'next';
         e.target.className = "px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all";
         document.getElementById('weekToggleThisBtn').className = "px-3 py-1 text-xs font-medium text-slate-600 rounded-lg transition-all";
-        initTimetables(currentUser);
+        initTimetables(auth.currentUser);
     });
 
     document.getElementById('titleTeacherNameBtn')?.addEventListener('click', () => {
@@ -58,7 +68,7 @@ export function initOfficeTab(currentUser) {
             const btn = document.createElement('button');
             btn.className = `p-2 rounded-xl text-center text-xs font-semibold ${t.short === officeState.selectedTeacher.short ? 'bg-indigo-600 text-white' : 'bg-slate-50 hover:bg-slate-200'}`;
             btn.textContent = t.name;
-            btn.onclick = () => { officeState.selectedTeacher = t; document.getElementById('teacherSelectModal').classList.add('hidden'); initTimetables(currentUser); };
+            btn.onclick = () => { officeState.selectedTeacher = t; document.getElementById('teacherSelectModal').classList.add('hidden'); initTimetables(auth.currentUser); };
             list.appendChild(btn);
         });
         document.getElementById('teacherSelectModal').classList.remove('hidden');
@@ -71,7 +81,7 @@ export function initOfficeTab(currentUser) {
                 const btn = document.createElement('button');
                 btn.className = `p-2 rounded-xl text-center text-xs font-semibold ${(g===officeState.selectedGrade && c===officeState.selectedClassNum) ? 'bg-sky-600 text-white' : 'bg-slate-50 hover:bg-slate-200'}`;
                 btn.textContent = `${g}-${c}`;
-                btn.onclick = () => { officeState.selectedGrade = g; officeState.selectedClassNum = c; document.getElementById('classSelectModal').classList.add('hidden'); initTimetables(currentUser); };
+                btn.onclick = () => { officeState.selectedGrade = g; officeState.selectedClassNum = c; document.getElementById('classSelectModal').classList.add('hidden'); initTimetables(auth.currentUser); };
                 list.appendChild(btn);
             }
         }
@@ -122,14 +132,15 @@ async function loadTeacherTimetable(currentUser) {
 
     document.querySelectorAll('.tt-teacher-cell').forEach(td => {
         td.onclick = async () => {
-            if (!currentUser) return alert("교사 로그인이 필요합니다.");
+            const user = auth.currentUser;
+            if (!user) return alert("교사 로그인이 필요합니다.");
             const key = td.getAttribute('data-key');
             const newText = prompt("과목명 입력 (비워두면 삭제):", schedule[key]?.text || ''); if (newText === null) return;
             const newTypeChoice = prompt("색상 선택: 1(기본), 2(연보라/보강), 3(민트/행사)", '1');
             schedule[key] = { text: newText.trim(), type: newTypeChoice === '2' ? 'red' : (newTypeChoice === '3' ? 'green' : 'normal') };
             const tCode = officeState.selectedTeacher.short === '신정' ? '32' : officeState.selectedTeacher.short;
             await setDoc(doc(db, "timetable_schedules", `tt_teacher_${officeState.currentWeekMode}_${tCode}`), { schedule }, { merge: true });
-            loadTeacherTimetable(currentUser);
+            loadTeacherTimetable(user);
         };
     });
 }
@@ -159,7 +170,4 @@ async function fetchNeisMeal(dateYmd) {
     try {
         const res = await fetch(`https://open.neis.go.kr/hub/mealServiceDietInfo?Type=json&pIndex=1&pSize=5&ATPT_OFCDC_SC_CODE=E10&SD_SCHUL_CODE=7331057&MLSV_YMD=${dateYmd}`);
         const data = await res.json();
-        if (data.mealServiceDietInfo) mealBox.textContent = data.mealServiceDietInfo[1].row[0].DDISH_NM.replace(/\([0-9\.\s]+\)/g, '').replace(/<br\/>/g, '\n');
-        else mealBox.textContent = "급식 정보가 없습니다.";
-    } catch (err) { mealBox.textContent = "조회 오류"; }
-}
+        if (data.mealServiceDietInfo) mealBox.textContent = data.mealServiceDietInfo[1].row[0].DD
