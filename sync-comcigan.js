@@ -1,7 +1,6 @@
 const Timetable = require('comcigan-parser');
 const admin = require('firebase-admin');
 
-// 1. Firebase Secret 검증
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("오류: FIREBASE_SERVICE_ACCOUNT 시크릿 키가 누락되었습니다.");
   process.exit(1);
@@ -37,29 +36,27 @@ async function runSync() {
   timetable.setSchool(school.code);
 
   const result = await timetable.getTimetable();
-  console.log("컴시간 데이터 수집 성공! 데이터 파싱 및 Firebase 저장 시작...");
+  console.log("컴시간 데이터 수집 성공! 데이터 파싱 시작...");
 
   const batch = db.batch();
   const teacherSchedules = {};
   let totalClassCount = 0;
 
-  // 학년별 객체 순회 (Object.keys 사용)
+  // 전체 학년/반 순회
   for (const grade of Object.keys(result)) {
     const gradeClasses = result[grade];
     if (!gradeClasses || typeof gradeClasses !== 'object') continue;
 
-    // 반별 객체 순회 (1반, 2반, 3반 ...)
     for (const cls of Object.keys(gradeClasses)) {
       const classWeek = gradeClasses[cls];
       if (!classWeek || !Array.isArray(classWeek)) continue;
 
       totalClassCount++;
-      const classKey = `tt_class_current_${grade}-${cls}`;
-      const docRef = db.collection("timetable_schedules").doc(classKey);
+      const classKeyThis = `tt_class_this_${grade}-${cls}`;
+      const classKeyNext = `tt_class_next_${grade}-${cls}`;
 
       const scheduleMap = {};
 
-      // 요일 순회: classWeek[0]=월, [1]=화, [2]=수, [3]=목, [4]=금
       for (let day = 0; day < classWeek.length && day < 5; day++) {
         const dayPeriods = classWeek[day];
         if (!dayPeriods || !Array.isArray(dayPeriods)) continue;
@@ -75,23 +72,33 @@ async function runSync() {
           // 1) 학급 시간표 저장 (예: 정보32, 수학17)
           scheduleMap[`${period}_${day}`] = {
             text: teacher ? `${subject}${teacher}` : subject,
-            type: 'normal'
+            type: item.changed ? 'red' : 'normal'
           };
 
-          // 2) 교사별 시간표 자동 역추출 (예: 107정보)
+          // 2) 교사별 시간표 역추출 (버그 수정: 10반일 때 1010이 아닌 110으로 생성)
           if (teacher) {
+            const classFormatted = `${grade}${String(cls).padStart(2, '0')}`; // 1학년 7반 -> 107, 1학년 10반 -> 110
+            
             if (!teacherSchedules[teacher]) {
               teacherSchedules[teacher] = {};
             }
             teacherSchedules[teacher][`${period}_${day}`] = {
-              text: `${grade}0${cls}${subject}`,
-              type: 'normal'
+              text: `${classFormatted}${subject}`,
+              type: item.changed ? 'red' : 'normal'
             };
           }
         }
       }
 
-      batch.set(docRef, {
+      // 이번주 및 다음주 학급 시간표 저장
+      batch.set(db.collection("timetable_schedules").doc(classKeyThis), {
+        grade: Number(grade),
+        classNum: Number(cls),
+        schedule: scheduleMap,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      batch.set(db.collection("timetable_schedules").doc(classKeyNext), {
         grade: Number(grade),
         classNum: Number(cls),
         schedule: scheduleMap,
@@ -100,32 +107,39 @@ async function runSync() {
     }
   }
 
-  console.log(`총 ${totalClassCount}개 학급 시간표 변환 완료!`);
-
-  // 교사별 시간표 저장 (신정훈 선생님 매핑 포함)
+  // 교사별 시간표 저장 (ID 및 교사명 다중 키 보장 매핑)
   let teacherDocCount = 0;
-  for (const [tName, tSchedule] of Object.entries(teacherSchedules)) {
+  for (const [tCode, tSchedule] of Object.entries(teacherSchedules)) {
     teacherDocCount++;
-    // 신정훈 선생님 키 고정 매핑
-    const docKey = (tName.includes('신정') || tName === '32') 
-      ? 'tt_teacher_current_32' 
-      : `tt_teacher_${encodeURIComponent(tName)}`;
 
-    const tDocRef = db.collection("timetable_schedules").doc(docKey);
-    batch.set(tDocRef, {
-      teacherName: tName,
+    // 이번주 저장
+    batch.set(db.collection("timetable_schedules").doc(`tt_teacher_this_${tCode}`), {
+      teacherCode: tCode,
       schedule: tSchedule,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
-  }
 
-  // 신정훈 선생님 데이터가 별도 키로 존재할 경우 중복 보장
-  if (teacherSchedules['신정훈']) {
-    batch.set(db.collection("timetable_schedules").doc('tt_teacher_current_32'), {
-      teacherName: '신정훈',
-      schedule: teacherSchedules['신정훈'],
+    // 다음주 저장
+    batch.set(db.collection("timetable_schedules").doc(`tt_teacher_next_${tCode}`), {
+      teacherCode: tCode,
+      schedule: tSchedule,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
+
+    // 신정훈 선생님 전용 키 매핑
+    if (tCode === '32' || tCode.includes('신정')) {
+      batch.set(db.collection("timetable_schedules").doc('tt_teacher_this_32'), {
+        teacherName: '신정훈',
+        schedule: tSchedule,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      batch.set(db.collection("timetable_schedules").doc('tt_teacher_next_32'), {
+        teacherName: '신정훈',
+        schedule: tSchedule,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
   }
 
   // 동기화 로그 기록
@@ -134,7 +148,7 @@ async function runSync() {
     lastSyncedAt: new Date().toISOString(),
     status: "SUCCESS",
     schoolName: school.name,
-    message: `정상 동기화 완료: ${totalClassCount}개 학급, ${teacherDocCount}명 교사 시간표 저장됨`
+    message: `정상 동기화 완료: ${totalClassCount}개 학급, ${teacherDocCount}명 교사 시간표가 수집되었습니다.`
   });
 
   await batch.commit();
