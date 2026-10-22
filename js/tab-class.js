@@ -1,4 +1,4 @@
-import { db, collection, addDoc, updateDoc, deleteDoc, doc, getDoc, onSnapshot, query, orderBy, serverTimestamp } from './firebase-config.js';
+import { db, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from './firebase-config.js';
 
 export const unitMeta = {
     'unit1': { name: '1단원. 컴퓨팅 시스템', badgeClass: 'bg-sky-50 text-sky-600 border-sky-200' },
@@ -26,6 +26,51 @@ export function initClassTab(currentUser) {
             container.innerHTML += `<div class="p-3 bg-slate-50 rounded-xl mb-2 text-xs"><div class="flex justify-between font-bold"><span>${data.studentNum} ${data.studentName}</span><span>${data.timeStr||''}</span></div><p>${data.text}</p></div>`;
         });
     });
+
+    // 🎯 공지사항 실시간 렌더링 및 기능 복구
+    const noticesRef = collection(db, "notices");
+    onSnapshot(query(noticesRef, orderBy("createdAt", "desc")), (snapshot) => {
+        const container = document.getElementById('noticeListContainer');
+        if(!container) return;
+        container.innerHTML = '';
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            container.innerHTML += `
+                <div class="flex justify-between p-3 bg-sky-50 rounded-xl mb-2 text-xs">
+                    <div>
+                        <p class="font-bold text-slate-800">${data.title}</p>
+                        <p class="mt-1">${data.body}</p>
+                    </div>
+                    ${currentUser ? `<button data-id="${docSnap.id}" class="delete-notice-btn text-slate-400 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>` : ''}
+                </div>`;
+        });
+
+        document.querySelectorAll('.delete-notice-btn').forEach(btn => {
+            btn.onclick = async (e) => {
+                if(confirm('공지를 삭제하시겠습니까?')) await deleteDoc(doc(db, 'notices', e.currentTarget.getAttribute('data-id')));
+            }
+        });
+    });
+
+    document.getElementById('teacherEditNoticeBtn')?.addEventListener('click', () => document.getElementById('noticeEditControls')?.classList.toggle('hidden'));
+    document.getElementById('toggleNoticeBtn')?.addEventListener('click', () => {
+        document.getElementById('noticeContent')?.classList.toggle('hidden');
+        document.getElementById('noticeIcon')?.classList.toggle('rotate-180');
+    });
+
+    const addNoticeBtn = document.getElementById('addNoticeFirebaseBtn');
+    if (addNoticeBtn) {
+        addNoticeBtn.onclick = async () => {
+            const t = document.getElementById('newNoticeTitle').value;
+            const b = document.getElementById('newNoticeBody').value;
+            if(t && b) {
+                await addDoc(noticesRef, { title: t, body: b, type: document.getElementById('newNoticeType').value, createdAt: serverTimestamp() });
+                document.getElementById('newNoticeTitle').value='';
+                document.getElementById('newNoticeBody').value='';
+                document.getElementById('noticeEditControls').classList.add('hidden');
+            }
+        };
+    }
 
     document.querySelectorAll('.lesson-filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
