@@ -27,7 +27,6 @@ async function runSync() {
   const timetable = new Timetable();
   await timetable.init();
 
-  // searchSchool -> search 로 정상 수정
   const schools = await timetable.search('부원여자중학교');
   if (!schools || schools.length === 0) {
     throw new Error("부원여자중학교를 찾을 수 없습니다.");
@@ -38,24 +37,30 @@ async function runSync() {
   timetable.setSchool(school.code);
 
   const result = await timetable.getTimetable();
-  console.log("컴시간 데이터 수집 성공! Firebase 동기화 진행 중...");
+  console.log("컴시간 데이터 수집 성공! 데이터 파싱 및 Firebase 저장 시작...");
 
   const batch = db.batch();
-  const teacherSchedules = {}; // 교사별 시간표 수집 맵
+  const teacherSchedules = {};
+  let totalClassCount = 0;
 
-  // 1~3학년 전체 학급 시간표 순회
-  for (let grade = 1; grade <= 3; grade++) {
-    if (!result[grade]) continue;
-    for (let cls = 1; cls < result[grade].length; cls++) {
-      const classWeek = result[grade][cls];
-      if (!classWeek) continue;
+  // 학년별 객체 순회 (Object.keys 사용)
+  for (const grade of Object.keys(result)) {
+    const gradeClasses = result[grade];
+    if (!gradeClasses || typeof gradeClasses !== 'object') continue;
 
+    // 반별 객체 순회 (1반, 2반, 3반 ...)
+    for (const cls of Object.keys(gradeClasses)) {
+      const classWeek = gradeClasses[cls];
+      if (!classWeek || !Array.isArray(classWeek)) continue;
+
+      totalClassCount++;
       const classKey = `tt_class_current_${grade}-${cls}`;
       const docRef = db.collection("timetable_schedules").doc(classKey);
 
       const scheduleMap = {};
-      // classWeek: [월(0), 화(1), 수(2), 목(3), 금(4)]
-      for (let day = 0; day < 5; day++) {
+
+      // 요일 순회: classWeek[0]=월, [1]=화, [2]=수, [3]=목, [4]=금
+      for (let day = 0; day < classWeek.length && day < 5; day++) {
         const dayPeriods = classWeek[day];
         if (!dayPeriods || !Array.isArray(dayPeriods)) continue;
 
@@ -67,13 +72,13 @@ async function runSync() {
           const subject = item.subject || '';
           const teacher = item.teacher || '';
 
-          // 1) 학급 시간표 저장 (예: 체육34, 정보32)
+          // 1) 학급 시간표 저장 (예: 정보32, 수학17)
           scheduleMap[`${period}_${day}`] = {
             text: teacher ? `${subject}${teacher}` : subject,
             type: 'normal'
           };
 
-          // 2) 교사별 시간표 자동 추출 (예: 107정보)
+          // 2) 교사별 시간표 자동 역추출 (예: 107정보)
           if (teacher) {
             if (!teacherSchedules[teacher]) {
               teacherSchedules[teacher] = {};
@@ -87,21 +92,38 @@ async function runSync() {
       }
 
       batch.set(docRef, {
-        grade: grade,
-        classNum: cls,
+        grade: Number(grade),
+        classNum: Number(cls),
         schedule: scheduleMap,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
     }
   }
 
-  // 교사별 시간표 Firebase 저장 (신정훈 선생님 자동 매핑)
+  console.log(`총 ${totalClassCount}개 학급 시간표 변환 완료!`);
+
+  // 교사별 시간표 저장 (신정훈 선생님 매핑 포함)
+  let teacherDocCount = 0;
   for (const [tName, tSchedule] of Object.entries(teacherSchedules)) {
-    const docKey = tName.includes('신정') ? 'tt_teacher_current_32' : `tt_teacher_${encodeURIComponent(tName)}`;
+    teacherDocCount++;
+    // 신정훈 선생님 키 고정 매핑
+    const docKey = (tName.includes('신정') || tName === '32') 
+      ? 'tt_teacher_current_32' 
+      : `tt_teacher_${encodeURIComponent(tName)}`;
+
     const tDocRef = db.collection("timetable_schedules").doc(docKey);
     batch.set(tDocRef, {
       teacherName: tName,
       schedule: tSchedule,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
+
+  // 신정훈 선생님 데이터가 별도 키로 존재할 경우 중복 보장
+  if (teacherSchedules['신정훈']) {
+    batch.set(db.collection("timetable_schedules").doc('tt_teacher_current_32'), {
+      teacherName: '신정훈',
+      schedule: teacherSchedules['신정훈'],
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
   }
@@ -112,11 +134,11 @@ async function runSync() {
     lastSyncedAt: new Date().toISOString(),
     status: "SUCCESS",
     schoolName: school.name,
-    message: "부원여중 컴시간 학급 및 교사 시간표가 정상 수집되어 동기화되었습니다."
+    message: `정상 동기화 완료: ${totalClassCount}개 학급, ${teacherDocCount}명 교사 시간표 저장됨`
   });
 
   await batch.commit();
-  console.log("모든 학급 및 교사 시간표가 Firebase에 성공적으로 저장되었습니다!");
+  console.log(`성공: 학급 ${totalClassCount}개, 교사 ${teacherDocCount}명 데이터가 Firebase에 저장되었습니다!`);
 }
 
 runSync().catch(err => {
