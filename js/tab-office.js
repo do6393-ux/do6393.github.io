@@ -26,6 +26,19 @@ export let officeState = {
 export function initOfficeTab(currentUser) {
     initTimetables(currentUser);
     
+    const saveBtn = document.getElementById('setDefaultMyScheduleBtn');
+    if (saveBtn) {
+        saveBtn.onclick = async () => {
+            if (!currentUser) return alert("교사 로그인이 필요합니다.");
+            try {
+                await setDoc(doc(db, "user_preferences", currentUser.uid), {
+                    teacherShort: officeState.selectedTeacher.short,
+                    classStr: `${officeState.selectedGrade}-${officeState.selectedClassNum}`
+                }, { merge: true });
+                alert(`✅ 성공! 현재 계정에 [${officeState.selectedTeacher.name}] 교사와 [${officeState.selectedGrade}-${officeState.selectedClassNum}] 학급이 기본값으로 저장되었습니다.`);
+            } catch(e) { alert("저장 실패: " + e.message); }
+        };
+    }
     document.getElementById('weekToggleThisBtn')?.addEventListener('click', (e) => {
         officeState.currentWeekMode = 'this';
         e.target.className = "px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all";
