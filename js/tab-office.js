@@ -1,4 +1,4 @@
-import { db, doc, getDoc, setDoc, auth } from './firebase-config.js'; // 🔥 auth와 setDoc 완벽 추가
+import { db, doc, getDoc, setDoc, auth } from './firebase-config.js';
 
 export const teacherList = [
     { id: '11', name: '김정애', short: '김정' }, { id: '32', name: '신정훈', short: '신정', default: true },
@@ -23,31 +23,26 @@ export let officeState = {
     selectedGrade: 1, selectedClassNum: 7, currentWeekMode: 'this'
 };
 
+// 🎯 확실한 실행을 위해 파일이 열리자마자 가장 먼저 버튼 이벤트를 장착합니다.
+document.getElementById('setDefaultMyScheduleBtn')?.addEventListener('click', async () => {
+    const user = auth.currentUser;
+    if (!user) return alert("교사 로그인이 필요합니다.");
+    
+    try {
+        await setDoc(doc(db, "user_preferences", user.uid), {
+            teacherShort: officeState.selectedTeacher.short,
+            classStr: `${officeState.selectedGrade}-${officeState.selectedClassNum}`
+        }, { merge: true });
+        
+        alert(`✅ 설정 완료!\n다음 번 [${user.email}] 계정으로 로그인하시면, [${officeState.selectedTeacher.name}] 선생님과 [${officeState.selectedGrade}학년 ${officeState.selectedClassNum}반]이 기본으로 뜹니다.`);
+    } catch(e) { 
+        alert("저장 중 오류가 발생했습니다.");
+    }
+});
+
 export function initOfficeTab(currentUser) {
     initTimetables(currentUser);
     
-    // 🎯 기본저장 버튼 완벽 연결 (로그인한 사람별 고유 저장)
-    const saveBtn = document.getElementById('setDefaultMyScheduleBtn');
-    if (saveBtn) {
-        // 기존 이벤트를 덮어씌워 중복 실행 방지
-        saveBtn.onclick = async () => {
-            const user = auth.currentUser; // 항상 최신 로그인 계정 확인
-            if (!user) return alert("교사 로그인이 필요합니다.");
-            
-            try {
-                await setDoc(doc(db, "user_preferences", user.uid), {
-                    teacherShort: officeState.selectedTeacher.short,
-                    classStr: `${officeState.selectedGrade}-${officeState.selectedClassNum}`
-                }, { merge: true });
-                
-                alert(`✅ 설정 완료!\n다음 번 [${user.email}] 계정으로 로그인하시면, [${officeState.selectedTeacher.name}] 선생님과 [${officeState.selectedGrade}학년 ${officeState.selectedClassNum}반]이 기본으로 뜹니다.`);
-            } catch(e) { 
-                alert("저장 중 오류가 발생했습니다.");
-                console.error(e);
-            }
-        };
-    }
-
     document.getElementById('weekToggleThisBtn')?.addEventListener('click', (e) => {
         officeState.currentWeekMode = 'this';
         e.target.className = "px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all";
@@ -170,4 +165,6 @@ async function fetchNeisMeal(dateYmd) {
     try {
         const res = await fetch(`https://open.neis.go.kr/hub/mealServiceDietInfo?Type=json&pIndex=1&pSize=5&ATPT_OFCDC_SC_CODE=E10&SD_SCHUL_CODE=7331057&MLSV_YMD=${dateYmd}`);
         const data = await res.json();
-        if (data.mealServiceDietInfo) mealBox.textContent = data.mealServiceDietInfo[1].row[0].DD
+        if (data.mealServiceDietInfo) mealBox.textContent = data.mealServiceDietInfo[1].row[0].DDISH_NM.replace(/\([0-9\.\s]+\)/g, '').replace(/<br\/>/g, '\n');
+        else mealBox.textContent = "급식 정보가 없습니다.";
+    } catch (err) { mealBox.textContent = "조회 오류"; }
