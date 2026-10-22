@@ -14,17 +14,16 @@
     <style>
         body { font-family: 'Noto Sans KR', sans-serif; background-color: #f8fafc; }
         .notion-content h1 { font-size: 1.4rem; font-weight: 800; margin-top: 1rem; margin-bottom: 0.5rem; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.3rem; }
-        .notion-content h2 { font-size: 1.15rem; font-weight: 700; margin-top: 0.85rem; margin-bottom: 0.4rem; color: #334155; }
         .notion-content p { margin-bottom: 0.5rem; line-height: 1.6; color: #334155; font-size: 0.85rem; }
         .notion-content img { border-radius: 0.75rem; margin: 0.75rem auto; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); max-width: 100%; height: auto; border: 1px solid #e2e8f0; }
-        .tt-cell-changed-red { background-color: #ef4444 !important; color: #ffffff !important; font-weight: bold; }
-        .tt-cell-changed-green { background-color: #0f766e !important; color: #ffffff !important; font-weight: bold; }
+        .tt-cell-changed-red { background-color: #d8b4fe !important; color: #4c1d95 !important; font-weight: 900; border: 1px solid #c084fc; }
+        .tt-cell-changed-green { background-color: #6ee7b7 !important; color: #064e3b !important; font-weight: 900; border: 1px solid #34d399; }
         .tt-cell-normal { background-color: #ffffff; color: #1e293b; }
     </style>
 </head>
 <body class="text-slate-800 antialiased min-h-screen flex flex-col relative">
 
-    <!-- 🎯 [새 탭] 수업 자료 뷰어 & 인라인 편집 -->
+    <!-- 1. 새 탭 단독 뷰어 모드 (수업 & 업무) -->
     <div id="standaloneViewer" class="hidden min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
         <div class="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-12 shadow-sm border border-slate-200 space-y-6">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -46,7 +45,6 @@
                 <div id="viewerMarkdownBody" class="notion-content pt-4 border-t border-slate-100"></div>
             </div>
 
-            <!-- 수업자료 인라인 편집 폼 -->
             <div id="viewerEditFormSection" class="hidden space-y-4">
                 <div class="grid grid-cols-2 gap-3">
                     <select id="viewerEditUnit" class="text-xs p-2.5 rounded-xl border border-slate-200"><option value="unit1">1단원</option><option value="unit2">2단원</option><option value="unit3">3단원</option><option value="unit4">4단원</option><option value="unit5">5단원</option></select>
@@ -60,7 +58,6 @@
         </div>
     </div>
 
-    <!-- 🎯 [새 탭] 업무 자료 뷰어 & 인라인 편집 -->
     <div id="standaloneTaskViewer" class="hidden min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
         <div class="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-10 shadow-sm border border-slate-200 space-y-6">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -69,7 +66,7 @@
                     <span id="taskViewerStatusBadge" class="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800">대기중</span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button id="taskViewerEditBtn" class="text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-pen"></i> 수정</button>
+                    <button id="taskViewerEditBtn" class="hidden text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-pen"></i> 수정</button>
                     <button id="taskViewerSaveBtn" class="hidden text-xs font-bold px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-check"></i> 저장</button>
                     <button id="taskViewerCancelBtn" class="hidden text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all">취소</button>
                 </div>
@@ -83,7 +80,9 @@
             
             <div id="taskEditFormSection" class="hidden space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <select id="taskViewerEditCat" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white"><option value="devices">💻 계정 및 기기</option><option value="network">🌐 네트워크/서버</option><option value="privacy">🛡️ 보안점검</option><option value="software">🔑 SW관리자</option><option value="disposal">📊 행정/공시</option></select>
+                    <select id="taskViewerEditCat" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
+                        <option value="devices">💻 계정 및 기기</option><option value="network">🌐 네트워크/서버</option><option value="privacy">🛡️ 보안점검</option><option value="software">🔑 SW관리자</option><option value="disposal">📊 행정/공시</option>
+                    </select>
                     <select id="taskViewerEditStatus" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-bold"><option value="todo">⏳ 대기중</option><option value="doing">🚀 진행중</option><option value="done">✅ 완료됨</option></select>
                 </div>
                 <input type="text" id="taskViewerEditTitle" class="w-full text-sm p-2.5 rounded-xl border border-slate-200 font-bold">
@@ -93,7 +92,7 @@
         </div>
     </div>
 
-    <!-- 🎯 메인 대시보드 애플리케이션 -->
+    <!-- 2. 메인 대시보드 애플리케이션 -->
     <div id="mainDashboardApp">
         <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -107,9 +106,8 @@
                     </div>
                     <nav class="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 ml-4">
                         <button id="navTabClass" class="nav-tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-sky-700 shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-graduation-cap"></i> 정보 수업</button>
-                        <!-- 🔥 비로그인시 숨겨지는 탭 완벽 복원 -->
-                        <button id="navTabWork" class="nav-tab-btn hidden px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5"><i class="fa-solid fa-briefcase"></i> 🔒 정보업무</button>
-                        <button id="navTabOffice" class="nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5"><i class="fa-solid fa-calendar-days"></i> 🍱 교무실</button>
+                        <button id="navTabWork" class="hidden nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5"><i class="fa-solid fa-briefcase"></i> 🔒 정보업무</button>
+                        <button id="navTabOffice" class="hidden nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5"><i class="fa-solid fa-calendar-days"></i> 🍱 교무실</button>
                     </nav>
                 </div>
                 <div class="flex items-center gap-3">
@@ -120,14 +118,14 @@
             <div class="flex md:hidden border-t border-slate-100 bg-slate-50 p-1.5 gap-1 justify-center">
                 <button id="mobileNavTabClass" class="flex-1 py-1.5 text-center text-xs font-bold bg-white text-sky-700 rounded-lg shadow-sm">💻 수업</button>
                 <button id="mobileNavTabWork" class="hidden flex-1 py-1.5 text-center text-xs font-medium text-slate-600">🔒 업무탑</button>
-                <button id="mobileNavTabOffice" class="flex-1 py-1.5 text-center text-xs font-medium text-slate-600">🍱 시간표</button>
+                <button id="mobileNavTabOffice" class="hidden flex-1 py-1.5 text-center text-xs font-medium text-slate-600">🍱 교무실</button>
             </div>
         </header>
 
-        <!-- 1. 정보 수업 대시보드 -->
+        <!-- 탭 1: 정보 수업 대시보드 -->
         <div id="tabContentClass" class="tab-view-content">
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
-                <!-- 🔥 예쁜 3D 아바타 프로필 디자인 원상 복구 -->
+                <!-- 아바타 복구 -->
                 <section class="bg-gradient-to-r from-sky-600 to-teal-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
                     <div class="relative z-10 flex flex-col md:flex-row items-center gap-6">
                         <div class="relative">
@@ -147,49 +145,33 @@
                     </div>
                 </section>
 
-                <section class="bg-white rounded-2xl border border-sky-100 shadow-sm overflow-hidden">
-                    <div class="p-5 bg-sky-50/50 flex items-center justify-between border-b border-sky-100">
-                        <div class="flex items-center gap-3">
-                            <span class="bg-sky-500 text-white text-xs font-bold px-2.5 py-1 rounded-md animate-pulse">주요 공지</span>
-                            <h3 class="font-bold text-slate-800 text-base sm:text-lg">오늘의 수업 및 수행평가 안내</h3>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button id="teacherEditNoticeBtn" class="hidden text-xs bg-amber-500 hover:bg-amber-600 text-white font-medium px-2.5 py-1 rounded-lg">공지 관리</button>
-                            <button id="toggleNoticeBtn" class="text-slate-500 focus:outline-none p-1"><i class="fa-solid fa-chevron-up" id="noticeIcon"></i></button>
-                        </div>
-                    </div>
-                    <div id="noticeEditControls" class="hidden bg-amber-50 border-b border-amber-200 p-4 space-y-3">
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <select id="newNoticeType" class="text-xs p-2 rounded-lg border border-amber-300"><option value="sky">안내</option><option value="amber">주의</option><option value="rose">긴급</option></select>
-                            <input type="text" id="newNoticeTitle" placeholder="공지 제목 입력" class="text-xs p-2 rounded-lg border border-amber-300 sm:col-span-2">
-                        </div>
-                        <textarea id="newNoticeBody" placeholder="공지 세부 내용 입력..." class="w-full text-xs p-2 rounded-lg border border-amber-300 h-16"></textarea>
-                        <div class="flex justify-end"><button id="addNoticeFirebaseBtn" class="bg-amber-600 text-white text-xs px-3 py-1.5 rounded-lg">새 공지 등록</button></div>
-                    </div>
-                    <div id="noticeContent" class="p-5 space-y-3 text-sm text-slate-600">
-                        <div id="noticeListContainer" class="space-y-3"></div>
-                    </div>
-                </section>
-
+                <!-- 바로가기 5개 복구 및 추가 -->
                 <section class="space-y-4">
-                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-rocket text-sky-500"></i> 수업 바로가기 (실습 플랫폼)</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <a href="https://playentry.org" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center hover:shadow-md transition-all">
-                            <div class="w-12 h-12 bg-amber-100 text-amber-600 flex items-center justify-center text-2xl rounded-xl mb-2"><i class="fa-solid fa-shapes"></i></div><span class="font-bold text-sm">엔트리</span>
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-rocket text-sky-500"></i> 실습 및 교보재 바로가기</h3>
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                        <a href="https://playentry.org" target="_blank" class="searchable-card bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center">
+                            <div class="w-10 h-10 bg-amber-100 text-amber-600 flex items-center justify-center text-xl rounded-xl mb-1.5"><i class="fa-solid fa-shapes"></i></div><span class="font-bold text-xs">엔트리</span>
                         </a>
-                        <a href="https://www.menti.com" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center hover:shadow-md transition-all">
-                            <div class="w-12 h-12 bg-rose-100 text-rose-600 flex items-center justify-center text-2xl rounded-xl mb-2"><i class="fa-solid fa-chart-simple"></i></div><span class="font-bold text-sm">멘티미터</span>
+                        <a href="https://www.menti.com" target="_blank" class="searchable-card bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center">
+                            <div class="w-10 h-10 bg-rose-100 text-rose-600 flex items-center justify-center text-xl rounded-xl mb-1.5"><i class="fa-solid fa-chart-simple"></i></div><span class="font-bold text-xs">멘티미터</span>
                         </a>
-                        <a href="https://www.icedu.kr" target="_blank" class="searchable-card bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-center text-center hover:shadow-md transition-all">
-                            <div class="w-12 h-12 bg-cyan-100 text-cyan-600 flex items-center justify-center text-2xl rounded-xl mb-2"><i class="fa-solid fa-school"></i></div><span class="font-bold text-sm">ICEDU</span>
+                        <a href="https://www.icedu.kr" target="_blank" class="searchable-card bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center">
+                            <div class="w-10 h-10 bg-cyan-100 text-cyan-600 flex items-center justify-center text-xl rounded-xl mb-1.5"><i class="fa-solid fa-school"></i></div><span class="font-bold text-xs">ICEDU</span>
+                        </a>
+                        <a href="https://letsgoteacher.kr/seat-arrangement.html" target="_blank" class="searchable-card bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center">
+                            <div class="w-10 h-10 bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl rounded-xl mb-1.5"><i class="fa-solid fa-chair"></i></div><span class="font-bold text-xs">자리바꾸기</span>
+                        </a>
+                        <a href="https://lazygyu.github.io/roulette/" target="_blank" class="searchable-card bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center">
+                            <div class="w-10 h-10 bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl rounded-xl mb-1.5"><i class="fa-solid fa-life-ring"></i></div><span class="font-bold text-xs">룰렛돌리기</span>
                         </a>
                     </div>
                 </section>
 
+                <!-- 수업자료실 -->
                 <section class="space-y-4">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-folder-open text-teal-500"></i> 단원별 수업 자료실</h3>
-                        <button id="openNewLessonModalBtn" class="hidden text-xs bg-teal-600 hover:bg-teal-700 text-white font-semibold px-3 py-1.5 rounded-xl shadow-sm"><i class="fa-solid fa-plus"></i> 새 자료 작성</button>
+                        <button id="openNewLessonModalBtn" class="hidden text-xs bg-teal-600 hover:bg-teal-700 text-white font-semibold px-3 py-1.5 rounded-xl shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-plus"></i> 새 자료 작성</button>
                     </div>
                     <div class="flex flex-wrap gap-1.5" id="categoryFilter">
                         <button class="filter-btn active text-xs font-medium px-3 py-1.5 rounded-full bg-sky-500 text-white shadow-sm" data-category="all">전체 보기</button>
@@ -201,10 +183,31 @@
                     </div>
                     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5" id="resourceContainer"></div>
                 </section>
+
+                <!-- 🚀 누락되었던 과제 제출 폼 & 목록 복원 -->
+                <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                        <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-paper-plane text-sky-500 mr-2"></i>과제 제출</h3>
+                        <form id="assignmentForm" class="space-y-4">
+                            <div class="grid grid-cols-2 gap-3">
+                                <input type="text" id="studentNum" placeholder="학번 (10101)" required class="text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                                <input type="text" id="studentName" placeholder="이름" required class="text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                            </div>
+                            <textarea id="assignmentText" rows="3" placeholder="과제 내용..." required class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200"></textarea>
+                            <button type="submit" class="w-full bg-gradient-to-r from-sky-500 to-teal-500 text-white font-bold py-2.5 rounded-xl shadow-md text-sm">제출하기</button>
+                        </form>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 flex flex-col">
+                        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-list-check text-teal-600 mr-2"></i>제출된 과제 목록</h3>
+                        </div>
+                        <div id="assignmentList" class="space-y-3 flex-grow max-h-[300px] overflow-y-auto pr-1"></div>
+                    </div>
+                </section>
             </main>
         </div>
 
-        <!-- 2. 정보업무 관제탑 -->
+        <!-- 탭 2: 정보업무 관제탑 -->
         <div id="tabContentWork" class="tab-view-content hidden">
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
                 <section class="bg-gradient-to-r from-slate-800 via-slate-900 to-indigo-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center">
@@ -212,12 +215,8 @@
                         <span class="bg-indigo-500/30 text-indigo-200 text-xs px-3 py-1 rounded-full font-bold">🔒 교사 전용 보안구역</span>
                         <h2 class="text-2xl font-extrabold mt-2">정보기획 업무 관제탑</h2>
                     </div>
-                    <button id="openNewTaskModalBtn" class="hidden bg-emerald-500 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-lg"><i class="fa-solid fa-plus"></i> 새 업무 추가</button>
+                    <button id="openNewTaskModalBtn" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-lg"><i class="fa-solid fa-plus"></i> 새 업무 추가</button>
                 </section>
-                <div id="workAccessDeniedState" class="hidden bg-amber-50 border border-amber-200 rounded-3xl p-12 text-center space-y-4">
-                    <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-2xl mx-auto"><i class="fa-solid fa-lock"></i></div>
-                    <h3 class="text-xl font-bold text-slate-800">교사 로그인이 필요한 공간입니다</h3>
-                </div>
                 <div id="workMainDashboard" class="space-y-6">
                     <div class="flex flex-wrap gap-2 items-center" id="taskCategoryFilter">
                         <button id="addCategoryBtn" class="hidden text-xs font-bold px-3 py-2 rounded-xl bg-indigo-600 text-white"><i class="fa-solid fa-folder-plus"></i> 추가</button>
@@ -233,7 +232,7 @@
             </main>
         </div>
 
-        <!-- 3. 교무실 (급식 & 시간표) -->
+        <!-- 탭 3: 내 교무실 -->
         <div id="tabContentOffice" class="tab-view-content hidden">
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
                 <section class="bg-gradient-to-r from-teal-700 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center flex-wrap gap-4">
@@ -244,11 +243,11 @@
                     </div>
                     <div class="flex gap-2">
                         <button class="bg-white/20 text-white text-xs px-3 py-2 rounded-xl" onclick="window.open('http://comci.net:4082/st', '_blank')"><i class="fa-solid fa-link"></i> 컴시간</button>
+                        <button id="openNeisConfigModalBtn" class="bg-white/20 text-white text-xs px-3 py-2 rounded-xl"><i class="fa-solid fa-gear"></i> 설정</button>
                     </div>
                 </section>
 
                 <div id="officeMainDashboard" class="space-y-8">
-                    <!-- 최상단: 교사 시간표 -->
                     <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
                         <div class="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 gap-2">
                             <div class="flex items-center gap-2">
@@ -260,11 +259,11 @@
                                     <button id="weekToggleThisBtn" class="px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all">이번주</button>
                                     <button id="weekToggleNextBtn" class="px-3 py-1 text-xs font-medium text-slate-600 rounded-lg transition-all">다음주</button>
                                 </div>
-                                <button id="setDefaultMyScheduleBtn" class="text-[10px] bg-slate-50 border border-slate-200 px-2 py-1 rounded ml-1"><i class="fa-solid fa-thumbtack text-indigo-500"></i> 기본저장</button>
+                                <button id="setDefaultMyScheduleBtn" class="text-[10px] bg-slate-50 border border-slate-200 px-2 py-1 rounded ml-1 hover:bg-slate-100"><i class="fa-solid fa-thumbtack text-indigo-500"></i> 기본저장</button>
                             </div>
                             <div class="flex items-center gap-2 text-[11px] font-semibold">
-                                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-red-500"></span> 보강</span>
-                                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-teal-700"></span> 행사</span>
+                                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-[#d8b4fe]"></span> 보강교체</span>
+                                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-[#6ee7b7]"></span> 진로·행사</span>
                             </div>
                         </div>
                         <div class="overflow-x-auto border border-slate-200 rounded-2xl mt-4">
@@ -277,7 +276,6 @@
                         </div>
                     </div>
 
-                    <!-- 하단: 학급 & 급식 -->
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                         <div class="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
                             <div class="flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -315,12 +313,12 @@
         </div>
     </div>
 
-    <!-- 팝업 모달들 -->
+    <!-- 모달들 -->
     <div id="teacherSelectModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+        <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
             <div class="flex justify-between items-center border-b pb-2">
                 <h3 class="font-bold text-slate-800 text-sm">시간표를 조회할 교사 선택</h3>
-                <button id="closeTeacherSelectModalBtn" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button>
+                <button id="closeTeacherSelectModalBtn" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div id="modalTeacherList" class="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-80 overflow-y-auto text-xs p-1"></div>
         </div>
@@ -336,6 +334,19 @@
         </div>
     </div>
 
+    <div id="neisConfigModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <h3 class="text-lg font-bold">NEIS API 설정</h3>
+            <input type="text" id="neisApiKeyInput" placeholder="인증키 (선택)" class="w-full text-xs p-2.5 rounded-xl border font-mono">
+            <div class="grid grid-cols-2 gap-2">
+                <input type="text" value="E10" class="w-full text-xs p-2.5 rounded-xl border bg-slate-50" readonly>
+                <input type="text" value="7331057" class="w-full text-xs p-2.5 rounded-xl border bg-slate-50" readonly>
+            </div>
+            <div class="flex justify-end"><button id="saveNeisConfigBtn" class="px-5 py-2 text-xs font-bold text-white bg-teal-600 rounded-xl">저장</button></div>
+            <button id="closeNeisConfigModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+    </div>
+
     <div id="lessonModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
             <button id="closeLessonModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl"><i class="fa-solid fa-xmark"></i></button>
@@ -343,7 +354,7 @@
             <form id="lessonForm" class="space-y-3.5">
                 <input type="hidden" id="editLessonId">
                 <div class="grid grid-cols-2 gap-3">
-                    <select id="lessonUnitSelect" class="text-xs p-2.5 rounded-xl border border-slate-200">
+                    <select id="lessonUnitSelect" class="text-xs p-2.5 rounded-xl border">
                         <option value="unit1">1단원</option><option value="unit2">2단원</option><option value="unit3">3단원</option><option value="unit4">4단원</option><option value="unit5">5단원</option>
                     </select>
                     <input type="text" id="lessonNumInput" placeholder="1차시" required class="text-xs p-2.5 rounded-xl border">
@@ -351,7 +362,7 @@
                 <input type="text" id="lessonTitleInput" placeholder="제목" required class="w-full text-xs p-2.5 rounded-xl border font-bold">
                 <input type="text" id="lessonSummaryInput" placeholder="요약" required class="w-full text-xs p-2.5 rounded-xl border">
                 <input type="url" id="lessonCoverInput" placeholder="커버 이미지 URL" class="w-full text-xs p-2.5 rounded-xl border">
-                <textarea id="lessonContentInput" rows="6" placeholder="마크다운 본문 (Ctrl+V로 캡처 이미지 즉시 붙여넣기 기능 지원)..." required class="w-full text-xs p-3 rounded-xl border font-mono"></textarea>
+                <textarea id="lessonContentInput" rows="6" placeholder="마크다운 본문 (Ctrl+V 캡처 이미지 붙여넣기)..." required class="w-full text-xs p-3 rounded-xl border font-mono"></textarea>
                 <div class="flex items-center gap-2 p-3 bg-slate-50 rounded-xl">
                     <input type="checkbox" id="lessonVisibilityCheckbox" checked class="w-4 h-4 text-sky-600"><label class="text-xs">학생 공개</label>
                 </div>
@@ -376,7 +387,7 @@
                 </div>
                 <input type="text" id="taskTitleInput" placeholder="업무명" required class="w-full text-xs p-2.5 rounded-xl border font-bold">
                 <input type="text" id="taskSummaryInput" placeholder="요약 설명" required class="w-full text-xs p-2.5 rounded-xl border">
-                <textarea id="taskContentInput" rows="8" placeholder="본문 (Ctrl+V 이미지 첨부 기능 지원)..." required class="w-full text-xs p-3 rounded-xl border font-mono"></textarea>
+                <textarea id="taskContentInput" rows="8" placeholder="본문 (Ctrl+V 이미지 첨부 지원)..." required class="w-full text-xs p-3 rounded-xl border font-mono"></textarea>
                 <div class="flex justify-end gap-2"><button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 rounded-xl">저장</button></div>
             </form>
         </div>
@@ -394,7 +405,6 @@
         </div>
     </div>
 
-    <!-- Firebase SDK (v10) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -415,11 +425,9 @@
         let allLessonDocs = [];
         let allTaskDocs = [];
         
-        // 새 탭 뷰어 데이터
         let currentViewingTaskData = null;
         let currentViewingLessonData = null;
 
-        // 전 교사 리스트 (컴시간 크롤러 자동 매핑용)
         const teacherList = [
             { id: '11', name: '김정애', short: '김정' }, { id: '32', name: '신정훈', short: '신정', default: true },
             { id: '33', name: '최용섭', short: '최용' }, { id: '34', name: '김용준', short: '김용' },
@@ -434,11 +442,19 @@
         let selectedGrade = 1;
         let selectedClassNum = 7;
         let currentWeekMode = 'this';
-
         let activeTeacherSchedule = {};
         let activeClassSchedule = {};
 
-        // 클립보드 이미지 페이스트 처리
+        // 🔥 자동 색상 적용을 위한 신정훈 선생님 원본 시간표
+        const baseTeacherSchedule32 = {
+            '1_0': '108정보', '3_0': '107정보', '5_0': '106정보', '6_0': '109정보',
+            '1_1': '102정보', '2_1': '110정보', '4_1': '104정보', '6_1': '101정보',
+            '2_2': '102정보', '3_2': '103정보', '5_2': '106정보', '6_2': '105정보',
+            '1_3': '109정보', '2_3': '101정보', '4_3': '105정보', '5_3': '104정보',
+            '1_4': '110정보', '2_4': '107정보', '4_4': '108정보', '6_4': '103정보'
+        };
+
+        // 📷 클립보드 페이스트 (Ctrl+V)
         function enableClipboardImagePaste(el) {
             if (!el) return;
             el.addEventListener('paste', (e) => {
@@ -468,7 +484,9 @@
         enableClipboardImagePaste(document.getElementById('taskViewerEditContent'));
         enableClipboardImagePaste(document.getElementById('viewerEditContent'));
 
-        // URL 라우팅 (새 탭 vs 메인 탭 완벽 분기)
+        // ==========================================
+        // 🔒 권한 및 화면 노출 제어 (비로그인 숨김 철저 적용)
+        // ==========================================
         const urlParams = new URLSearchParams(window.location.search);
         const isLessonViewer = urlParams.has('lesson');
         const isTaskViewer = urlParams.has('task');
@@ -483,9 +501,6 @@
             loadStandaloneTask(urlParams.get('task'));
         }
 
-        // =====================================
-        // 📚 단원별 수업자료실 새 탭 뷰어 (인라인 편집)
-        // =====================================
         const unitMeta = {
             'unit1': { name: '1단원. 컴퓨팅 시스템', badgeClass: 'bg-sky-50 text-sky-600 border-sky-200' },
             'unit2': { name: '2단원. 데이터', badgeClass: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
@@ -494,6 +509,142 @@
             'unit5': { name: '5단원. 디지털 문화', badgeClass: 'bg-amber-50 text-amber-600 border-amber-200' }
         };
 
+        let workCatMeta = {
+            'devices': { name: '💻 계정 및 기기', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
+            'network': { name: '🌐 네트워크/서버', badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+            'privacy': { name: '🛡️ 보안점검', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' },
+            'software': { name: '🔑 SW관리자', badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
+            'disposal': { name: '📊 행정/공시', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' }
+        };
+
+        function switchTab(target) {
+            document.getElementById('tabContentClass').classList.add('hidden');
+            document.getElementById('tabContentWork').classList.add('hidden');
+            document.getElementById('tabContentOffice').classList.add('hidden');
+            
+            const btnOff = "nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 flex items-center gap-1.5";
+            document.getElementById('navTabClass').className = btnOff;
+            
+            if(currentUser) {
+                document.getElementById('navTabWork').className = btnOff;
+                document.getElementById('navTabOffice').className = btnOff;
+            }
+
+            const mobOff = "flex-1 py-1.5 text-center text-xs font-medium text-slate-600";
+            document.getElementById('mobileNavTabClass').className = mobOff;
+
+            if(currentUser) {
+                document.getElementById('mobileNavTabWork').className = mobOff;
+                document.getElementById('mobileNavTabOffice').className = mobOff;
+            }
+
+            if (target === 'work') {
+                if(!currentUser) return switchTab('class'); // 비로그인 접근 차단
+                document.getElementById('tabContentWork').classList.remove('hidden');
+                document.getElementById('navTabWork').className = "nav-tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-indigo-700 shadow-sm flex items-center gap-1.5";
+                document.getElementById('mobileNavTabWork').className = "flex-1 py-1.5 text-center text-xs font-bold bg-white text-indigo-700 rounded-lg shadow-sm";
+            } else if (target === 'office') {
+                if(!currentUser) return switchTab('class'); // 비로그인 접근 차단
+                document.getElementById('tabContentOffice').classList.remove('hidden');
+                document.getElementById('navTabOffice').className = "nav-tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-teal-700 shadow-sm flex items-center gap-1.5";
+                document.getElementById('mobileNavTabOffice').className = "flex-1 py-1.5 text-center text-xs font-bold bg-white text-teal-700 rounded-lg shadow-sm";
+                initTimetables();
+            } else {
+                document.getElementById('tabContentClass').classList.remove('hidden');
+                document.getElementById('navTabClass').className = "nav-tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-sky-700 shadow-sm flex items-center gap-1.5";
+                document.getElementById('mobileNavTabClass').className = "flex-1 py-1.5 text-center text-xs font-bold bg-white text-sky-700 rounded-lg shadow-sm";
+            }
+        }
+
+        document.getElementById('navTabClass')?.addEventListener('click', () => switchTab('class'));
+        document.getElementById('navTabWork')?.addEventListener('click', () => switchTab('work'));
+        document.getElementById('navTabOffice')?.addEventListener('click', () => switchTab('office'));
+        document.getElementById('mobileNavTabClass')?.addEventListener('click', () => switchTab('class'));
+        document.getElementById('mobileNavTabWork')?.addEventListener('click', () => switchTab('work'));
+        document.getElementById('mobileNavTabOffice')?.addEventListener('click', () => switchTab('office'));
+
+        onAuthStateChanged(auth, async (user) => {
+            currentUser = user;
+            if (!isLessonViewer && !isTaskViewer) {
+                if (user) {
+                    document.getElementById('openLoginModalBtn').classList.add('hidden');
+                    document.getElementById('logoutBtn').classList.remove('hidden');
+                    
+                    document.getElementById('navTabWork').classList.remove('hidden');
+                    document.getElementById('navTabOffice').classList.remove('hidden');
+                    document.getElementById('mobileNavTabWork').classList.remove('hidden');
+                    document.getElementById('mobileNavTabOffice').classList.remove('hidden');
+                    
+                    document.getElementById('workAccessDeniedState').classList.add('hidden');
+                    document.getElementById('officeAccessDeniedState').classList.add('hidden');
+                    document.getElementById('teacherEditNoticeBtn').classList.remove('hidden');
+                    document.getElementById('openNewLessonModalBtn').classList.remove('hidden');
+                    document.getElementById('openNewTaskModalBtn').classList.remove('hidden');
+                    document.getElementById('addCategoryBtn').classList.remove('hidden');
+
+                    try {
+                        const snap = await getDoc(doc(db, "user_preferences", user.uid));
+                        if (snap.exists()) {
+                            const pref = snap.data();
+                            if (pref.teacherShort) {
+                                const found = teacherList.find(t => t.short === pref.teacherShort);
+                                if (found) selectedTeacher = found;
+                            }
+                            if (pref.classStr) {
+                                selectedGrade = Number(pref.classStr.split('-')[0]);
+                                selectedClassNum = Number(pref.classStr.split('-')[1]);
+                            }
+                        }
+                    } catch(e) {}
+                } else {
+                    document.getElementById('openLoginModalBtn').classList.remove('hidden');
+                    document.getElementById('logoutBtn').classList.add('hidden');
+                    
+                    document.getElementById('navTabWork').classList.add('hidden');
+                    document.getElementById('navTabOffice').classList.add('hidden');
+                    document.getElementById('mobileNavTabWork').classList.add('hidden');
+                    document.getElementById('mobileNavTabOffice').classList.add('hidden');
+                    
+                    document.getElementById('workAccessDeniedState').classList.remove('hidden');
+                    document.getElementById('officeAccessDeniedState').classList.remove('hidden');
+                    document.getElementById('teacherEditNoticeBtn').classList.add('hidden');
+                    document.getElementById('openNewLessonModalBtn').classList.add('hidden');
+                    document.getElementById('openNewTaskModalBtn').classList.add('hidden');
+                    document.getElementById('addCategoryBtn').classList.add('hidden');
+                    
+                    if(!document.getElementById('tabContentWork').classList.contains('hidden') || !document.getElementById('tabContentOffice').classList.contains('hidden')) {
+                        switchTab('class'); 
+                    }
+                }
+            } else {
+                if(user) {
+                    document.getElementById('viewerEditBtn')?.classList.remove('hidden');
+                    document.getElementById('taskViewerEditBtn')?.classList.remove('hidden');
+                } else {
+                    document.getElementById('viewerEditBtn')?.classList.add('hidden');
+                    document.getElementById('taskViewerEditBtn')?.classList.add('hidden');
+                }
+            }
+            if (!isLessonViewer && !isTaskViewer) { renderLessons(); renderTasks(); initTimetables(); }
+        });
+
+        document.getElementById('openLoginModalBtn')?.addEventListener('click', () => document.getElementById('loginModal').classList.remove('hidden'));
+        document.getElementById('closeLoginModalBtn')?.addEventListener('click', () => document.getElementById('loginModal').classList.add('hidden'));
+
+        document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
+                document.getElementById('loginModal').classList.add('hidden');
+                document.getElementById('loginForm').reset();
+            } catch (err) { alert("로그인 실패"); }
+        });
+        document.getElementById('logoutBtn')?.addEventListener('click', () => signOut(auth));
+
+
+        // =====================================
+        // 📚 단원별 수업자료실 새 탭 인라인 수정 
+        // =====================================
         async function loadStandaloneLesson(id) {
             try {
                 const snap = await getDoc(doc(db, "lessons", id));
@@ -506,16 +657,14 @@
         function renderStandaloneLessonView() {
             if (!currentViewingLessonData) return;
             const data = currentViewingLessonData;
-            document.title = `${data.title} | 정보 수업 자료실`;
+            document.title = `${data.title} | 수업 자료실`;
             document.getElementById('viewerTitle').textContent = data.title;
             document.getElementById('viewerSummary').textContent = data.summary || '';
-            document.getElementById('viewerLessonNum').textContent = data.lessonNum || '수업 자료';
-
+            document.getElementById('viewerLessonNum').textContent = data.lessonNum || '';
             const meta = unitMeta[data.unit] || { name: '정보', badgeClass: 'bg-slate-100 text-slate-600' };
             const badge = document.getElementById('viewerUnitBadge');
             badge.textContent = meta.name;
             badge.className = `text-xs font-bold px-3 py-1 rounded-full border ${meta.badgeClass}`;
-
             if (data.coverImage) {
                 document.getElementById('viewerCoverImg').src = data.coverImage;
                 document.getElementById('viewerCoverContainer').classList.remove('hidden');
@@ -551,7 +700,6 @@
             if(!currentViewingLessonData) return;
             const uTitle = document.getElementById('viewerEditTitle').value.trim();
             if(!uTitle) return alert("제목을 입력하세요.");
-            
             try {
                 await updateDoc(doc(db, "lessons", currentViewingLessonData.id), {
                     title: uTitle, summary: document.getElementById('viewerEditSummary').value.trim(), 
@@ -564,17 +712,10 @@
             } catch(e) { alert("저장 실패"); }
         });
 
-        // =====================================
-        // 🔒 업무 관제탑 새 탭 뷰어 (인라인 편집)
-        // =====================================
-        let workCatMeta = {
-            'devices': { name: '💻 계정 및 기기', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
-            'network': { name: '🌐 네트워크/서버', badgeClass: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
-            'privacy': { name: '🛡️ 보안점검', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' },
-            'software': { name: '🔑 SW관리자', badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
-            'disposal': { name: '📊 행정/공시', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' }
-        };
 
+        // =====================================
+        // 🔒 업무 관제탑 새 탭 인라인 수정 
+        // =====================================
         async function loadStandaloneTask(id) {
             try {
                 const snap = await getDoc(doc(db, "work_tasks", id));
@@ -587,6 +728,7 @@
         function renderStandaloneTaskView() {
             if (!currentViewingTaskData) return;
             const data = currentViewingTaskData;
+
             document.title = `${data.title} | 정보부 업무 매뉴얼`;
             document.getElementById('taskViewerTitle').textContent = data.title;
             document.getElementById('taskViewerSummary').textContent = data.summary || '';
@@ -644,135 +786,7 @@
         });
 
         // =====================================
-        // 메인 탭 전환 로직 (비로그인 권한 엄격 적용)
-        // =====================================
-        function switchTab(target) {
-            document.getElementById('tabContentClass').classList.add('hidden');
-            document.getElementById('tabContentWork').classList.add('hidden');
-            document.getElementById('tabContentOffice').classList.add('hidden');
-            
-            document.getElementById('navTabClass').className = "nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 flex items-center gap-1.5";
-            document.getElementById('navTabWork').className = "nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 flex items-center gap-1.5 " + (!currentUser ? "hidden" : "");
-            document.getElementById('navTabOffice').className = "nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 flex items-center gap-1.5";
-            
-            document.getElementById('mobileNavTabClass').className = "flex-1 py-1.5 text-center text-xs font-medium text-slate-600";
-            document.getElementById('mobileNavTabWork').className = "flex-1 py-1.5 text-center text-xs font-medium text-slate-600 " + (!currentUser ? "hidden" : "");
-            document.getElementById('mobileNavTabOffice').className = "flex-1 py-1.5 text-center text-xs font-medium text-slate-600";
-
-            if (target === 'work') {
-                if(!currentUser) return switchTab('class'); // 비로그인시 접근 차단
-                document.getElementById('tabContentWork').classList.remove('hidden');
-                document.getElementById('navTabWork').className = "nav-tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-indigo-700 shadow-sm flex items-center gap-1.5";
-                document.getElementById('mobileNavTabWork').className = "flex-1 py-1.5 text-center text-xs font-bold bg-white text-indigo-700 rounded-lg shadow-sm";
-            } else if (target === 'office') {
-                document.getElementById('tabContentOffice').classList.remove('hidden');
-                document.getElementById('navTabOffice').className = "nav-tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-teal-700 shadow-sm flex items-center gap-1.5";
-                document.getElementById('mobileNavTabOffice').className = "flex-1 py-1.5 text-center text-xs font-bold bg-white text-teal-700 rounded-lg shadow-sm";
-                initTimetables();
-            } else {
-                document.getElementById('tabContentClass').classList.remove('hidden');
-                document.getElementById('navTabClass').className = "nav-tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-sky-700 shadow-sm flex items-center gap-1.5";
-                document.getElementById('mobileNavTabClass').className = "flex-1 py-1.5 text-center text-xs font-bold bg-white text-sky-700 rounded-lg shadow-sm";
-            }
-        }
-
-        document.getElementById('navTabClass')?.addEventListener('click', () => switchTab('class'));
-        document.getElementById('navTabWork')?.addEventListener('click', () => switchTab('work'));
-        document.getElementById('navTabOffice')?.addEventListener('click', () => switchTab('office'));
-        document.getElementById('mobileNavTabClass')?.addEventListener('click', () => switchTab('class'));
-        document.getElementById('mobileNavTabWork')?.addEventListener('click', () => switchTab('work'));
-        document.getElementById('mobileNavTabOffice')?.addEventListener('click', () => switchTab('office'));
-
-        document.getElementById('openLoginModalBtn')?.addEventListener('click', () => document.getElementById('loginModal').classList.remove('hidden'));
-        document.getElementById('closeLoginModalBtn')?.addEventListener('click', () => document.getElementById('loginModal').classList.add('hidden'));
-
-        // 로그인 상태 감지 (새 탭 덮어쓰기 버그 완벽 차단)
-        onAuthStateChanged(auth, async (user) => {
-            currentUser = user;
-            
-            // 새 탭 화면일 경우에는 메인화면 DOM 처리 건너뜀
-            if (!isLessonViewer && !isTaskViewer) {
-                if (user) {
-                    document.getElementById('openLoginModalBtn').classList.add('hidden');
-                    document.getElementById('logoutBtn').classList.remove('hidden');
-                    
-                    document.getElementById('navTabWork').classList.remove('hidden');
-                    document.getElementById('mobileNavTabWork').classList.remove('hidden');
-                    
-                    document.getElementById('workAccessDeniedState').classList.add('hidden');
-                    document.getElementById('workMainDashboard').classList.remove('hidden');
-                    document.getElementById('officeAccessDeniedState').classList.add('hidden');
-                    
-                    document.getElementById('teacherEditNoticeBtn').classList.remove('hidden');
-                    document.getElementById('openNewLessonModalBtn').classList.remove('hidden');
-                    document.getElementById('openNewTaskModalBtn').classList.remove('hidden');
-                    document.getElementById('addCategoryBtn').classList.remove('hidden');
-
-                    try {
-                        const snap = await getDoc(doc(db, "user_preferences", user.uid));
-                        if (snap.exists()) {
-                            const pref = snap.data();
-                            if (pref.teacherShort) {
-                                const found = teacherList.find(t => t.short === pref.teacherShort);
-                                if (found) selectedTeacher = found;
-                            }
-                            if (pref.classStr) {
-                                selectedGrade = Number(pref.classStr.split('-')[0]);
-                                selectedClassNum = Number(pref.classStr.split('-')[1]);
-                            }
-                        }
-                    } catch(e) {}
-                } else {
-                    document.getElementById('openLoginModalBtn').classList.remove('hidden');
-                    document.getElementById('logoutBtn').classList.add('hidden');
-                    
-                    document.getElementById('navTabWork').classList.add('hidden');
-                    document.getElementById('mobileNavTabWork').classList.add('hidden');
-                    
-                    document.getElementById('workAccessDeniedState').classList.remove('hidden');
-                    document.getElementById('workMainDashboard').classList.add('hidden');
-                    document.getElementById('officeAccessDeniedState').classList.remove('hidden');
-                    
-                    document.getElementById('teacherEditNoticeBtn').classList.add('hidden');
-                    document.getElementById('openNewLessonModalBtn').classList.add('hidden');
-                    document.getElementById('openNewTaskModalBtn').classList.add('hidden');
-                    document.getElementById('addCategoryBtn').classList.add('hidden');
-                    
-                    if(!document.getElementById('tabContentWork').classList.contains('hidden')) {
-                        switchTab('class'); // 업무탭 보고 있다 로그아웃시 튕기기
-                    }
-                }
-            } else {
-                // 새 탭 뷰어 로그인 상태 처리
-                if(user) {
-                    document.getElementById('viewerEditBtn')?.classList.remove('hidden');
-                    document.getElementById('taskViewerEditBtn')?.classList.remove('hidden');
-                } else {
-                    document.getElementById('viewerEditBtn')?.classList.add('hidden');
-                    document.getElementById('taskViewerEditBtn')?.classList.add('hidden');
-                }
-            }
-            
-            // 데이터 재렌더링
-            if (!isLessonViewer && !isTaskViewer) {
-                renderLessons();
-                renderTasks();
-                initTimetables();
-            }
-        });
-
-        document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                await signInWithEmailAndPassword(auth, document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
-                document.getElementById('loginModal').classList.add('hidden');
-                document.getElementById('loginForm').reset();
-            } catch (err) { alert("로그인 실패"); }
-        });
-        document.getElementById('logoutBtn')?.addEventListener('click', () => signOut(auth));
-
-        // =====================================
-        // 🍱 컴시간 시간표 시스템
+        // 🍱 교무실 (시간표)
         // =====================================
         function initTimetables() {
             if(!document.getElementById('titleTeacherNameBtn')) return;
@@ -801,7 +815,7 @@
             list.innerHTML = '';
             teacherList.forEach(t => {
                 const btn = document.createElement('button');
-                btn.className = `p-2 rounded-xl text-center text-xs font-semibold ${t.short === selectedTeacher.short ? 'bg-indigo-600 text-white' : 'bg-slate-50 hover:bg-slate-200'}`;
+                btn.className = `p-2 rounded-xl text-center text-xs font-semibold transition-all ${t.short === selectedTeacher.short ? 'bg-indigo-600 text-white' : 'bg-slate-50 hover:bg-slate-200'}`;
                 btn.textContent = t.name;
                 btn.onclick = () => { selectedTeacher = t; modal.classList.add('hidden'); initTimetables(); };
                 list.appendChild(btn);
@@ -817,7 +831,7 @@
             for (let g=1; g<=3; g++) {
                 for(let c=1; c<=9; c++) {
                     const btn = document.createElement('button');
-                    btn.className = `p-2 rounded-xl text-center text-xs font-semibold ${(g===selectedGrade && c===selectedClassNum) ? 'bg-sky-600 text-white' : 'bg-slate-50 hover:bg-slate-200'}`;
+                    btn.className = `p-2 rounded-xl text-center text-xs font-semibold transition-all ${(g===selectedGrade && c===selectedClassNum) ? 'bg-sky-600 text-white' : 'bg-slate-50 hover:bg-slate-200'}`;
                     btn.textContent = `${g}-${c}`;
                     btn.onclick = () => { selectedGrade = g; selectedClassNum = c; modal.classList.add('hidden'); initTimetables(); };
                     list.appendChild(btn);
@@ -835,6 +849,7 @@
             } catch(e) { alert("저장 실패"); }
         });
 
+        // 🔥 교사 시간표 렌더링 (자동 하이라이트 적용)
         async function loadTeacherTimetable() {
             const tbody = document.getElementById('teacherTimetableGridBody');
             if(!tbody) return;
@@ -850,13 +865,27 @@
                 for (let d = 0; d < 5; d++) {
                     const cellKey = `${p}_${d}`;
                     const cell = activeTeacherSchedule[cellKey] || { text: '', type: 'normal' };
-                    let styleClass = cell.type === 'red' ? 'tt-cell-changed-red' : (cell.type === 'green' ? 'tt-cell-changed-green' : 'tt-cell-normal');
-                    trHtml += `<td data-key="${cellKey}" class="tt-teacher-cell p-2 border-r ${styleClass} cursor-pointer hover:opacity-90 font-bold text-xs sm:text-sm">${cell.text}</td>`;
+                    let currentText = cell.text || '';
+                    let styleClass = 'tt-cell-normal';
+
+                    // 💡 자동 색상 판별 (신정훈 선생님의 경우)
+                    if (selectedTeacher.short === '신정') {
+                        let baseText = baseTeacherSchedule32[cellKey] || '';
+                        if (currentText !== baseText) {
+                            if (currentText.includes('진로')) styleClass = 'tt-cell-changed-green'; 
+                            else if (currentText !== '') styleClass = 'tt-cell-changed-red'; 
+                        }
+                    } else {
+                        if (cell.type === 'red') styleClass = 'tt-cell-changed-red';
+                        if (cell.type === 'green') styleClass = 'tt-cell-changed-green';
+                    }
+
+                    trHtml += `<td data-key="${cellKey}" class="tt-teacher-cell p-2 border-r ${styleClass} cursor-pointer hover:opacity-90 font-bold text-xs sm:text-sm" title="클릭하여 수정">${currentText}</td>`;
                 }
                 trHtml += `</tr>`;
                 tbody.insertAdjacentHTML('beforeend', trHtml);
             }
-            
+
             document.querySelectorAll('.tt-teacher-cell').forEach(td => {
                 td.onclick = async () => {
                     if (!currentUser) return alert("교사 로그인이 필요합니다.");
@@ -865,7 +894,7 @@
                     const newText = prompt("과목명 입력 (비워두면 삭제):", existing.text);
                     if (newText === null) return;
                     
-                    const typeChoice = prompt("시간표 색상 선택:\n1: 기본(흰색)\n2: 보강교체(빨강)\n3: 행사(초록)", existing.type === 'red' ? '2' : (existing.type === 'green' ? '3' : '1'));
+                    const typeChoice = prompt("시간표 색상 선택:\n1: 기본(흰색)\n2: 보강교체(연보라)\n3: 행사(민트)", existing.type === 'red' ? '2' : (existing.type === 'green' ? '3' : '1'));
                     let newType = typeChoice === '2' ? 'red' : (typeChoice === '3' ? 'green' : 'normal');
 
                     activeTeacherSchedule[key] = { text: newText.trim(), type: newType };
@@ -880,7 +909,8 @@
             const tbody = document.getElementById('classTimetableGridBody');
             if(!tbody) return;
             try {
-                const snap = await getDoc(doc(db, "timetable_schedules", `tt_class_${currentWeekMode}_${selectedGrade}-${selectedClassNum}`));
+                const docKey = `tt_class_${currentWeekMode}_${selectedGrade}-${selectedClassNum}`;
+                const snap = await getDoc(doc(db, "timetable_schedules", docKey));
                 activeClassSchedule = snap.exists() ? snap.data().schedule : {};
             } catch(e) { activeClassSchedule = {}; }
 
@@ -905,7 +935,7 @@
                     const newText = prompt("과목명 입력 (비워두면 삭제):", existing.text);
                     if (newText === null) return;
                     
-                    const typeChoice = prompt("시간표 색상 선택:\n1: 기본(흰색)\n2: 보강교체(빨강)\n3: 행사(초록)", existing.type === 'red' ? '2' : (existing.type === 'green' ? '3' : '1'));
+                    const typeChoice = prompt("시간표 색상 선택:\n1: 기본(흰색)\n2: 보강교체(연보라)\n3: 행사(민트)", existing.type === 'red' ? '2' : (existing.type === 'green' ? '3' : '1'));
                     let newType = typeChoice === '2' ? 'red' : (typeChoice === '3' ? 'green' : 'normal');
 
                     activeClassSchedule[key] = { text: newText.trim(), type: newType };
@@ -934,9 +964,9 @@
         });
         fetchNeisMeal(todayYmd);
 
-        // ==========================================
-        // 📚 수업 및 정보업무 전체 렌더링 시스템
-        // ==========================================
+        // =====================================
+        // 📚 수업 및 업무 전체 카드 렌더링
+        // =====================================
         let currentSelectedCategory = 'all';
         let currentWorkCategory = 'all';
 
@@ -954,10 +984,10 @@
                 const meta = unitMeta[lesson.unit] || { name: '수업 자료', badgeClass: 'bg-slate-100 text-slate-600 border-slate-200' };
                 const isHidden = lesson.isVisible === false;
                 const card = document.createElement('div');
-                card.className = `searchable-card bg-white p-5 rounded-2xl border ${isHidden ? 'border-dashed border-amber-300 bg-amber-50/20' : 'border-slate-100'} shadow-sm hover:shadow-md transition-all flex flex-col justify-between relative group cursor-pointer`;
-                
+                card.className = `searchable-card bg-white p-5 rounded-2xl border ${isHidden ? 'border-dashed border-amber-300 bg-amber-50/20' : 'border-slate-100'} shadow-sm hover:shadow-md transition-all flex flex-col justify-between cursor-pointer group`;
+                card.onclick = () => window.open(`?lesson=${lesson.id}`, '_blank');
                 card.innerHTML = `
-                    <div onclick="window.open('?lesson=${lesson.id}', '_blank')">
+                    <div>
                         <div class="flex items-center justify-between mb-2">
                             <span class="text-xs font-semibold px-2.5 py-0.5 rounded-md border ${meta.badgeClass}">${meta.name}</span>
                             <div class="flex items-center gap-1.5">
@@ -969,9 +999,9 @@
                         <p class="text-xs text-slate-500 line-clamp-2 mb-4 leading-relaxed">${lesson.summary}</p>
                     </div>
                     <div class="pt-3 border-t border-slate-100 flex flex-col gap-2">
-                        <div class="flex items-center justify-between text-xs" onclick="window.open('?lesson=${lesson.id}', '_blank')">
+                        <div class="flex items-center justify-between text-xs">
                             <span class="text-slate-400"><i class="fa-regular fa-file-lines mr-1"></i> 수업 노트</span>
-                            <span class="text-sky-600 font-semibold hover:underline flex items-center gap-1">새 탭에서 열기 <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i></span>
+                            <span class="text-sky-600 font-semibold group-hover:underline flex items-center gap-1">새 탭에서 열기</span>
                         </div>
                         ${currentUser ? `
                             <div class="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between bg-slate-50 p-2 rounded-xl" onclick="event.stopPropagation()">
@@ -1023,14 +1053,14 @@
             container.innerHTML = '';
             filtered.forEach(task => {
                 const meta = workCatMeta[task.category] || { name: '정보 업무', badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' };
-                let statusBadgeHtml = task.status === 'doing' ? `<span class="bg-sky-100 text-sky-800 text-[10px] px-2.5 py-1 rounded-md font-bold">🚀 진행중</span>` : (task.status === 'done' ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2.5 py-1 rounded-md font-bold">✅ 완료됨</span>` : `<span class="bg-amber-100 text-amber-800 text-[10px] px-2.5 py-1 rounded-md font-bold">⏳ 대기중</span>`);
+                let statusBadgeHtml = task.status === 'doing' ? `<button data-id="${task.id}" data-status="doing" class="status-toggle-btn bg-sky-100 hover:bg-sky-200 text-sky-800 text-[10px] px-2.5 py-1 rounded-md font-bold transition-all shadow-sm">🚀 진행중</button>` : (task.status === 'done' ? `<button data-id="${task.id}" data-status="done" class="status-toggle-btn bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] px-2.5 py-1 rounded-md font-bold transition-all shadow-sm">✅ 완료됨</button>` : `<button data-id="${task.id}" data-status="todo" class="status-toggle-btn bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] px-2.5 py-1 rounded-md font-bold transition-all shadow-sm">⏳ 대기중</button>`);
 
                 const card = document.createElement('div');
                 card.className = "searchable-card bg-white p-5 rounded-3xl border border-slate-200 shadow-sm cursor-pointer group hover:shadow-md transition-all";
                 card.onclick = () => window.open(`?task=${task.id}`, '_blank');
                 card.innerHTML = `
                     <div class="space-y-2">
-                        <div class="flex justify-between"><span class="text-xs font-semibold px-2.5 py-0.5 rounded-md border ${meta.badgeClass}">${meta.name}</span>${statusBadgeHtml}</div>
+                        <div class="flex justify-between items-center"><span class="text-xs font-semibold px-2.5 py-0.5 rounded-md border ${meta.badgeClass}">${meta.name}</span><div onclick="event.stopPropagation()">${statusBadgeHtml}</div></div>
                         <h4 class="font-bold text-slate-800 leading-snug group-hover:text-indigo-600">${task.title}</h4>
                         <p class="text-xs text-slate-500">${task.summary}</p>
                     </div>
@@ -1048,9 +1078,18 @@
                 container.appendChild(card);
             });
 
+            document.querySelectorAll('.status-toggle-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if (!currentUser) return alert("교사 로그인이 필요합니다.");
+                    const taskId = e.currentTarget.getAttribute('data-id');
+                    const currentStatus = e.currentTarget.getAttribute('data-status') || 'todo';
+                    const nextStatus = currentStatus === 'todo' ? 'doing' : (currentStatus === 'doing' ? 'done' : 'todo');
+                    await updateDoc(doc(db, "work_tasks", taskId), { status: nextStatus });
+                });
+            });
+
             document.querySelectorAll('.edit-task-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
                     const task = allTaskDocs.find(t => t.id === e.currentTarget.getAttribute('data-id'));
                     if (!task) return;
                     document.getElementById('editTaskId').value = task.id;
@@ -1065,7 +1104,6 @@
 
             document.querySelectorAll('.delete-task-btn').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
                     if (confirm("삭제하시겠습니까?")) await deleteDoc(doc(db, "work_tasks", e.currentTarget.getAttribute('data-id')));
                 });
             });
@@ -1111,6 +1149,7 @@
             document.getElementById('taskModal').classList.add('hidden');
         });
 
+        // 필터 로직
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.filter-btn').forEach(b => { b.classList.remove('bg-sky-500', 'text-white', 'shadow-sm', 'active'); b.classList.add('bg-slate-200', 'text-slate-600'); });
@@ -1153,7 +1192,6 @@
                 container.innerHTML += `<div class="flex justify-between p-3 bg-sky-50 rounded-xl mb-2 text-xs"><div><p class="font-bold">${data.title}</p><p>${data.body}</p></div>${currentUser ? `<button onclick="if(confirm('삭제?')) deleteDoc(doc(db, 'notices', '${docSnap.id}'))" class="text-red-400"><i class="fa-solid fa-trash"></i></button>` : ''}</div>`;
             });
         });
-        document.addEventListener('deleteNotice', async (e) => { if(confirm("삭제하시겠습니까?")) await deleteDoc(doc(db, "notices", e.detail)); });
         document.getElementById('teacherEditNoticeBtn')?.addEventListener('click', () => document.getElementById('noticeEditControls')?.classList.toggle('hidden'));
         document.getElementById('addNoticeFirebaseBtn')?.addEventListener('click', async () => {
             const t = document.getElementById('newNoticeTitle').value, b = document.getElementById('newNoticeBody').value;
