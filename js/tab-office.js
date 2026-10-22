@@ -26,7 +26,6 @@ export let officeState = {
 export function initOfficeTab(currentUser) {
     initTimetables(currentUser);
     
-    // 🎯 기본저장 버튼 이벤트를 함수 내부로 이동시켜 화면이 렌더링된 후 확실히 작동하게 묶음
     const saveBtn = document.getElementById('setDefaultMyScheduleBtn');
     if (saveBtn) {
         saveBtn.onclick = async () => {
@@ -53,7 +52,46 @@ export function initOfficeTab(currentUser) {
         initTimetables(auth.currentUser);
     });
     
-    // ... 나머지 탭 로직 동일하게 유지 (모달 오픈, 급식 API 조회 등) ...
+    document.getElementById('weekToggleNextBtn')?.addEventListener('click', (e) => {
+        officeState.currentWeekMode = 'next';
+        e.target.className = "px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all";
+        document.getElementById('weekToggleThisBtn').className = "px-3 py-1 text-xs font-medium text-slate-600 rounded-lg transition-all";
+        initTimetables(auth.currentUser);
+    });
+
+    document.getElementById('titleTeacherNameBtn')?.addEventListener('click', () => {
+        const list = document.getElementById('modalTeacherList'); list.innerHTML = '';
+        teacherList.forEach(t => {
+            const btn = document.createElement('button');
+            btn.className = `p-2 rounded-xl text-center text-xs font-semibold ${t.short === officeState.selectedTeacher.short ? 'bg-indigo-600 text-white' : 'bg-slate-50 hover:bg-slate-200'}`;
+            btn.textContent = t.name;
+            btn.onclick = () => { officeState.selectedTeacher = t; document.getElementById('teacherSelectModal').classList.add('hidden'); initTimetables(auth.currentUser); };
+            list.appendChild(btn);
+        });
+        document.getElementById('teacherSelectModal').classList.remove('hidden');
+    });
+
+    document.getElementById('titleClassNameBtn')?.addEventListener('click', () => {
+        const list = document.getElementById('modalClassList'); list.innerHTML = '';
+        for (let g=1; g<=3; g++) {
+            for(let c=1; c<=9; c++) {
+                const btn = document.createElement('button');
+                btn.className = `p-2 rounded-xl text-center text-xs font-semibold ${(g===officeState.selectedGrade && c===officeState.selectedClassNum) ? 'bg-sky-600 text-white' : 'bg-slate-50 hover:bg-slate-200'}`;
+                btn.textContent = `${g}-${c}`;
+                btn.onclick = () => { officeState.selectedGrade = g; officeState.selectedClassNum = c; document.getElementById('classSelectModal').classList.add('hidden'); initTimetables(auth.currentUser); };
+                list.appendChild(btn);
+            }
+        }
+        document.getElementById('classSelectModal').classList.remove('hidden');
+    });
+
+    document.getElementById('closeTeacherSelectModalBtn')?.addEventListener('click', () => document.getElementById('teacherSelectModal').classList.add('hidden'));
+    document.getElementById('closeClassSelectModalBtn')?.addEventListener('click', () => document.getElementById('classSelectModal').classList.add('hidden'));
+
+    const todayYmd = new Date().toISOString().slice(0,10).replace(/-/g, '');
+    document.getElementById('mealDateInput').value = new Date().toISOString().slice(0,10);
+    document.getElementById('fetchMealBtn')?.addEventListener('click', () => { fetchNeisMeal(document.getElementById('mealDateInput').value.replace(/-/g, '')); });
+    fetchNeisMeal(todayYmd);
 }
 
 export function initTimetables(currentUser) {
@@ -64,4 +102,90 @@ export function initTimetables(currentUser) {
     loadClassTimetable(currentUser);
 }
 
-// ... 하위 시간표 렌더링 로직(loadTeacherTimetable 등) 동일하게 유지 ...
+async function loadTeacherTimetable(currentUser) {
+    const tbody = document.getElementById('teacherTimetableGridBody'); if(!tbody) return;
+    let schedule = {};
+    try {
+        const tCode = officeState.selectedTeacher.short === '신정' ? '32' : officeState.selectedTeacher.short;
+        const snap = await getDoc(doc(db, "timetable_schedules", `tt_teacher_${officeState.currentWeekMode}_${tCode}`));
+        if (snap.exists()) schedule = snap.data().schedule;
+    } catch(e) {}
+
+    tbody.innerHTML = '';
+    for (let p = 1; p <= 7; p++) {
+        let tr = `<tr class="border-b border-slate-200"><td class="py-2.5 px-1 font-bold bg-slate-50 border-r text-xs text-slate-500">${p}교시</td>`;
+        for (let d = 0; d < 5; d++) {
+            const key = `${p}_${d}`; const cell = schedule[key] || { text: '', type: 'normal' };
+            let style = 'tt-cell-normal';
+            if (officeState.selectedTeacher.short === '신정') {
+                let baseText = baseTeacherSchedule32[key] || '';
+                if (cell.text !== baseText) {
+                    if (cell.text.includes('진로')) style = 'tt-cell-changed-green'; 
+                    else if (cell.text !== '') style = 'tt-cell-changed-red'; 
+                }
+            } else {
+                if (cell.type === 'red') style = 'tt-cell-changed-red'; 
+                if (cell.type === 'green') style = 'tt-cell-changed-green';
+            }
+            tr += `<td data-key="${key}" class="tt-teacher-cell p-2 border-r ${style} cursor-pointer font-bold text-xs sm:text-sm hover:opacity-90">${cell.text}</td>`;
+        }
+        tbody.insertAdjacentHTML('beforeend', tr + '</tr>');
+    }
+
+    document.querySelectorAll('.tt-teacher-cell').forEach(td => {
+        td.onclick = async () => {
+            const user = auth.currentUser;
+            if (!user) return alert("교사 로그인이 필요합니다.");
+            const key = td.getAttribute('data-key');
+            const newText = prompt("과목명 입력 (비워두면 삭제):", schedule[key]?.text || ''); if (newText === null) return;
+            const newTypeChoice = prompt("색상 선택: 1(기본), 2(연보라/보강), 3(민트/행사)", '1');
+            schedule[key] = { text: newText.trim(), type: newTypeChoice === '2' ? 'red' : (newTypeChoice === '3' ? 'green' : 'normal') };
+            const tCode = officeState.selectedTeacher.short === '신정' ? '32' : officeState.selectedTeacher.short;
+            await setDoc(doc(db, "timetable_schedules", `tt_teacher_${officeState.currentWeekMode}_${tCode}`), { schedule }, { merge: true });
+            loadTeacherTimetable(user);
+        };
+    });
+}
+
+async function loadClassTimetable(currentUser) {
+    const tbody = document.getElementById('classTimetableGridBody'); if(!tbody) return;
+    let schedule = {};
+    try {
+        const snap = await getDoc(doc(db, "timetable_schedules", `tt_class_${officeState.currentWeekMode}_${officeState.selectedGrade}-${officeState.selectedClassNum}`));
+        if (snap.exists()) schedule = snap.data().schedule;
+    } catch(e) {}
+
+    tbody.innerHTML = '';
+    for (let p = 1; p <= 7; p++) {
+        let tr = `<tr class="border-b border-slate-200"><td class="py-2.5 px-1 font-bold bg-slate-50 border-r text-xs text-slate-500">${p}교시</td>`;
+        for (let d = 0; d < 5; d++) {
+            const key = `${p}_${d}`; const cell = schedule[key] || { text: '', type: 'normal' };
+            let style = cell.type === 'red' ? 'tt-cell-changed-red' : (cell.type === 'green' ? 'tt-cell-changed-green' : 'tt-cell-normal');
+            tr += `<td data-key="${key}" class="tt-class-cell p-2 border-r ${style} cursor-pointer font-bold text-xs sm:text-sm hover:opacity-90">${cell.text}</td>`;
+        }
+        tbody.insertAdjacentHTML('beforeend', tr + '</tr>');
+    }
+
+    document.querySelectorAll('.tt-class-cell').forEach(td => {
+        td.onclick = async () => {
+            const user = auth.currentUser;
+            if (!user) return alert("교사 로그인이 필요합니다.");
+            const key = td.getAttribute('data-key');
+            const newText = prompt("과목명 입력 (비워두면 삭제):", schedule[key]?.text || ''); if (newText === null) return;
+            const newTypeChoice = prompt("색상 선택: 1(기본), 2(연보라/보강), 3(민트/행사)", '1');
+            schedule[key] = { text: newText.trim(), type: newTypeChoice === '2' ? 'red' : (newTypeChoice === '3' ? 'green' : 'normal') };
+            await setDoc(doc(db, "timetable_schedules", `tt_class_${officeState.currentWeekMode}_${officeState.selectedGrade}-${officeState.selectedClassNum}`), { schedule }, { merge: true });
+            loadClassTimetable(user);
+        };
+    });
+}
+
+async function fetchNeisMeal(dateYmd) {
+    const mealBox = document.getElementById('mealDishList'); if(!mealBox) return;
+    try {
+        const res = await fetch(`https://open.neis.go.kr/hub/mealServiceDietInfo?Type=json&pIndex=1&pSize=5&ATPT_OFCDC_SC_CODE=E10&SD_SCHUL_CODE=7331057&MLSV_YMD=${dateYmd}`);
+        const data = await res.json();
+        if (data.mealServiceDietInfo) mealBox.textContent = data.mealServiceDietInfo[1].row[0].DDISH_NM.replace(/\([0-9\.\s]+\)/g, '').replace(/<br\/>/g, '\n');
+        else mealBox.textContent = "급식 정보가 없습니다.";
+    } catch (err) { mealBox.textContent = "조회 오류"; }
+}
