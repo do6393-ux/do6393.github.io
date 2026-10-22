@@ -11,6 +11,28 @@ export function initHomeroomTab(currentUser) {
         renderContacts();
     });
 
+    // 🎯 1. 전체 삭제 기능 추가
+    document.getElementById('deleteAllContactsBtn')?.addEventListener('click', async () => {
+        if (students.length === 0) return alert("삭제할 연락처가 없습니다.");
+        
+        const count = students.length;
+        const answer = prompt(`⚠️ 경고: 등록된 ${count}명의 연락처를 모두 삭제하시겠습니까?\n진행하시려면 아래 입력창에 '삭제합니다' 라고 입력해주세요.`);
+        
+        if (answer === '삭제합니다') {
+            try {
+                for (let st of students) {
+                    await deleteDoc(doc(db, "homeroom_contacts", st.id));
+                }
+                alert("✅ 전체 삭제가 안전하게 완료되었습니다.");
+            } catch (e) {
+                alert("삭제 처리 중 오류가 발생했습니다.");
+            }
+        } else if (answer !== null) {
+            alert("입력한 문구가 일치하지 않아 전체 삭제가 취소되었습니다.");
+        }
+    });
+
+    // 일괄 붙여넣기 모달 열기/닫기
     document.getElementById('openBulkPasteModalBtn')?.addEventListener('click', () => {
         document.getElementById('bulkPasteTextarea').value = '';
         document.getElementById('bulkPasteModal').classList.remove('hidden');
@@ -24,15 +46,34 @@ export function initHomeroomTab(currentUser) {
         document.getElementById('bulkPasteModal').classList.add('hidden');
     });
 
-    // 🎯 다중 일괄 등록 파싱 알고리즘 완벽 교체
+    // 🎯 2. 다중 일괄 등록 로직 (학부모 1, 학부모 2 분리 저장)
     document.getElementById('saveBulkPasteBtn')?.addEventListener('click', async () => {
         const rawText = document.getElementById('bulkPasteTextarea').value;
         if (!rawText.trim()) return alert("입력된 데이터가 없습니다.");
 
         let parsedStudents = [];
 
-        // 1. 엑셀에서 복사하여 탭(Tab)이 존재하는 경우
-        if (rawText.includes('\t')) {
+        // 웹 표 복사 (엔터 줄바꿈 수직 파싱)
+        if (!rawText.includes('\t')) {
+            const lines = rawText.split('\n').map(l => l.trim()).filter(l => l !== '');
+            let current = null;
+
+            for (let line of lines) {
+                if (!isNaN(line) && Number(line) > 0 && Number(line) <= 100 && !line.startsWith('0')) {
+                    if (current) parsedStudents.push(current);
+                    current = { number: Number(line), name: '', phones: [] };
+                } else if (current) {
+                    if (!current.name) {
+                        current.name = line; 
+                    } else {
+                        current.phones.push(line); 
+                    }
+                }
+            }
+            if (current) parsedStudents.push(current);
+        } 
+        // 엑셀 탭(Tab) 파싱
+        else {
             const lines = rawText.split('\n');
             for (let line of lines) {
                 const rowData = line.trim().split(/\t+/);
@@ -48,42 +89,19 @@ export function initHomeroomTab(currentUser) {
                 
                 parsedStudents.push({ number: num, name, phones: [sPhone, pPhone1, pPhone2].filter(Boolean) });
             }
-        } 
-        // 2. 웹 브라우저 표 복사로 줄바꿈(Enter)만 존재하는 경우 (수직 파싱)
-        else {
-            const lines = rawText.split('\n').map(l => l.trim()).filter(l => l !== '');
-            let current = null;
-
-            for (let line of lines) {
-                // 1~100 사이의 숫자이고 '010'처럼 0으로 시작하지 않으면 학생 번호로 인식
-                if (!isNaN(line) && Number(line) > 0 && Number(line) <= 100 && !line.startsWith('0')) {
-                    if (current) parsedStudents.push(current);
-                    current = { number: Number(line), name: '', phones: [] };
-                } else if (current) {
-                    if (!current.name) {
-                        current.name = line; 
-                    } else {
-                        current.phones.push(line); 
-                    }
-                }
-            }
-            if (current) parsedStudents.push(current);
         }
 
         if (parsedStudents.length === 0) return alert("파싱할 수 있는 데이터가 없습니다. 양식을 확인해주세요.");
 
         let importCount = 0;
         for (let st of parsedStudents) {
-            let finalParentPhone = st.phones[1] || "";
-            if (st.phones[2] && st.phones[2] !== "없다") {
-                finalParentPhone = st.phones[1] ? `${st.phones[1]} / (학부모2) ${st.phones[2]}` : st.phones[2];
-            }
-
+            // DB 필드를 명확하게 parentPhone1, parentPhone2로 나누어 저장
             const payload = {
                 number: st.number,
                 name: st.name,
                 studentPhone: st.phones[0] || "",
-                parentPhone: finalParentPhone
+                parentPhone1: st.phones[1] || "",
+                parentPhone2: st.phones[2] || ""
             };
 
             const existing = students.find(s => s.number === st.number);
@@ -104,6 +122,7 @@ export function initHomeroomTab(currentUser) {
         document.getElementById('contactNameInput').value = '';
         document.getElementById('contactStudentPhone').value = '';
         document.getElementById('contactParentPhone').value = '';
+        document.getElementById('contactParent2Phone').value = '';
         
         document.getElementById('contactModalNumber').textContent = "신규";
         document.getElementById('contactModalName').textContent = "학생 추가";
@@ -133,7 +152,7 @@ export function initHomeroomTab(currentUser) {
 
     document.getElementById('deleteContactBtn')?.addEventListener('click', async () => {
         const id = document.getElementById('editContactId').value;
-        if (id && confirm("이 학생 연락처를 완전히 삭제할까요?")) {
+        if (id && confirm("이 학생 연락처를 개별 삭제할까요?")) {
             await deleteDoc(doc(db, "homeroom_contacts", id));
             document.getElementById('contactModal').classList.add('hidden');
         }
@@ -143,11 +162,12 @@ export function initHomeroomTab(currentUser) {
         const num = Number(document.getElementById('contactNumInput').value);
         const name = document.getElementById('contactNameInput').value.trim();
         const sPhone = document.getElementById('contactStudentPhone').value.trim();
-        const pPhone = document.getElementById('contactParentPhone').value.trim();
+        const pPhone1 = document.getElementById('contactParentPhone').value.trim();
+        const pPhone2 = document.getElementById('contactParent2Phone').value.trim();
         
         if (!num || !name) return alert("번호와 이름을 모두 입력해주세요.");
         
-        const payload = { number: num, name: name, studentPhone: sPhone, parentPhone: pPhone };
+        const payload = { number: num, name: name, studentPhone: sPhone, parentPhone1: pPhone1, parentPhone2: pPhone2 };
         const editId = document.getElementById('editContactId').value;
         
         try {
@@ -186,35 +206,54 @@ function openContactModal(st) {
     document.getElementById('contactModalNumber').textContent = String(st.number).padStart(2, '0');
     document.getElementById('contactModalName').textContent = st.name;
     
+    // DB에서 값을 불러와 폼 세팅 (과거 통합된 parentPhone 데이터도 호환 처리)
+    const p1 = st.parentPhone1 || st.parentPhone || ''; 
+    const p2 = st.parentPhone2 || '';
+
     document.getElementById('editContactId').value = st.id;
     document.getElementById('contactNumInput').value = st.number;
     document.getElementById('contactNameInput').value = st.name;
     document.getElementById('contactStudentPhone').value = st.studentPhone || '';
-    document.getElementById('contactParentPhone').value = st.parentPhone || '';
+    document.getElementById('contactParentPhone').value = p1;
+    document.getElementById('contactParent2Phone').value = p2;
 
+    // 학생 버튼 세팅
     const btnS = document.getElementById('callStudentBtn');
     const txtS = document.getElementById('callStudentText');
     if (st.studentPhone) {
         btnS.href = `tel:${st.studentPhone}`;
         btnS.className = "flex items-center justify-center gap-2 w-full bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-sky-200 shadow-sm";
-        txtS.textContent = `학생 본인 연결 (${st.studentPhone})`;
+        txtS.textContent = `학생 연결 (${st.studentPhone})`;
     } else {
         btnS.removeAttribute('href');
         btnS.className = "flex items-center justify-center gap-2 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-sm border border-slate-200";
         txtS.textContent = "학생 연락처 없음";
     }
 
-    const btnP = document.getElementById('callParentBtn');
-    const txtP = document.getElementById('callParentText');
-    if (st.parentPhone) {
-        const firstPhone = st.parentPhone.split('/')[0].replace('학부모1:', '').trim();
-        btnP.href = `tel:${firstPhone}`;
-        btnP.className = "flex items-center justify-center gap-2 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-emerald-200 shadow-sm";
-        txtP.textContent = `학부모 연결 (${st.parentPhone})`;
+    // 학부모 1 버튼 세팅
+    const btnP1 = document.getElementById('callParentBtn');
+    const txtP1 = document.getElementById('callParentText');
+    if (p1) {
+        btnP1.href = `tel:${p1}`;
+        btnP1.className = "flex items-center justify-center gap-1.5 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-emerald-200 shadow-sm";
+        txtP1.textContent = `학부모 1 연결`;
     } else {
-        btnP.removeAttribute('href');
-        btnP.className = "flex items-center justify-center gap-2 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-sm border border-slate-200";
-        txtP.textContent = "학부모 연락처 없음";
+        btnP1.removeAttribute('href');
+        btnP1.className = "flex items-center justify-center gap-1.5 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-sm border border-slate-200";
+        txtP1.textContent = "학부모 1 없음";
+    }
+
+    // 학부모 2 버튼 세팅
+    const btnP2 = document.getElementById('callParent2Btn');
+    const txtP2 = document.getElementById('callParent2Text');
+    if (p2 && p2 !== '없다') {
+        btnP2.href = `tel:${p2}`;
+        btnP2.className = "flex items-center justify-center gap-1.5 w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-amber-200 shadow-sm";
+        txtP2.textContent = `학부모 2 연결`;
+    } else {
+        btnP2.removeAttribute('href');
+        btnP2.className = "flex items-center justify-center gap-1.5 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-sm border border-slate-200";
+        txtP2.textContent = "학부모 2 없음";
     }
 
     document.getElementById('contactEditMode').classList.add('hidden');
