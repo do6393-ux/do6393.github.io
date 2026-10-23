@@ -6,7 +6,19 @@ import { updateHomeroomClass } from './tab-homeroom.js';
 
 let currentUser = null;
 
+// 🎯 1. 최상단 라우팅 (UI 전환을 가장 먼저 실행하여 메인 대시보드가 뜨는 것을 원천 차단)
+const urlParams = new URLSearchParams(window.location.search);
+const isLessonView = urlParams.has('lesson');
+const isTaskView = urlParams.has('task');
+
 document.addEventListener('DOMContentLoaded', () => {
+    
+    // 뷰어 모드 접속 시 메인 대시보드 즉시 가림
+    if (isLessonView || isTaskView) {
+        document.getElementById('mainDashboardApp').classList.add('hidden');
+        if (isLessonView) document.getElementById('standaloneViewer').classList.remove('hidden');
+        if (isTaskView) document.getElementById('standaloneTaskViewer').classList.remove('hidden');
+    }
     
     function switchTab(target) {
         document.getElementById('tabContentClass').classList.add('hidden');
@@ -79,8 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updateHomeroomUI() {
         const classStr = `${officeState.selectedGrade}-${officeState.selectedClassNum}`;
-        document.getElementById('navTabHomeroomText').textContent = `🔒 ${classStr}반`;
-        document.getElementById('mobileNavTabHomeroomText').textContent = `🔒 ${classStr}반`;
+        document.getElementById('navTabHomeroomText').textContent = `🔒 ${classStr}반`; document.getElementById('mobileNavTabHomeroomText').textContent = `🔒 ${classStr}반`;
         document.getElementById('homeroomTitleContacts').textContent = `${officeState.selectedGrade}학년 ${officeState.selectedClassNum}반 비상연락망`;
         
         const cleanTitle = document.getElementById('homeroomTitleCleaning');
@@ -120,12 +131,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     onAuthStateChanged(auth, async (user) => {
         currentUser = user;
-        const urlParams = new URLSearchParams(window.location.search);
         
-        // 🎯 [복구완료] 단원별 수업 자료실 새 탭 라우팅
-        if (urlParams.has('lesson')) {
-            document.getElementById('mainDashboardApp').classList.add('hidden');
-            document.getElementById('standaloneViewer').classList.remove('hidden');
+        // 🎯 2. 단원별 수업 자료실 새 탭 데이터 파싱
+        if (isLessonView) {
             try {
                 const snap = await getDoc(doc(db, "lessons", urlParams.get('lesson')));
                 if (snap.exists()) {
@@ -155,10 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // 🎯 [복구완료] 정보 기획 업무 새 탭 라우팅
-        if (urlParams.has('task')) {
-            document.getElementById('mainDashboardApp').classList.add('hidden');
-            document.getElementById('standaloneTaskViewer').classList.remove('hidden');
+        // 🎯 3. 정보 기획 업무 새 탭 데이터 파싱
+        if (isTaskView) {
             try {
                 const snap = await getDoc(doc(db, "work_tasks", urlParams.get('task')));
                 if (snap.exists()) {
@@ -181,11 +187,82 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (!urlParams.has('lesson') && !urlParams.has('task')) {
-            if (user) {
-                document.getElementById('openLoginModalBtn')?.classList.add('hidden');
-                document.getElementById('logoutBtn')?.classList.remove('hidden');
-                document.getElementById('openProfileSettingsBtn')?.classList.remove('hidden'); 
-                document.getElementById('teacherEditNoticeBtn')?.classList.remove('hidden');
-                
-                document.getElementById('navTabWork')?.
+        // 뷰어가 아니면 대시보드 로직 정상 수행
+        if (user) {
+            document.getElementById('openLoginModalBtn')?.classList.add('hidden');
+            document.getElementById('logoutBtn')?.classList.remove('hidden');
+            document.getElementById('openProfileSettingsBtn')?.classList.remove('hidden'); 
+            document.getElementById('teacherEditNoticeBtn')?.classList.remove('hidden');
+            
+            document.getElementById('navTabWork')?.classList.remove('hidden');
+            document.getElementById('navTabOffice')?.classList.remove('hidden');
+            document.getElementById('navTabHomeroom')?.classList.remove('hidden'); 
+            document.getElementById('mobileNavTabWork')?.classList.remove('hidden');
+            document.getElementById('mobileNavTabOffice')?.classList.remove('hidden');
+            document.getElementById('mobileNavTabHomeroom')?.classList.remove('hidden');
+            
+            document.getElementById('openNewLessonModalBtn')?.classList.remove('hidden');
+            document.getElementById('openNewTaskModalBtn')?.classList.remove('hidden');
+
+            try {
+                const snap = await getDoc(doc(db, "user_preferences", user.uid));
+                if (snap.exists()) {
+                    const p = snap.data();
+                    if (p.teacherShort) officeState.selectedTeacher = teacherList.find(t => t.short === p.teacherShort) || officeState.selectedTeacher;
+                    if (p.classStr) { officeState.selectedGrade = Number(p.classStr.split('-')[0]); officeState.selectedClassNum = Number(p.classStr.split('-')[1]); }
+                }
+            } catch(e) {}
+            
+            updateHomeroomUI();
+        } else {
+            document.getElementById('openLoginModalBtn')?.classList.remove('hidden');
+            document.getElementById('logoutBtn')?.classList.add('hidden');
+            document.getElementById('openProfileSettingsBtn')?.classList.add('hidden');
+            document.getElementById('teacherEditNoticeBtn')?.classList.add('hidden');
+            
+            document.getElementById('navTabWork')?.classList.add('hidden');
+            document.getElementById('navTabOffice')?.classList.add('hidden');
+            document.getElementById('navTabHomeroom')?.classList.add('hidden');
+            document.getElementById('mobileNavTabWork')?.classList.add('hidden');
+            document.getElementById('mobileNavTabOffice')?.classList.add('hidden');
+            document.getElementById('mobileNavTabHomeroom')?.classList.add('hidden');
+            
+            document.getElementById('openNewLessonModalBtn')?.classList.add('hidden');
+            document.getElementById('openNewTaskModalBtn')?.classList.add('hidden');
+            switchTab('class');
+        }
+        initClassTab(user);
+        initWorkTab(user);
+        initOfficeTab(user);
+    });
+
+    document.getElementById('closeLessonModalBtn')?.addEventListener('click', () => document.getElementById('lessonModal').classList.add('hidden'));
+    document.getElementById('closeTaskModalBtn')?.addEventListener('click', () => document.getElementById('taskModal').classList.add('hidden'));
+
+    document.getElementById('openNewLessonModalBtn')?.addEventListener('click', () => { document.getElementById('editLessonId').value = ''; document.getElementById('lessonForm').reset(); document.getElementById('lessonModal').classList.remove('hidden'); });
+    document.getElementById('lessonForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const editId = document.getElementById('editLessonId').value;
+        const payload = {
+            unit: document.getElementById('lessonUnitSelect').value, lessonNum: document.getElementById('lessonNumInput').value.trim(),
+            title: document.getElementById('lessonTitleInput').value.trim(), summary: document.getElementById('lessonSummaryInput').value.trim(),
+            coverImage: document.getElementById('lessonCoverInput').value.trim(), content: document.getElementById('lessonContentInput').value,
+            isVisible: document.getElementById('lessonVisibilityCheckbox').checked, createdAt: serverTimestamp()
+        };
+        if (editId) await updateDoc(doc(db, "lessons", editId), payload); else await addDoc(collection(db, "lessons"), payload);
+        document.getElementById('lessonModal').classList.add('hidden');
+    });
+
+    document.getElementById('openNewTaskModalBtn')?.addEventListener('click', () => { document.getElementById('editTaskId').value = ''; document.getElementById('taskForm').reset(); document.getElementById('taskModal').classList.remove('hidden'); });
+    document.getElementById('taskForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const editId = document.getElementById('editTaskId').value;
+        const payload = {
+            category: document.getElementById('taskCatSelect').value, status: document.getElementById('taskStatusSelect').value,
+            title: document.getElementById('taskTitleInput').value.trim(), summary: document.getElementById('taskSummaryInput').value.trim(),
+            content: document.getElementById('taskContentInput').value, createdAt: serverTimestamp()
+        };
+        if (editId) await updateDoc(doc(db, "work_tasks", editId), payload); else await addDoc(collection(db, "work_tasks"), payload);
+        document.getElementById('taskModal').classList.add('hidden');
+    });
+});
