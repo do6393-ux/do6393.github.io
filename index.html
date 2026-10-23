@@ -26,6 +26,7 @@
 </head>
 <body class="text-slate-800 antialiased min-h-screen flex flex-col relative">
 
+    <!-- 단독 수업 뷰어 -->
     <div id="standaloneViewer" class="hidden min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
         <div class="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-12 shadow-sm border border-slate-200 space-y-6">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -66,6 +67,7 @@
         </div>
     </div>
 
+    <!-- 단독 업무 뷰어 -->
     <div id="standaloneTaskViewer" class="hidden min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
         <div class="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-10 shadow-sm border border-slate-200 space-y-6">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -106,6 +108,7 @@
         </div>
     </div>
 
+    <!-- 메인 대시보드 애플리케이션 -->
     <div id="mainDashboardApp">
         <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -138,6 +141,7 @@
             </div>
         </header>
 
+        <!-- 1. 정보 수업 탭 -->
         <div id="tabContentClass" class="tab-view-content">
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
                 <section class="bg-gradient-to-r from-sky-600 to-teal-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
@@ -232,6 +236,7 @@
             </main>
         </div>
 
+        <!-- 2. 내 학급 탭 -->
         <div id="tabContentHomeroom" class="tab-view-content hidden">
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
                 <div class="flex flex-wrap gap-2 mb-2 bg-slate-100 p-1 rounded-2xl w-fit">
@@ -240,6 +245,7 @@
                     <button id="homeroomSubTabCleaning" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all"><i class="fa-solid fa-broom mr-1"></i> 청소 구역</button>
                 </div>
 
+                <!-- 2-1. 비상연락망 섹션 -->
                 <div id="homeroomSectionContacts">
                     <section class="bg-gradient-to-r from-rose-500 to-orange-400 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center flex-wrap gap-4 mb-6">
                         <div>
@@ -256,6 +262,7 @@
                     <div id="contactGridContainer" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 sm:gap-3"></div>
                 </div>
 
+                <!-- 2-2. 자리 바꾸기 섹션 -->
                 <div id="homeroomSectionSeating" class="hidden space-y-6">
                     <section class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
@@ -272,15 +279,24 @@
                                 <label class="flex-1 bg-white/20 hover:bg-white/30 cursor-pointer text-white font-bold text-xs px-3.5 py-2.5 rounded-xl text-center transition-colors flex items-center justify-center gap-1.5">
                                     <input type="checkbox" id="skipAnimationCheckbox" class="w-3.5 h-3.5 rounded"> 애니메이션 끄기
                                 </label>
+                                <button id="resetSeatingBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1"><i class="fa-solid fa-rotate-left"></i> 자리 초기화</button>
                                 <button id="startSeatingBtn" class="flex-1 bg-white text-indigo-600 hover:bg-indigo-50 font-extrabold text-sm px-5 py-2.5 rounded-xl shadow-lg transition-colors"><i class="fa-solid fa-play"></i> 자리 뽑기</button>
                             </div>
                         </div>
                     </section>
 
                     <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-                        <div class="flex justify-between items-center mb-6">
+                        <!-- 컨트롤 헤더 (줄 수 조절 & HWPX 양식) -->
+                        <div class="flex flex-wrap justify-between items-center mb-6 gap-3">
                             <p class="text-xs text-slate-500 font-bold"><i class="fa-solid fa-hand-pointer"></i> 6열 배치입니다. 안 쓰는 빈자리는 클릭해서 <span class="bg-slate-200 px-1 rounded text-slate-400">회색</span>으로 만들어 제외하세요.</p>
-                            <div class="flex items-center gap-2">
+                            
+                            <div class="flex items-center gap-2.5">
+                                <div class="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2 py-1 rounded-xl">
+                                    <button id="decreaseRowBtn" type="button" class="w-6 h-6 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center border border-slate-200 shadow-sm transition-colors" title="줄 삭제">-</button>
+                                    <span id="seatingDimensionText" class="text-xs font-bold text-indigo-700 px-1">6줄 (36석)</span>
+                                    <button id="increaseRowBtn" type="button" class="w-6 h-6 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center border border-slate-200 shadow-sm transition-colors" title="줄 추가">+</button>
+                                </div>
+
                                 <label for="hwpxTemplateInput" id="seatingHwpxLabel" class="cursor-pointer text-[11px] font-bold bg-slate-100 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-200 border border-slate-200 transition-colors">
                                     <i class="fa-solid fa-file-arrow-up"></i> 양식 등록(.hwpx)
                                 </label>
@@ -290,13 +306,33 @@
                                 </button>
                             </div>
                         </div>
-                        <div id="seatingGrid" class="grid grid-cols-6 gap-2 sm:gap-3 max-w-3xl mx-auto mb-8"></div>
+
+                        <!-- 교실 배치 (좌: 복도 / 중: 책상 / 우: 운동장) -->
+                        <div class="flex items-stretch gap-2 sm:gap-4 max-w-4xl mx-auto mb-8">
+                            <div class="w-8 sm:w-10 bg-slate-100 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-500 font-bold text-xs py-4 select-none shrink-0 shadow-inner">
+                                <i class="fa-solid fa-door-open mb-2 text-slate-400 text-sm"></i>
+                                <span class="my-0.5">복</span>
+                                <span class="my-0.5">도</span>
+                            </div>
+
+                            <div id="seatingGrid" class="grid grid-cols-6 gap-2 sm:gap-3 flex-1"></div>
+
+                            <div class="w-8 sm:w-10 bg-slate-100 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-500 font-bold text-xs py-4 select-none shrink-0 shadow-inner">
+                                <i class="fa-solid fa-sun mb-2 text-amber-500 text-sm"></i>
+                                <span class="my-0.5">운</span>
+                                <span class="my-0.5">동</span>
+                                <span class="my-0.5">장</span>
+                            </div>
+                        </div>
+
+                        <!-- 하단 교탁 (칠판) -->
                         <div class="flex justify-center border-t-2 border-dashed border-slate-200 pt-6">
-                            <button id="teacherDeskBtn" class="bg-amber-100 border-2 border-amber-300 text-amber-800 font-extrabold text-lg px-20 py-4 rounded-xl shadow-sm hover:bg-amber-200 transition-colors cursor-default select-none">교 탁</button>
+                            <button id="teacherDeskBtn" class="bg-amber-100 border-2 border-amber-300 text-amber-800 font-extrabold text-lg px-20 py-4 rounded-xl shadow-sm hover:bg-amber-200 transition-colors cursor-pointer select-none">교 탁 (칠판)</button>
                         </div>
                     </div>
                 </div>
 
+                <!-- 2-3. 청소 구역 섹션 -->
                 <div id="homeroomSectionCleaning" class="hidden space-y-6">
                     <section class="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
@@ -342,6 +378,7 @@
             </main>
         </div>
 
+        <!-- 3. 정보업무 탭 -->
         <div id="tabContentWork" class="tab-view-content hidden">
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
                 <section class="bg-gradient-to-r from-slate-800 via-slate-900 to-indigo-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center">
@@ -365,6 +402,7 @@
             </main>
         </div>
         
+        <!-- 4. 교무실 탭 -->
         <div id="tabContentOffice" class="tab-view-content hidden">
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
                 <section class="bg-gradient-to-r from-teal-700 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center flex-wrap gap-4">
@@ -441,7 +479,7 @@
         </div>
     </div>
 
-    <!-- 기본 시간표 편집 모달 (교사/학급 공용) -->
+    <!-- 기본 시간표 편집 모달 -->
     <div id="baseTimetableModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative space-y-4">
             <button id="closeBaseTimetableModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
@@ -449,7 +487,6 @@
                 <h3 id="baseTimetableModalTitle" class="text-lg font-bold text-slate-800">기본 시간표 설정</h3>
                 <p id="baseTimetableModalDesc" class="text-[11px] text-slate-500 mt-1">입력하신 데이터와 컴시간 데이터를 대조하여 다를 경우 보라색(변경)으로 칠해집니다.</p>
             </div>
-            
             <div class="overflow-x-auto">
                 <table class="w-full text-center border-collapse text-xs border border-slate-200 min-w-[400px]">
                     <thead class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
@@ -458,7 +495,6 @@
                     <tbody id="baseTimetableInputBody" class="divide-y divide-slate-200"></tbody>
                 </table>
             </div>
-            
             <button id="saveBaseTimetableBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors mt-2">저장 및 적용</button>
         </div>
     </div>
@@ -519,7 +555,7 @@
                 <div class="bg-rose-50 border border-rose-100 rounded-xl p-3.5 text-[11px] text-rose-700 space-y-1">
                     <p class="font-bold"><i class="fa-solid fa-info-circle"></i> 안내</p>
                     <p>• 줄 단위로 엔터를 쳐서 작성된 행들을 인식합니다.</p>
-                    <p>• 탭 또는 줄바꿈(웹 표 복사)으로 번호, 이름, 전화번호를 골라냅니다.</p>
+                    <p>• 탭 또는 줄바꿈(웹 표 복사)으로 번호, 이름, 전화번호를 자동 분리합니다.</p>
                 </div>
             </div>
             <div class="flex justify-end gap-2.5">
@@ -633,7 +669,7 @@
         </div>
     </div>
 
-    <!-- 업무 모달 -->
+    <!-- 정보 업무 모달 -->
     <div id="taskModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
             <button id="closeTaskModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl"><i class="fa-solid fa-xmark"></i></button>
@@ -688,7 +724,7 @@
 
     <!-- 로그인 모달 -->
     <div id="loginModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl space-y-5">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl space-y-5 relative">
             <button id="closeLoginModalBtn" class="absolute top-4 right-4 text-slate-400 text-lg"><i class="fa-solid fa-xmark"></i></button>
             <h3 class="text-xl font-bold text-center">교사 인증 로그인</h3>
             <form id="loginForm" class="space-y-3">
