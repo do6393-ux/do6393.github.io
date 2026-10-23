@@ -1,6 +1,5 @@
 import { db, doc, getDoc, setDoc } from './firebase-config.js';
 
-// 기존 main.js와의 호환성을 위한 빈 배열 내보내기 (하드코딩 제거)
 export const teacherList = [];
 
 export let officeState = {
@@ -17,7 +16,6 @@ export let officeState = {
     isNextWeek: false
 };
 
-// 동적으로 관리되는 기본 시간표 (더미데이터 완전 제거)
 let currentTeacherBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
 let currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
 let activeBaseModalType = null; 
@@ -28,12 +26,12 @@ const eventKeywords = ['자치', '동아', '봉사', '진로'];
 export function initOfficeTab(currentUser) {
     if (!currentUser) return;
     
-    // 🎯 1. 교사 이름 직접 입력 모달 (더미 목록 대신 직접 텍스트 입력)
+    // 교사 성함 클릭 시 직접 변경 팝업
     document.getElementById('titleTeacherNameBtn')?.addEventListener('click', () => {
         const container = document.getElementById('modalTeacherList');
         container.className = "flex flex-col gap-3 p-2";
         container.innerHTML = `
-            <label class="text-xs text-slate-500 font-bold">시간표를 조회할 교사 이름을 입력하세요</label>
+            <label class="text-xs text-slate-500 font-bold">시간표를 조회할 교사 성함을 입력하세요</label>
             <div class="flex gap-2">
                 <input type="text" id="teacherDirectInput" value="${officeState.teacherName}" placeholder="예: 신정훈" class="flex-1 text-sm p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-400 outline-none font-bold">
                 <button id="teacherDirectConfirmBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-sm transition-colors">확인</button>
@@ -87,7 +85,7 @@ export function initOfficeTab(currentUser) {
     
     document.getElementById('closeClassSelectModalBtn')?.addEventListener('click', () => document.getElementById('classSelectModal').classList.add('hidden'));
 
-    // 🎯 2. 기본 시간표 설정 모달 연결
+    // 기본 시간표 설정 모달 연결
     const baseModal = document.getElementById('baseTimetableModal');
     
     document.getElementById('openTeacherBaseBtn')?.addEventListener('click', () => {
@@ -101,14 +99,14 @@ export function initOfficeTab(currentUser) {
     document.getElementById('openClassBaseBtn')?.addEventListener('click', () => {
         activeBaseModalType = 'class';
         document.getElementById('baseTimetableModalTitle').textContent = `${officeState.selectedGrade}-${officeState.selectedClassNum} 학급 기본 시간표 설정`;
-        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 체육34";
+        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 국어, 체육 (앞 2글자 교과목명만 적으셔도 됩니다)";
         renderBaseTimetableInputGrid(currentClassBaseTimetable);
         baseModal.classList.remove('hidden');
     });
 
     document.getElementById('closeBaseTimetableModalBtn')?.addEventListener('click', () => baseModal.classList.add('hidden'));
 
-    // 기본 시간표 저장 (모달에서 입력한 값 영구 보관)
+    // 기본 시간표 저장 (모달 입력값 영구 저장)
     document.getElementById('saveBaseTimetableBtn')?.addEventListener('click', async () => {
         const newData = Array(7).fill().map(() => Array(5).fill(""));
         for (let r = 0; r < 7; r++) {
@@ -134,7 +132,7 @@ export function initOfficeTab(currentUser) {
         loadAllTimetables();
     });
 
-    // 이번 주 / 다음 주 토글
+    // 주간 전환 토글
     const btnThis = document.getElementById('weekToggleThisBtn');
     const btnNext = document.getElementById('weekToggleNextBtn');
     
@@ -152,7 +150,31 @@ export function initOfficeTab(currentUser) {
         loadAllTimetables();
     });
 
-    // 급식 날짜 세팅 및 조회
+    // 설정 모달(톱니바퀴) 내 이름 직접 입력 연동
+    const profileInput = document.getElementById('profileTeacherInput');
+    const profileBtn = document.getElementById('openProfileSettingsBtn');
+    const saveProfileBtn = document.getElementById('saveProfileSettingsBtn');
+
+    if (profileBtn && profileInput) {
+        profileBtn.addEventListener('click', () => {
+            profileInput.value = officeState.teacherName;
+        });
+    }
+
+    if (saveProfileBtn) {
+        saveProfileBtn.addEventListener('click', () => {
+            const inputVal = document.getElementById('profileTeacherInput')?.value.trim();
+            if (inputVal) {
+                officeState.teacherName = inputVal;
+                localStorage.setItem('office_teacher_name', inputVal);
+                const titleBtn = document.getElementById('titleTeacherNameBtn');
+                if (titleBtn) titleBtn.textContent = inputVal;
+                loadAllTimetables();
+            }
+        });
+    }
+
+    // 급식 조회 세팅
     const mealDateInput = document.getElementById('mealDateInput');
     const fetchMealBtn = document.getElementById('fetchMealBtn');
     const today = new Date();
@@ -184,11 +206,10 @@ function renderBaseTimetableInputGrid(dataMatrix) {
     }
 }
 
-// 🎯 3. 시간표 데이터 로드 (순수 사용자 입력 기본값 + Firestore 연동)
 async function loadAllTimetables() {
     const weekKey = officeState.isNextWeek ? 'next' : 'this';
 
-    // 1) 등록된 교사 기본 시간표 로드 (로컬스토리지 -> Firestore)
+    // 1) 등록된 교사 기본 시간표 로드
     const localT = localStorage.getItem(`base_tt_teacher_${officeState.teacherName}`);
     if (localT) {
         currentTeacherBaseTimetable = JSON.parse(localT);
@@ -215,7 +236,7 @@ async function loadAllTimetables() {
         }
     }
 
-    // 3) Firestore에서 교사 시간표 로드 (입력한 이름의 앞 2글자 및 풀네임 자동 매칭)
+    // 3) Firestore에서 교사 시간표 로드
     let teacherScheduleMap = null;
     const namePrefix = officeState.teacherName.substring(0, 2);
     const tKeysToTry = [namePrefix, officeState.teacherName];
@@ -244,7 +265,7 @@ async function loadAllTimetables() {
     renderClassGrid(classScheduleMap);
 }
 
-// 🎯 4. 교사 시간표 렌더링 (민트/보라 꽉 채움 + 선명한 폰트)
+// 교사 시간표 렌더링
 function renderTeacherGrid(scheduleMap) {
     const tbody = document.getElementById('teacherTimetableGridBody');
     if(!tbody) return;
@@ -278,8 +299,9 @@ function renderTeacherGrid(scheduleMap) {
             if (isMint) bgStyle = "background-color: #6ee7b7 !important;";
             else if (isChanged) bgStyle = "background-color: #d8b4fe !important;";
 
+            // 🎯 옅은 기본 시간표 표시 완전 삭제 -> 실제 수업 또는 '-'만 깔끔하게 출력
             html += `<td class="py-3.5 sm:py-4 border-r border-slate-200 font-bold text-center text-indigo-900" style="${bgStyle}">
-                        ${text || (baseText ? `<span class="opacity-40">${baseText}</span>` : '-')}
+                        ${text || '-'}
                      </td>`;
         }
         tr.innerHTML = html;
@@ -287,7 +309,7 @@ function renderTeacherGrid(scheduleMap) {
     }
 }
 
-// 🎯 5. 학급 시간표 렌더링 (민트/보라 꽉 채움 + 선명한 폰트)
+// 학급 시간표 렌더링 (앞 2글자 교과목 매칭 적용)
 function renderClassGrid(scheduleMap) {
     const tbody = document.getElementById('classTimetableGridBody');
     if(!tbody) return;
@@ -314,15 +336,28 @@ function renderClassGrid(scheduleMap) {
             
             // 1순위: 민트색 (자치, 동아, 봉사, 진로)
             const isMint = eventKeywords.some(k => text.includes(k));
-            // 2순위: 보라색 (기본 시간표와 다른 수업이거나 컴시간 red인 경우)
-            const isChanged = !isMint && ((baseText !== "" && text !== "" && baseText !== text) || isRed);
+
+            // 🎯 2순위: 앞 2글자 교과목명 일치 여부 판별
+            let isSubjectMatch = false;
+            const cleanBase = (baseText || "").trim().replace(/\s+/g, '');
+            const cleanText = (text || "").trim().replace(/\s+/g, '');
+
+            if (cleanBase !== "" && cleanText !== "") {
+                const basePrefix = cleanBase.substring(0, 2);
+                const textPrefix = cleanText.substring(0, 2);
+                isSubjectMatch = (basePrefix === textPrefix); // 예: '국어' === '국어' -> 매칭 성공!
+            }
+
+            // 기본 시간표와 앞 2글자가 아예 다르거나 컴시간 red인 경우에만 보라색 변경
+            const isChanged = !isMint && ((cleanBase !== "" && cleanText !== "" && !isSubjectMatch) || isRed);
 
             let bgStyle = "";
             if (isMint) bgStyle = "background-color: #6ee7b7 !important;";
             else if (isChanged) bgStyle = "background-color: #d8b4fe !important;";
 
+            // 🎯 옅은 기본 시간표 표시 완전 삭제 -> 실제 수업 또는 '-'만 깔끔하게 출력
             html += `<td class="py-3.5 sm:py-4 border-r border-slate-200 font-bold text-center text-sky-900" style="${bgStyle}">
-                        ${text || (baseText ? `<span class="opacity-40">${baseText}</span>` : '-')}
+                        ${text || '-'}
                      </td>`;
         }
         tr.innerHTML = html;
