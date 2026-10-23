@@ -181,11 +181,107 @@
         </div>
 
         <div id="tabContentWork" class="tab-view-content hidden"><main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8"><section class="bg-gradient-to-r from-slate-800 via-slate-900 to-indigo-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center"><div><span class="bg-indigo-500/30 text-indigo-200 text-xs px-3 py-1 rounded-full font-bold">🔒 교사 전용 보안구역</span><h2 class="text-2xl font-extrabold mt-2">정보기획 업무 관제탑</h2></div><button id="openNewTaskModalBtn" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-lg"><i class="fa-solid fa-plus"></i> 새 업무 추가</button></section><div class="space-y-6"><div class="flex flex-wrap gap-2 items-center" id="taskCategoryFilter"><button class="task-filter-btn active text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-800 text-white shadow-sm" data-category="all">전체 업무</button><button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-category="devices">💻 계정 및 기기</button><button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-category="network">🌐 네트워크/서버</button><button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-category="privacy">🛡️ 보안점검</button><button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-category="software">🔑 SW관리자</button><button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-category="disposal">📊 행정/공시</button></div><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="taskContainer"></div></div></main></div>
-        <div id="tabContentOffice" class="tab-view-content hidden"><main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8"><section class="bg-gradient-to-r from-teal-700 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center flex-wrap gap-4"><div><span class="bg-white/20 text-teal-100 text-xs px-3 py-1 rounded-full font-bold">🍱 컴시간 알리미 자동 연동</span><h2 class="text-2xl font-extrabold mt-2">부원여중 실시간 교무실</h2><p class="text-sm mt-1 text-teal-100">우측 상단의 [설정] 버튼으로 기본 교사를 등록해두면 편리합니다.</p></div><button class="bg-white/20 text-white text-xs px-3 py-2 rounded-xl" onclick="window.open('http://comci.net:4082/st', '_blank')"><i class="fa-solid fa-link"></i> 컴시간</button></section><div class="space-y-8"><div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm"><div class="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 gap-2"><div class="flex items-center gap-2"><span class="w-2.5 h-6 bg-indigo-600 rounded-full"></span><h3 class="font-bold text-lg text-slate-800"><span id="titleTeacherNameBtn" class="cursor-pointer underline decoration-dotted decoration-indigo-500 hover:text-indigo-600">신정훈</span> 교사 시간표</h3><div class="bg-slate-100 p-1 rounded-xl ml-2 flex gap-1"><button id="weekToggleThisBtn" class="px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all">이번주</button><button id="weekToggleNextBtn" class="px-3 py-1 text-xs font-medium text-slate-600 rounded-lg transition-all">다음주</button></div></div><div class="flex items-center gap-2 text-[11px] font-semibold"><span class="flex items-center gap-1">
-                                    <!-- 🎯 범례 텍스트: 변경 -->
-                                    <span class="w-3 h-3 rounded" style="background-color:#d8b4fe;"></span> 변경</span><span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background-color:#6ee7b7;"></span> 행사</span></div></div><div class="overflow-x-auto border border-slate-200 rounded-2xl mt-4"><table class="w-full text-center border-collapse text-xs sm:text-sm min-w-[500px]"><thead class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold"><tr><th class="py-2.5 border-r w-16">교시</th><th class="border-r">월</th><th class="border-r">화</th><th class="border-r">수</th><th class="border-r">목</th><th>금</th></tr></thead><tbody id="teacherTimetableGridBody" class="divide-y divide-slate-200 text-slate-800"></tbody></table></div></div><div class="grid grid-cols-1 lg:grid-cols-12 gap-6"><div class="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm"><div class="flex items-center gap-2 border-b border-slate-100 pb-3"><span class="w-2.5 h-6 bg-sky-500 rounded-full"></span><h3 class="font-bold text-lg text-slate-800"><span id="titleClassNameBtn" class="cursor-pointer underline decoration-dotted decoration-sky-500 text-sky-700">1-7</span> 학급 시간표</h3></div><div class="overflow-x-auto border border-slate-200 rounded-2xl mt-4"><table class="w-full text-center border-collapse text-xs sm:text-sm min-w-[500px]"><thead class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold"><tr><th class="py-2.5 border-r w-16">교시</th><th class="border-r">월</th><th class="border-r">화</th><th class="border-r">수</th><th class="border-r">목</th><th>금</th></tr></thead><tbody id="classTimetableGridBody" class="divide-y divide-slate-200 text-slate-800"></tbody></table></div></div><div class="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm"><h3 class="font-bold text-lg text-slate-800 border-b border-slate-100 pb-3"><i class="fa-solid fa-bowl-rice text-amber-500"></i> 오늘의 급식</h3><div class="flex items-center gap-2 mt-4 mb-3"><input type="date" id="mealDateInput" class="text-xs p-1.5 rounded-xl border border-slate-200 bg-slate-50 flex-1"><button id="fetchMealBtn" class="bg-amber-500 text-white text-xs px-3.5 py-1.5 rounded-xl font-bold shadow-sm">조회</button></div><div class="bg-amber-50/50 border border-amber-100 rounded-2xl p-4 text-xs space-y-2"><div class="flex justify-between font-bold border-b border-amber-200/50 pb-1.5 text-amber-900"><span>중식 식단</span></div><div id="mealDishList" class="text-slate-700 text-sm font-medium pt-1 whitespace-pre-line">데이터 조회 중...</div></div></div></div></div></main></div>
+        
+        <div id="tabContentOffice" class="tab-view-content hidden">
+            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
+                <section class="bg-gradient-to-r from-teal-700 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center flex-wrap gap-4">
+                    <div>
+                        <span class="bg-white/20 text-teal-100 text-xs px-3 py-1 rounded-full font-bold">🍱 컴시간 알리미 자동 연동</span>
+                        <h2 class="text-2xl font-extrabold mt-2">부원여중 실시간 교무실</h2>
+                        <p class="text-sm mt-1 text-teal-100">우측 상단의 [설정] 버튼으로 기본 교사를 등록해두면 편리합니다.</p>
+                    </div>
+                    <button class="bg-white/20 text-white text-xs px-3 py-2 rounded-xl" onclick="window.open('http://comci.net:4082/st', '_blank')"><i class="fa-solid fa-link"></i> 컴시간</button>
+                </section>
+                <div class="space-y-8">
+                    <!-- 교사 시간표 -->
+                    <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
+                        <div class="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 gap-2">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-6 bg-indigo-600 rounded-full"></span>
+                                <h3 class="font-bold text-lg text-slate-800"><span id="titleTeacherNameBtn" class="cursor-pointer underline decoration-dotted decoration-indigo-500 hover:text-indigo-600">신정훈</span> 교사 시간표</h3>
+                                <div class="bg-slate-100 p-1 rounded-xl ml-2 flex gap-1">
+                                    <button id="weekToggleThisBtn" class="px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all">이번주</button>
+                                    <button id="weekToggleNextBtn" class="px-3 py-1 text-xs font-medium text-slate-600 rounded-lg transition-all">다음주</button>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 text-[11px] font-semibold">
+                                <!-- 🎯 버튼: 교사 기본 시간표 설정 -->
+                                <button id="openTeacherBaseBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg border border-slate-200 transition-colors"><i class="fa-solid fa-gear"></i> 기본 시간표 설정</button>
+                                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background-color:#d8b4fe;"></span> 변경</span>
+                                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background-color:#d1fae5;"></span> 자치/동아/봉사/진로</span>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto border border-slate-200 rounded-2xl mt-4">
+                            <table class="w-full text-center border-collapse text-xs sm:text-sm min-w-[500px]">
+                                <thead class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
+                                    <tr><th class="py-2.5 border-r w-16">교시</th><th class="border-r">월</th><th class="border-r">화</th><th class="border-r">수</th><th class="border-r">목</th><th>금</th></tr>
+                                </thead>
+                                <tbody id="teacherTimetableGridBody" class="divide-y divide-slate-200 text-slate-800"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <!-- 학급 시간표 -->
+                        <div class="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
+                            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2.5 h-6 bg-sky-500 rounded-full"></span>
+                                    <h3 class="font-bold text-lg text-slate-800"><span id="titleClassNameBtn" class="cursor-pointer underline decoration-dotted decoration-sky-500 text-sky-700">1-7</span> 학급 시간표</h3>
+                                </div>
+                                <!-- 🎯 버튼: 학급 기본 시간표 설정 -->
+                                <button id="openClassBaseBtn" class="text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg border border-slate-200 transition-colors"><i class="fa-solid fa-gear"></i> 기본 시간표 설정</button>
+                            </div>
+                            <div class="overflow-x-auto border border-slate-200 rounded-2xl mt-4">
+                                <table class="w-full text-center border-collapse text-xs sm:text-sm min-w-[500px]">
+                                    <thead class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
+                                        <tr><th class="py-2.5 border-r w-16">교시</th><th class="border-r">월</th><th class="border-r">화</th><th class="border-r">수</th><th class="border-r">목</th><th>금</th></tr>
+                                    </thead>
+                                    <tbody id="classTimetableGridBody" class="divide-y divide-slate-200 text-slate-800"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
+                            <h3 class="font-bold text-lg text-slate-800 border-b border-slate-100 pb-3"><i class="fa-solid fa-bowl-rice text-amber-500"></i> 오늘의 급식</h3>
+                            <div class="flex items-center gap-2 mt-4 mb-3">
+                                <input type="date" id="mealDateInput" class="text-xs p-1.5 rounded-xl border border-slate-200 bg-slate-50 flex-1">
+                                <button id="fetchMealBtn" class="bg-amber-500 text-white text-xs px-3.5 py-1.5 rounded-xl font-bold shadow-sm">조회</button>
+                            </div>
+                            <div class="bg-amber-50/50 border border-amber-100 rounded-2xl p-4 text-xs space-y-2">
+                                <div class="flex justify-between font-bold border-b border-amber-200/50 pb-1.5 text-amber-900"><span>중식 식단</span></div>
+                                <div id="mealDishList" class="text-slate-700 text-sm font-medium pt-1 whitespace-pre-line">데이터 조회 중...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
     </div>
 
+    <!-- 🎯 모달: 기본 시간표 편집 (교사/학급 공용) -->
+    <div id="baseTimetableModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative space-y-4">
+            <button id="closeBaseTimetableModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+            <div class="border-b border-slate-100 pb-3">
+                <h3 id="baseTimetableModalTitle" class="text-lg font-bold text-slate-800">기본 시간표 설정</h3>
+                <p id="baseTimetableModalDesc" class="text-[11px] text-slate-500 mt-1">입력하신 데이터와 컴시간 데이터를 대조하여 다를 경우 보라색(변경)으로 칠해집니다.</p>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-center border-collapse text-xs border border-slate-200 min-w-[400px]">
+                    <thead class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
+                        <tr><th class="py-2 border-r w-12">교시</th><th class="border-r">월</th><th class="border-r">화</th><th class="border-r">수</th><th class="border-r">목</th><th>금</th></tr>
+                    </thead>
+                    <tbody id="baseTimetableInputBody" class="divide-y divide-slate-200">
+                        <!-- JS 렌더링 -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <button id="saveBaseTimetableBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors mt-2">저장 및 적용</button>
+        </div>
+    </div>
+
+    <!-- 기존 모달들 생략 없이 유지됨 -->
     <div id="profileSettingsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4"><div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-5 relative"><button id="closeProfileSettingsBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button><div class="text-center"><div class="w-12 h-12 bg-sky-100 text-sky-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xl"><i class="fa-solid fa-user-gear"></i></div><h3 class="text-lg font-bold">내 계정 기본 설정</h3><p class="text-xs text-slate-500 mt-1">로그인 시 자동으로 보여질 교사와 학급을 선택하세요.</p></div><div class="space-y-4"><div><label class="block text-xs font-bold text-slate-700 mb-1">내 이름 (교사 선택)</label><select id="profileTeacherSelect" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200"></select></div><div><label class="block text-xs font-bold text-slate-700 mb-1">담당 학급 (담임)</label><div class="grid grid-cols-2 gap-2"><select id="profileGradeSelect" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200"><option value="1">1학년</option><option value="2">2학년</option><option value="3">3학년</option></select><select id="profileClassSelect" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200"><option value="1">1반</option><option value="2">2반</option><option value="3">3반</option><option value="4">4반</option><option value="5">5반</option><option value="6">6반</option><option value="7">7반</option><option value="8">8반</option><option value="9">9반</option><option value="10">10반</option></select></div></div></div><button id="saveProfileSettingsBtn" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-xl text-sm transition-colors">저장하기</button></div></div>
     <div id="bulkPasteModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4"><div class="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-5 relative"><button id="closeBulkPasteModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button><div><h3 class="text-lg font-bold text-slate-800">여러 명 붙여넣기로 추가</h3><p class="text-xs text-rose-500 font-semibold mt-1">엑셀/한글 등의 표 전체를 긁어 아래 박스에 [붙여넣기] 해주세요.</p><p class="text-[10px] text-slate-400 mt-1">※ 순서: [번호] [이름] [집전화] [학생] [학부모 1] [학부모 2] (집전화는 무시함)</p></div><div class="space-y-4"><textarea id="bulkPasteTextarea" rows="10" placeholder="여기에 복사한 데이터를 붙여넣으세요.&#10;예) 1  신정훈  (비어있거나 집전화)  010-XXXX-XXXX  010-XXXX-XXXX  010-XXXX-XXXX" class="w-full text-xs p-3.5 bg-slate-50 rounded-2xl border border-slate-200 font-mono focus:ring-1 focus:ring-rose-400 outline-none"></textarea><div class="bg-rose-50 border border-rose-100 rounded-xl p-3.5 text-[11px] text-rose-700 space-y-1"><p class="font-bold"><i class="fa-solid fa-info-circle"></i> 작동 규칙 안내</p><p>• 줄 단위로 엔터를 쳐서 작성된 행들을 인식합니다.</p><p>• 탭 또는 줄바꿈(웹 표 복사)으로 번호, 이름, 전화번호를 지능적으로 골라냅니다.</p></div></div><div class="flex justify-end gap-2.5"><button id="cancelBulkPasteBtn" class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 rounded-xl">취소</button><button id="saveBulkPasteBtn" class="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-rose-500 to-orange-400 rounded-xl shadow-md flex items-center gap-1.5"><i class="fa-solid fa-cloud-arrow-up"></i> 일괄 저장 및 적용</button></div></div></div>
     <div id="contactModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4"><div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl relative space-y-6"><button id="closeContactModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button><div class="text-center border-b border-slate-100 pb-4"><span id="contactModalNumber" class="text-rose-500 font-bold text-lg mr-1"></span><span id="contactModalName" class="text-2xl font-extrabold text-slate-800"></span></div><div id="contactViewMode" class="space-y-3"><a id="callStudentBtn" href="#" class="flex items-center justify-center gap-2 w-full bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-sky-200 shadow-sm"><i class="fa-solid fa-mobile-screen text-lg"></i> <span id="callStudentText">학생 본인</span></a><div class="grid grid-cols-2 gap-2"><a id="callParentBtn" href="#" class="flex items-center justify-center gap-1.5 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3.5 rounded-2xl transition-colors text-xs sm:text-sm border border-emerald-200 shadow-sm"><i class="fa-solid fa-phone text-base"></i> <span id="callParentText">학부모 1</span></a><a id="callParent2Btn" href="#" class="flex items-center justify-center gap-1.5 w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-3.5 rounded-2xl transition-colors text-xs sm:text-sm border border-amber-200 shadow-sm"><i class="fa-solid fa-phone text-base"></i> <span id="callParent2Text">학부모 2</span></a></div><div class="pt-4 flex justify-between"><button id="deleteContactBtn" class="text-xs text-slate-400 hover:text-rose-500 underline">개별 삭제</button><button id="editContactModeBtn" class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg">연락처 수정</button></div></div><div id="contactEditMode" class="hidden space-y-4"><input type="hidden" id="editContactId"><div class="grid grid-cols-3 gap-2"><input type="number" id="contactNumInput" placeholder="번호" required class="col-span-1 text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center font-bold"><input type="text" id="contactNameInput" placeholder="학생 이름" required class="col-span-2 text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold"></div><div><label class="text-xs text-slate-500 ml-1">학생 전화번호</label><input type="tel" id="contactStudentPhone" placeholder="010-0000-0000" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 mt-1"></div><div class="grid grid-cols-2 gap-2"><div><label class="text-[10px] sm:text-xs text-slate-500 ml-1">학부모 1 번호</label><input type="tel" id="contactParentPhone" placeholder="010-0000-0000" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 mt-1"></div><div><label class="text-[10px] sm:text-xs text-slate-500 ml-1">학부모 2 번호</label><input type="tel" id="contactParent2Phone" placeholder="선택사항" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 mt-1"></div></div><div class="flex gap-2 pt-2"><button id="cancelContactEditBtn" class="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl text-sm">취소</button><button id="saveContactBtn" class="flex-1 bg-rose-500 text-white font-bold py-2.5 rounded-xl text-sm shadow-sm">저장</button></div></div></div></div>
