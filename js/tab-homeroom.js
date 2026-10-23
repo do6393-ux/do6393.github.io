@@ -1,18 +1,13 @@
-import { db, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from './firebase-config.js';
+import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from './firebase-config.js';
 
 let students = [];
 
-export function initHomeroomTab(currentUser) {
-    if (!currentUser) return;
+// 🎯 화면이 100% 준비된 직후에만 버튼 이벤트를 장착하도록 안전장치(DOMContentLoaded) 추가
+document.addEventListener('DOMContentLoaded', () => {
 
-    onSnapshot(query(collection(db, "homeroom_contacts"), orderBy("number", "asc")), (snapshot) => {
-        students = [];
-        snapshot.forEach(d => students.push({ id: d.id, ...d.data() }));
-        renderContacts();
-    });
-
-    // 🎯 1. 전체 삭제 기능 추가
+    // 1. 전체 삭제 버튼 기능
     document.getElementById('deleteAllContactsBtn')?.addEventListener('click', async () => {
+        if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
         if (students.length === 0) return alert("삭제할 연락처가 없습니다.");
         
         const count = students.length;
@@ -20,9 +15,8 @@ export function initHomeroomTab(currentUser) {
         
         if (answer === '삭제합니다') {
             try {
-                for (let st of students) {
-                    await deleteDoc(doc(db, "homeroom_contacts", st.id));
-                }
+                // 30명을 1초 만에 동시에 삭제하는 고속 병렬 처리
+                await Promise.all(students.map(st => deleteDoc(doc(db, "homeroom_contacts", st.id))));
                 alert("✅ 전체 삭제가 안전하게 완료되었습니다.");
             } catch (e) {
                 alert("삭제 처리 중 오류가 발생했습니다.");
@@ -32,28 +26,23 @@ export function initHomeroomTab(currentUser) {
         }
     });
 
-    // 일괄 붙여넣기 모달 열기/닫기
+    // 2. 다중 일괄 등록(붙여넣기) 모달 제어
     document.getElementById('openBulkPasteModalBtn')?.addEventListener('click', () => {
         document.getElementById('bulkPasteTextarea').value = '';
         document.getElementById('bulkPasteModal').classList.remove('hidden');
     });
+    document.getElementById('closeBulkPasteModalBtn')?.addEventListener('click', () => document.getElementById('bulkPasteModal').classList.add('hidden'));
+    document.getElementById('cancelBulkPasteBtn')?.addEventListener('click', () => document.getElementById('bulkPasteModal').classList.add('hidden'));
 
-    document.getElementById('closeBulkPasteModalBtn')?.addEventListener('click', () => {
-        document.getElementById('bulkPasteModal').classList.add('hidden');
-    });
-
-    document.getElementById('cancelBulkPasteBtn')?.addEventListener('click', () => {
-        document.getElementById('bulkPasteModal').classList.add('hidden');
-    });
-
-    // 🎯 2. 다중 일괄 등록 로직 (학부모 1, 학부모 2 분리 저장)
+    // 3. 다중 일괄 등록 파싱 및 저장 알고리즘
     document.getElementById('saveBulkPasteBtn')?.addEventListener('click', async () => {
+        if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
         const rawText = document.getElementById('bulkPasteTextarea').value;
         if (!rawText.trim()) return alert("입력된 데이터가 없습니다.");
 
         let parsedStudents = [];
 
-        // 웹 표 복사 (엔터 줄바꿈 수직 파싱)
+        // 웹 브라우저 표 복사 (엔터 줄바꿈 수직 파싱)
         if (!rawText.includes('\t')) {
             const lines = rawText.split('\n').map(l => l.trim()).filter(l => l !== '');
             let current = null;
@@ -95,7 +84,6 @@ export function initHomeroomTab(currentUser) {
 
         let importCount = 0;
         for (let st of parsedStudents) {
-            // DB 필드를 명확하게 parentPhone1, parentPhone2로 나누어 저장
             const payload = {
                 number: st.number,
                 name: st.name,
@@ -116,6 +104,7 @@ export function initHomeroomTab(currentUser) {
         document.getElementById('bulkPasteModal').classList.add('hidden');
     });
 
+    // 4. 개별 연락처 추가/수정 모달 제어
     document.getElementById('openNewContactModalBtn')?.addEventListener('click', () => {
         document.getElementById('editContactId').value = '';
         document.getElementById('contactNumInput').value = '';
@@ -131,13 +120,10 @@ export function initHomeroomTab(currentUser) {
         document.getElementById('contactModal').classList.remove('hidden');
     });
 
-    document.getElementById('closeContactModalBtn')?.addEventListener('click', () => {
-        document.getElementById('contactModal').classList.add('hidden');
-    });
-
+    document.getElementById('closeContactModalBtn')?.addEventListener('click', () => document.getElementById('contactModal').classList.add('hidden'));
+    
     document.getElementById('cancelContactEditBtn')?.addEventListener('click', () => {
-        const id = document.getElementById('editContactId').value;
-        if (id) {
+        if (document.getElementById('editContactId').value) {
             document.getElementById('contactEditMode').classList.add('hidden');
             document.getElementById('contactViewMode').classList.remove('hidden');
         } else {
@@ -159,6 +145,7 @@ export function initHomeroomTab(currentUser) {
     });
 
     document.getElementById('saveContactBtn')?.addEventListener('click', async () => {
+        if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
         const num = Number(document.getElementById('contactNumInput').value);
         const name = document.getElementById('contactNameInput').value.trim();
         const sPhone = document.getElementById('contactStudentPhone').value.trim();
@@ -175,6 +162,22 @@ export function initHomeroomTab(currentUser) {
             else await addDoc(collection(db, "homeroom_contacts"), payload);
             document.getElementById('contactModal').classList.add('hidden');
         } catch (e) { alert("저장 실패"); }
+    });
+});
+
+
+// ==========================================
+// 파이어베이스 동기화 및 렌더링 영역
+// ==========================================
+
+export function initHomeroomTab(currentUser) {
+    if (!currentUser) return;
+
+    // 파이어베이스에서 실시간으로 연락처 가져오기
+    onSnapshot(query(collection(db, "homeroom_contacts"), orderBy("number", "asc")), (snapshot) => {
+        students = [];
+        snapshot.forEach(d => students.push({ id: d.id, ...d.data() }));
+        renderContacts();
     });
 }
 
@@ -206,7 +209,6 @@ function openContactModal(st) {
     document.getElementById('contactModalNumber').textContent = String(st.number).padStart(2, '0');
     document.getElementById('contactModalName').textContent = st.name;
     
-    // DB에서 값을 불러와 폼 세팅 (과거 통합된 parentPhone 데이터도 호환 처리)
     const p1 = st.parentPhone1 || st.parentPhone || ''; 
     const p2 = st.parentPhone2 || '';
 
@@ -217,7 +219,6 @@ function openContactModal(st) {
     document.getElementById('contactParentPhone').value = p1;
     document.getElementById('contactParent2Phone').value = p2;
 
-    // 학생 버튼 세팅
     const btnS = document.getElementById('callStudentBtn');
     const txtS = document.getElementById('callStudentText');
     if (st.studentPhone) {
@@ -230,7 +231,6 @@ function openContactModal(st) {
         txtS.textContent = "학생 연락처 없음";
     }
 
-    // 학부모 1 버튼 세팅
     const btnP1 = document.getElementById('callParentBtn');
     const txtP1 = document.getElementById('callParentText');
     if (p1) {
@@ -243,7 +243,6 @@ function openContactModal(st) {
         txtP1.textContent = "학부모 1 없음";
     }
 
-    // 학부모 2 버튼 세팅
     const btnP2 = document.getElementById('callParent2Btn');
     const txtP2 = document.getElementById('callParent2Text');
     if (p2 && p2 !== '없다') {
