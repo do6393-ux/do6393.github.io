@@ -1,589 +1,793 @@
-import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc, onSnapshot, query, orderBy } from './firebase-config.js';
+import { db, doc, getDoc, setDoc, deleteDoc } from './firebase-config.js';
 
-let students = [];
-let disabledSeats = []; 
-let excludedStudents = []; 
-let antiPairs = []; 
-let allocatedSeats = new Array(36).fill(null); 
+let homeroomState = {
+    grade: Number(localStorage.getItem('office_grade')) || 1,
+    classNum: Number(localStorage.getItem('office_class')) || 7,
+    contacts: [],
+    excludedStudentNums: new Set(),
+    seatingSeats: [], // 30석
+    antiPairs: [],
+    cleaningData: Array(6).fill().map(() => Array(5).fill(null)), // 6구역 x 5조
+    currentCleaningSlot: null
+};
 
-// 🎯 청소 및 파일 상태 관리
-let hwpxFileBlob = null; 
+const cleaningAreas = [
+    "교실 쓸기 - 창",
+    "교실 쓸기 - 중앙",
+    "교실 쓸기 - 복도",
+    "컴퓨터실 - 창문쪽",
+    "컴퓨터실 - 복도쪽",
+    "교탁 및 칠판"
+];
+
+let seatingHwpxBlob = null;
 let cleaningHwpxBlob = null;
-let cleaningMatrix = Array(6).fill().map(() => Array(5).fill(null)); 
-let cleaningSelectRow = -1;
-let cleaningSelectCol = -1;
 
-let currentClassStr = '1-7'; 
-let unsubscribeContacts = null; 
-let unsubscribeCleaning = null;
+export async function initHomeroomTab(currentUser) {
+    if (!currentUser) return;
 
-// Helper: Base64를 Blob으로 변환 (로컬 저장소 복구용)
-function dataURItoBlob(dataURI) {
-    const byteString = atob(dataURI.split(',')[1]);
-    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
-    return new Blob([ab], {type: mimeString});
+    // 최신 설정 학급 동기화
+    homeroomState.grade = Number(localStorage.getItem('office_grade')) || 1;
+    homeroomState.classNum = Number(localStorage.getItem('office_class')) || 7;
+
+    const titleContacts = document.getElementById('homeroomTitleContacts');
+    const titleCleaning = document.getElementById('homeroomTitleCleaning');
+    if (titleContacts) titleContacts.textContent = `${homeroomState.grade}학년 ${homeroomState.classNum}반 비상연락망`;
+    if (titleCleaning) titleCleaning.textContent = `${homeroomState.grade}학년 ${homeroomState.classNum}반 청소 구역`;
+
+    setupSubTabs();
+    setupContactsModule();
+    setupSeatingModule();
+    setupCleaningModule();
+
+    await loadHomeroomData();
 }
 
-// 🎯 브라우저에 영구 보존된 HWPX 양식 불러오기
-function loadSavedTemplates() {
-    const seatingURI = localStorage.getItem(`hwpx_seating_${currentClassStr}`);
-    if (seatingURI) {
-        hwpxFileBlob = dataURItoBlob(seatingURI);
-        document.getElementById('downloadHwpxBtn')?.classList.remove('hidden');
-        document.getElementById('seatingHwpxLabel').innerHTML = '<i class="fa-solid fa-check"></i> 저장된 양식 켬';
-    } else {
-        hwpxFileBlob = null;
-        document.getElementById('downloadHwpxBtn')?.classList.add('hidden');
-        document.getElementById('seatingHwpxLabel').innerHTML = '<i class="fa-solid fa-file-arrow-up"></i> 양식 등록(.hwpx)';
-    }
-    
-    const cleaningURI = localStorage.getItem(`hwpx_cleaning_${currentClassStr}`);
-    if (cleaningURI) {
-        cleaningHwpxBlob = dataURItoBlob(cleaningURI);
-        document.getElementById('downloadCleaningHwpxBtn')?.classList.remove('hidden');
-        document.getElementById('cleaningHwpxLabel').innerHTML = '<i class="fa-solid fa-check"></i> 저장된 양식 켬';
-    } else {
-        cleaningHwpxBlob = null;
-        document.getElementById('downloadCleaningHwpxBtn')?.classList.add('hidden');
-        document.getElementById('cleaningHwpxLabel').innerHTML = '<i class="fa-solid fa-file-arrow-up"></i> 양식 등록(.hwpx)';
-    }
-}
+/* ==========================================================================
+   0. 서브탭 전환 로직
+   ========================================================================== */
+function setupSubTabs() {
+    const tabContacts = document.getElementById('homeroomSubTabContacts');
+    const tabSeating = document.getElementById('homeroomSubTabSeating');
+    const tabCleaning = document.getElementById('homeroomSubTabCleaning');
 
-document.addEventListener('DOMContentLoaded', () => {
-
-    const tabContactBtn = document.getElementById('homeroomSubTabContacts');
-    const tabSeatingBtn = document.getElementById('homeroomSubTabSeating');
-    const tabCleaningBtn = document.getElementById('homeroomSubTabCleaning');
     const secContacts = document.getElementById('homeroomSectionContacts');
     const secSeating = document.getElementById('homeroomSectionSeating');
     const secCleaning = document.getElementById('homeroomSectionCleaning');
 
-    function switchSubTab(target) {
-        const onClass = "px-4 py-2 text-sm font-bold bg-white rounded-xl shadow-sm transition-all ";
-        const offClass = "px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all";
-        
-        tabContactBtn.className = offClass; tabSeatingBtn.className = offClass; tabCleaningBtn.className = offClass;
-        secContacts.classList.add('hidden'); secSeating.classList.add('hidden'); secCleaning.classList.add('hidden');
+    const switchTab = (activeTab, activeSec, activeColor) => {
+        [tabContacts, tabSeating, tabCleaning].forEach(t => {
+            if (t) t.className = "px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all";
+        });
+        [secContacts, secSeating, secCleaning].forEach(s => s?.classList.add('hidden'));
 
-        if (target === 'cleaning') {
-            tabCleaningBtn.className = onClass + "text-emerald-600"; secCleaning.classList.remove('hidden'); renderCleaningGrid();
-        } else if (target === 'seating') {
-            tabSeatingBtn.className = onClass + "text-indigo-600"; secSeating.classList.remove('hidden'); renderSeatGrid(); renderExcludeList();
-        } else {
-            tabContactBtn.className = onClass + "text-rose-600"; secContacts.classList.remove('hidden');
+        if (activeTab) {
+            activeTab.className = `px-4 py-2 text-sm font-bold bg-white ${activeColor} rounded-xl shadow-sm transition-all`;
         }
-    }
-
-    tabContactBtn?.addEventListener('click', () => switchSubTab('contacts'));
-    tabSeatingBtn?.addEventListener('click', () => switchSubTab('seating'));
-    tabCleaningBtn?.addEventListener('click', () => switchSubTab('cleaning'));
-
-    document.getElementById('deleteAllContactsBtn')?.addEventListener('click', async () => {
-        if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
-        if (students.length === 0) return alert("삭제할 연락처가 없습니다.");
-        const answer = prompt(`⚠️ 등록된 ${students.length}명의 연락처를 모두 삭제하시겠습니까?\n진행하시려면 '삭제합니다' 라고 입력해주세요.`);
-        if (answer === '삭제합니다') {
-            try {
-                const colName = `homeroom_contacts_${currentClassStr}`;
-                await Promise.all(students.map(st => deleteDoc(doc(db, colName, st.id))));
-                alert("✅ 전체 삭제가 안전하게 완료되었습니다.");
-            } catch (e) { alert("삭제 처리 중 오류가 발생했습니다."); }
-        } else if (answer !== null) { alert("입력 문구가 일치하지 않아 취소되었습니다."); }
-    });
-
-    document.getElementById('openBulkPasteModalBtn')?.addEventListener('click', () => { document.getElementById('bulkPasteTextarea').value = ''; document.getElementById('bulkPasteModal').classList.remove('hidden'); });
-    document.getElementById('closeBulkPasteModalBtn')?.addEventListener('click', () => document.getElementById('bulkPasteModal').classList.add('hidden'));
-    document.getElementById('cancelBulkPasteBtn')?.addEventListener('click', () => document.getElementById('bulkPasteModal').classList.add('hidden'));
-
-    document.getElementById('saveBulkPasteBtn')?.addEventListener('click', async () => {
-        if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
-        const rawText = document.getElementById('bulkPasteTextarea').value;
-        if (!rawText.trim()) return alert("입력된 데이터가 없습니다.");
-
-        let parsedStudents = [];
-        if (!rawText.includes('\t')) {
-            const lines = rawText.split('\n').map(l => l.trim()).filter(l => l !== '');
-            let current = null;
-            for (let line of lines) {
-                if (!isNaN(line) && Number(line) > 0 && Number(line) <= 100 && !line.startsWith('0')) {
-                    if (current) parsedStudents.push(current);
-                    current = { number: Number(line), name: '', phones: [] };
-                } else if (current) {
-                    if (!current.name) current.name = line; else current.phones.push(line);
-                }
-            }
-            if (current) parsedStudents.push(current);
-        } else {
-            const lines = rawText.split('\n');
-            for (let line of lines) {
-                const rowData = line.trim().split(/\t+/);
-                if (rowData.length < 2) continue;
-                const num = Number(rowData[0]); const name = String(rowData[1] || "").trim();
-                if (isNaN(num) || !name) continue;
-                let sPhone = String(rowData[3] || "").trim(); let pPhone1 = String(rowData[4] || "").trim(); let pPhone2 = String(rowData[5] || "").trim();
-                parsedStudents.push({ number: num, name, phones: [sPhone, pPhone1, pPhone2].filter(Boolean) });
-            }
+        if (activeSec) {
+            activeSec.classList.remove('hidden');
         }
-        if (parsedStudents.length === 0) return alert("파싱할 수 있는 데이터가 없습니다.");
-        let importCount = 0;
-        const colName = `homeroom_contacts_${currentClassStr}`;
-        for (let st of parsedStudents) {
-            const payload = { number: st.number, name: st.name, studentPhone: st.phones[0] || "", parentPhone1: st.phones[1] || "", parentPhone2: st.phones[2] || "" };
-            const existing = students.find(s => s.number === st.number);
-            try {
-                if (existing) await updateDoc(doc(db, colName, existing.id), payload);
-                else await addDoc(collection(db, colName), payload);
-                importCount++;
-            } catch (err) {}
+    };
+
+    tabContacts?.addEventListener('click', () => switchTab(tabContacts, secContacts, 'text-rose-600'));
+    tabSeating?.addEventListener('click', () => switchTab(tabSeating, secSeating, 'text-indigo-600'));
+    tabCleaning?.addEventListener('click', () => switchTab(tabCleaning, secCleaning, 'text-emerald-600'));
+}
+
+/* ==========================================================================
+   1. 데이터 통합 로드 (Firestore + LocalStorage)
+   ========================================================================== */
+async function loadHomeroomData() {
+    const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+
+    // 1) 비상연락망 로드
+    const localContacts = localStorage.getItem(`contacts_${classKey}`);
+    if (localContacts) homeroomState.contacts = JSON.parse(localContacts);
+    try {
+        const cSnap = await getDoc(doc(db, "homeroom_contacts", classKey));
+        if (cSnap.exists() && cSnap.data().list) {
+            homeroomState.contacts = cSnap.data().list;
+            localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
         }
-        alert(`✅ 일괄 등록 완료 (총 ${importCount}명)`);
-        document.getElementById('bulkPasteModal').classList.add('hidden');
-    });
+    } catch (e) {}
+    renderContactGrid();
+    renderExcludeStudentList();
 
-    document.getElementById('openNewContactModalBtn')?.addEventListener('click', () => {
-        document.getElementById('editContactId').value = ''; document.getElementById('contactNumInput').value = ''; document.getElementById('contactNameInput').value = '';
-        document.getElementById('contactStudentPhone').value = ''; document.getElementById('contactParentPhone').value = ''; document.getElementById('contactParent2Phone').value = '';
-        document.getElementById('contactModalNumber').textContent = "신규"; document.getElementById('contactModalName').textContent = "학생 추가";
-        document.getElementById('contactViewMode').classList.add('hidden'); document.getElementById('contactEditMode').classList.remove('hidden');
-        document.getElementById('contactModal').classList.remove('hidden');
-    });
-
-    document.getElementById('closeContactModalBtn')?.addEventListener('click', () => document.getElementById('contactModal').classList.add('hidden'));
-    document.getElementById('cancelContactEditBtn')?.addEventListener('click', () => {
-        if (document.getElementById('editContactId').value) { document.getElementById('contactEditMode').classList.add('hidden'); document.getElementById('contactViewMode').classList.remove('hidden'); } 
-        else document.getElementById('contactModal').classList.add('hidden');
-    });
-    document.getElementById('editContactModeBtn')?.addEventListener('click', () => { document.getElementById('contactViewMode').classList.add('hidden'); document.getElementById('contactEditMode').classList.remove('hidden'); });
-    
-    document.getElementById('deleteContactBtn')?.addEventListener('click', async () => {
-        const id = document.getElementById('editContactId').value;
-        const colName = `homeroom_contacts_${currentClassStr}`;
-        if (id && confirm("개별 삭제할까요?")) { await deleteDoc(doc(db, colName, id)); document.getElementById('contactModal').classList.add('hidden'); }
-    });
-
-    document.getElementById('saveContactBtn')?.addEventListener('click', async () => {
-        if (!auth.currentUser) return alert("로그인 필요");
-        const num = Number(document.getElementById('contactNumInput').value); const name = document.getElementById('contactNameInput').value.trim();
-        if (!num || !name) return alert("번호와 이름 입력 필수");
-        const payload = { number: num, name, studentPhone: document.getElementById('contactStudentPhone').value.trim(), parentPhone1: document.getElementById('contactParentPhone').value.trim(), parentPhone2: document.getElementById('contactParent2Phone').value.trim() };
-        const editId = document.getElementById('editContactId').value;
-        const colName = `homeroom_contacts_${currentClassStr}`;
-        try { if (editId) await updateDoc(doc(db, colName, editId), payload); else await addDoc(collection(db, colName), payload);
-        document.getElementById('contactModal').classList.add('hidden'); } catch (e) { alert("저장 실패"); }
-    });
-
-    let deskClicks = 0;
-    let deskTimer;
-    document.getElementById('teacherDeskBtn')?.addEventListener('click', () => {
-        deskClicks++; clearTimeout(deskTimer); deskTimer = setTimeout(() => { deskClicks = 0; }, 1000); 
-        if (deskClicks >= 3) { document.getElementById('antiPairModal').classList.remove('hidden'); deskClicks = 0; }
-    });
-
-    document.getElementById('closeAntiPairModalBtn')?.addEventListener('click', () => document.getElementById('antiPairModal').classList.add('hidden'));
-    document.getElementById('saveAntiPairBtn')?.addEventListener('click', () => {
-        const text = document.getElementById('antiPairTextarea').value;
-        antiPairs = text.split('\n').map(line => {
-            const parts = line.split(',').map(n => Number(n.trim()));
-            return parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) ? parts : null;
-        }).filter(p => p !== null);
-        alert("🤫 기피 조합이 안전하게 비밀 저장되었습니다.");
-        document.getElementById('antiPairModal').classList.add('hidden');
-    });
-
-    // 🎯 HWPX 양식 등록 시 LocalStorage로 내장 영구 보존 처리 (자리 뽑기)
-    document.getElementById('hwpxTemplateInput')?.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if(file) {
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                localStorage.setItem(`hwpx_seating_${currentClassStr}`, evt.target.result);
-                hwpxFileBlob = dataURItoBlob(evt.target.result);
-                document.getElementById('seatingHwpxLabel').innerHTML = '<i class="fa-solid fa-check"></i> 저장된 양식 켬';
-                alert(`✅ HWPX 템플릿 파일이 브라우저에 영구 보존되었습니다.\n(앞으로는 양식이 바뀔 때만 다시 올려주시면 됩니다.)`);
-                if(allocatedSeats.some(s => s !== null)) document.getElementById('downloadHwpxBtn').classList.remove('hidden');
-            };
-            reader.readAsDataURL(file);
+    // 2) 기피조합 로드
+    const localAnti = localStorage.getItem(`anti_pairs_${classKey}`);
+    if (localAnti) homeroomState.antiPairs = JSON.parse(localAnti);
+    try {
+        const aSnap = await getDoc(doc(db, "homeroom_anti_pairs", classKey));
+        if (aSnap.exists() && aSnap.data().pairs) {
+            homeroomState.antiPairs = aSnap.data().pairs;
+            localStorage.setItem(`anti_pairs_${classKey}`, JSON.stringify(homeroomState.antiPairs));
         }
-    });
+    } catch(e) {}
 
-    document.getElementById('startSeatingBtn')?.addEventListener('click', async () => {
-        if (students.length === 0) return alert("학생 명단이 없습니다. 먼저 비상연락망에 학생을 등록해주세요.");
-        const activeStudents = students.filter(s => !excludedStudents.includes(s.number));
-        const validSeatIndices = [];
-        for (let i = 0; i < 36; i++) { if (!disabledSeats.includes(i)) validSeatIndices.push(i); }
-
-        if (activeStudents.length > validSeatIndices.length) return alert(`자리가 부족합니다!\n학생 수: ${activeStudents.length}명\n빈자리 수: ${validSeatIndices.length}석`);
-
-        let finalAllocation = null;
-        let attempts = 0;
-        while (attempts < 2000) { 
-            attempts++;
-            let shuffled = [...activeStudents];
-            for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
-
-            let tempSeats = new Array(36).fill(null);
-            let sIdx = 0;
-            for (let idx of validSeatIndices) { if (sIdx < shuffled.length) { tempSeats[idx] = shuffled[sIdx]; sIdx++; } }
-
-            let isSafe = true;
-            for (let pair of antiPairs) {
-                const pos1 = tempSeats.findIndex(s => s && s.number === pair[0]);
-                const pos2 = tempSeats.findIndex(s => s && s.number === pair[1]);
-                if (pos1 !== -1 && pos2 !== -1) {
-                    const r1 = Math.floor(pos1 / 6), c1 = pos1 % 6; const r2 = Math.floor(pos2 / 6), c2 = pos2 % 6;
-                    if ((r1 === r2 && Math.abs(c1 - c2) === 1) || (c1 === c2 && Math.abs(r1 - r2) === 1)) { isSafe = false; break; }
-                }
-            }
-            if (isSafe) { finalAllocation = tempSeats; break; }
+    // 3) 청소구역 로드
+    const localCleaning = localStorage.getItem(`cleaning_grid_${classKey}`);
+    if (localCleaning) homeroomState.cleaningData = JSON.parse(localCleaning);
+    try {
+        const cleanSnap = await getDoc(doc(db, "homeroom_cleaning", classKey));
+        if (cleanSnap.exists() && cleanSnap.data().grid) {
+            homeroomState.cleaningData = cleanSnap.data().grid;
+            localStorage.setItem(`cleaning_grid_${classKey}`, JSON.stringify(homeroomState.cleaningData));
         }
-
-        if (!finalAllocation) return alert("기피 조합 조건이 너무 빡빡하여 배치를 찾지 못했습니다. 기피 조합을 조금 줄여주세요.");
-        allocatedSeats = finalAllocation; 
-
-        const skipAnim = document.getElementById('skipAnimationCheckbox').checked;
-        if (skipAnim) { renderSeatGrid(); triggerConfetti(); } else {
-            const btn = document.getElementById('startSeatingBtn'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 돌리는 중...';
-            let ticks = 0; const maxTicks = 15; 
-            const interval = setInterval(() => {
-                const grid = document.getElementById('seatingGrid'); grid.innerHTML = '';
-                for (let i = 0; i < 36; i++) {
-                    const cell = document.createElement('div');
-                    if (disabledSeats.includes(i)) {
-                        cell.className = "h-16 sm:h-20 bg-slate-200 border-2 border-slate-300 rounded-xl flex items-center justify-center opacity-50"; cell.innerHTML = `<i class="fa-solid fa-xmark text-slate-400"></i>`;
-                    } else if (validSeatIndices.includes(i) && Math.random() > 0.3) {
-                        const randStudent = activeStudents[Math.floor(Math.random() * activeStudents.length)];
-                        cell.className = "h-16 sm:h-20 bg-indigo-50 border-2 border-indigo-200 rounded-xl flex flex-col items-center justify-center shadow-sm";
-                        cell.innerHTML = `<span class="text-xs text-indigo-400 font-bold">${randStudent.number}</span><span class="text-sm sm:text-base font-extrabold text-indigo-700">${randStudent.name}</span>`;
-                    } else { cell.className = "h-16 sm:h-20 bg-slate-50 border-2 border-slate-200 rounded-xl"; }
-                    grid.appendChild(cell);
-                }
-                ticks++;
-                if (ticks >= maxTicks) { clearInterval(interval); renderSeatGrid(); triggerConfetti(); btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-play"></i> 자리 뽑기'; }
-            }, 100);
-        }
-    });
-
-    document.getElementById('downloadHwpxBtn')?.addEventListener('click', async () => {
-        if(!hwpxFileBlob) return alert("양식이 등록되어 있지 않습니다. 양식을 등록해주세요.");
-        try {
-            const zip = await JSZip.loadAsync(hwpxFileBlob);
-            let xmlContent = await zip.file("Contents/section0.xml").async("string");
-            
-            for (let i = 0; i < 36; i++) {
-                const st = allocatedSeats[i];
-                const replaceText = st ? `${st.number}.${st.name}` : ""; 
-                const hwpxIndex = 36 - i; 
-                const regex = new RegExp(`\\{\\{자리${hwpxIndex}\\}\\}`, 'g');
-                xmlContent = xmlContent.replace(regex, replaceText);
-            }
-            zip.file("Contents/section0.xml", xmlContent);
-            
-            const newBlob = await zip.generateAsync({ type: "blob" });
-            const url = window.URL.createObjectURL(newBlob);
-            const a = document.createElement('a'); a.href = url; a.download = `${currentClassStr}반_자리배치결과.hwpx`;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
-        } catch (error) { alert("HWPX 처리 오류. 올바른 양식 파일인지 확인해주세요."); }
-    });
-
-    // ==========================================
-    // 🎯 신규 기능: 청소 구역 (가로 1몸 회전 로직 + 영구 저장)
-    // ==========================================
-
-    document.getElementById('cleaningHwpxTemplateInput')?.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if(file) {
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                localStorage.setItem(`hwpx_cleaning_${currentClassStr}`, evt.target.result);
-                cleaningHwpxBlob = dataURItoBlob(evt.target.result);
-                document.getElementById('cleaningHwpxLabel').innerHTML = '<i class="fa-solid fa-check"></i> 저장된 양식 켬';
-                document.getElementById('downloadCleaningHwpxBtn').classList.remove('hidden');
-                alert(`✅ 청소구역 HWPX 템플릿 파일이 브라우저에 영구 보존되었습니다.`);
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-
-    // 회전 저장 통합 로직
-    async function saveAndRenderCleaning() {
-        const docName = `homeroom_cleaning_${currentClassStr}`;
-        await setDoc(doc(db, "homeroom_cleaning_data", docName), { matrix: cleaningMatrix });
-    }
-
-    // ⬆️ 위로 교대
-    document.getElementById('rotateCleaningUpBtn')?.addEventListener('click', async () => {
-        if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
-        const firstRow = cleaningMatrix.shift(); // 첫 줄 빼서
-        cleaningMatrix.push(firstRow);           // 맨 밑에 삽입
-        await saveAndRenderCleaning();
-    });
-
-    // ⬇️ 아래로 교대
-    document.getElementById('rotateCleaningDownBtn')?.addEventListener('click', async () => {
-        if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
-        const lastRow = cleaningMatrix.pop();    // 맨 밑줄 빼서
-        cleaningMatrix.unshift(lastRow);         // 첫 줄에 삽입
-        await saveAndRenderCleaning();
-    });
-
-    document.getElementById('closeCleaningSelectModalBtn')?.addEventListener('click', () => document.getElementById('cleaningStudentSelectModal').classList.add('hidden'));
-
-    // HWPX 파일 다운로드 (청소 구역용)
-    document.getElementById('downloadCleaningHwpxBtn')?.addEventListener('click', async () => {
-        if(!cleaningHwpxBlob) return alert("먼저 상단의 [양식 등록]을 눌러 청소구역 HWPX 템플릿 파일을 올려주세요.");
-        
-        try {
-            const zip = await JSZip.loadAsync(cleaningHwpxBlob);
-            let xmlContent = await zip.file("Contents/section0.xml").async("string");
-            
-            // {{청소1}} ~ {{청소30}}
-            for (let r = 0; r < 6; r++) {
-                for (let c = 0; c < 5; c++) {
-                    const st = cleaningMatrix[r][c];
-                    const replaceText = st ? `${st.number}.${st.name}` : ""; 
-                    const hwpxIndex = (r * 5) + c + 1; 
-                    const regex = new RegExp(`\\{\\{청소${hwpxIndex}\\}\\}`, 'g');
-                    xmlContent = xmlContent.replace(regex, replaceText);
-                }
-            }
-            zip.file("Contents/section0.xml", xmlContent);
-            const newBlob = await zip.generateAsync({ type: "blob" });
-            const url = window.URL.createObjectURL(newBlob);
-            const a = document.createElement('a'); a.href = url; a.download = `${currentClassStr}반_청소구역결과.hwpx`;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
-        } catch (error) { alert("HWPX 처리 오류. 올바른 양식 파일인지 확인해주세요."); }
-    });
-});
-
-export function updateHomeroomClass(classStr) {
-    if (!auth.currentUser) return;
-    currentClassStr = classStr;
-    
-    loadSavedTemplates(); // 🎯 클래스가 바뀔 때마다 각 반의 로컬 양식을 불러옵니다.
-    
-    if (unsubscribeContacts) unsubscribeContacts();
-    if (unsubscribeCleaning) unsubscribeCleaning();
-    
-    students = [];
-    allocatedSeats = new Array(36).fill(null);
-    cleaningMatrix = Array(6).fill().map(() => Array(5).fill(null)); 
-    
-    renderContacts();
-    renderExcludeList();
-    renderSeatGrid();
+    } catch(e) {}
     renderCleaningGrid();
-    
-    const colName = `homeroom_contacts_${currentClassStr}`;
-    unsubscribeContacts = onSnapshot(query(collection(db, colName), orderBy("number", "asc")), (snapshot) => {
-        students = [];
-        snapshot.forEach(d => students.push({ id: d.id, ...d.data() }));
-        renderContacts();
-        renderExcludeList();
-    });
 
-    const cleanDocName = `homeroom_cleaning_${currentClassStr}`;
-    unsubscribeCleaning = onSnapshot(doc(db, "homeroom_cleaning_data", cleanDocName), (snapshot) => {
-        if(snapshot.exists() && snapshot.data().matrix) {
-            cleaningMatrix = snapshot.data().matrix;
-        } else {
-            cleaningMatrix = Array(6).fill().map(() => Array(5).fill(null)); 
+    // 4) 자리배치 기본 슬롯 초기화
+    initSeatingGrid();
+}
+
+/* ==========================================================================
+   2. 청소 구역 모듈 (학생 번호/이름 표시 완벽 적용)
+   ========================================================================== */
+function setupCleaningModule() {
+    const modal = document.getElementById('cleaningStudentSelectModal');
+    const closeBtn = document.getElementById('closeCleaningSelectModalBtn');
+
+    closeBtn?.addEventListener('click', () => modal?.classList.add('hidden'));
+
+    // 위로 교대 (1행씩 상향 회전)
+    document.getElementById('rotateCleaningUpBtn')?.addEventListener('click', () => {
+        const newGrid = Array(6).fill().map(() => Array(5).fill(null));
+        for (let r = 0; r < 6; r++) {
+            const prevR = (r - 1 + 6) % 6;
+            for (let c = 0; c < 5; c++) {
+                newGrid[prevR][c] = homeroomState.cleaningData[r][c];
+            }
         }
+        homeroomState.cleaningData = newGrid;
+        saveCleaningData();
         renderCleaningGrid();
     });
-}
 
-function renderContacts() {
-    const container = document.getElementById('contactGridContainer');
-    if (!container) return;
-    container.innerHTML = '';
-    if (students.length === 0) {
-        container.innerHTML = `<div class="col-span-full text-center py-10 text-slate-400 font-bold">등록된 학생이 없습니다. 상단의 '여러 명 붙여넣기'나 '직접 추가'를 눌러주세요.</div>`;
-        return;
-    }
-    students.forEach(st => {
-        const card = document.createElement('div');
-        card.className = "bg-white py-3 px-1 rounded-xl shadow-sm border border-rose-100 hover:border-rose-300 hover:shadow-md cursor-pointer flex flex-col items-center text-center transition-all";
-        card.innerHTML = `<div class="w-9 h-9 sm:w-10 sm:h-10 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-sm sm:text-base font-bold mb-1.5 border border-rose-100 shadow-sm">${st.number}</div><h4 class="font-bold text-slate-800 text-[11px] sm:text-xs w-full truncate px-1" title="${st.name}">${st.name}</h4>`;
-        card.onclick = () => openContactModal(st);
-        container.appendChild(card);
-    });
-}
-
-function renderExcludeList() {
-    const container = document.getElementById('excludeStudentList');
-    if (!container) return;
-    container.innerHTML = '';
-    students.forEach(st => {
-        const label = document.createElement('label');
-        label.className = "flex items-center gap-1 bg-white px-2 py-1 rounded border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors whitespace-nowrap";
-        const isChecked = excludedStudents.includes(st.number) ? "checked" : "";
-        label.innerHTML = `<input type="checkbox" value="${st.number}" class="w-3 h-3 text-indigo-600 rounded border-slate-300" ${isChecked}> <span class="text-[10px] sm:text-xs font-bold text-slate-600">${st.name}</span>`;
-        label.querySelector('input').addEventListener('change', (e) => {
-            if (e.target.checked) excludedStudents.push(st.number);
-            else excludedStudents = excludedStudents.filter(n => n !== st.number);
-        });
-        container.appendChild(label);
-    });
-}
-
-function renderSeatGrid() {
-    const grid = document.getElementById('seatingGrid');
-    if (!grid) return;
-    grid.innerHTML = '';
-    for (let i = 0; i < 36; i++) {
-        const cell = document.createElement('div');
-        const st = allocatedSeats[i]; 
-        if (disabledSeats.includes(i)) {
-            cell.className = "h-16 sm:h-20 bg-slate-200 border-2 border-slate-300 rounded-xl flex items-center justify-center cursor-pointer hover:opacity-80 transition-all";
-            cell.innerHTML = `<i class="fa-solid fa-xmark text-slate-400"></i>`;
-        } else if (st) {
-            cell.className = "h-16 sm:h-20 bg-indigo-50 border-2 border-indigo-300 rounded-xl flex flex-col items-center justify-center shadow-md cursor-pointer hover:bg-indigo-100 transition-all";
-            cell.innerHTML = `<span class="text-[10px] sm:text-xs text-indigo-500 font-bold">${st.number}</span><span class="text-sm sm:text-base font-extrabold text-indigo-800">${st.name}</span>`;
-        } else {
-            cell.className = "h-16 sm:h-20 bg-white border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-all text-slate-300";
-            cell.innerHTML = `<span class="text-xs">클릭시</span><span class="text-[10px]">제외</span>`;
-        }
-
-        cell.onclick = () => {
-            if(allocatedSeats.some(s => s !== null)) {
-                if(confirm("배치된 자리가 초기화됩니다. 변경하시겠습니까?")) {
-                    allocatedSeats = new Array(36).fill(null);
-                    renderSeatGrid();
-                }
-                return;
+    // 아래로 교대 (1행씩 하향 회전)
+    document.getElementById('rotateCleaningDownBtn')?.addEventListener('click', () => {
+        const newGrid = Array(6).fill().map(() => Array(5).fill(null));
+        for (let r = 0; r < 6; r++) {
+            const nextR = (r + 1) % 6;
+            for (let c = 0; c < 5; c++) {
+                newGrid[nextR][c] = homeroomState.cleaningData[r][c];
             }
-            if (disabledSeats.includes(i)) disabledSeats = disabledSeats.filter(idx => idx !== i);
-            else disabledSeats.push(i);
-            renderSeatGrid();
-        };
-        grid.appendChild(cell);
-    }
+        }
+        homeroomState.cleaningData = newGrid;
+        saveCleaningData();
+        renderCleaningGrid();
+    });
+
+    // HWPX 양식 등록 및 다운로드
+    const hwpxInput = document.getElementById('cleaningHwpxTemplateInput');
+    const hwpxBtn = document.getElementById('downloadCleaningHwpxBtn');
+    hwpxInput?.addEventListener('change', () => {
+        if (hwpxInput.files.length > 0) {
+            cleaningHwpxBlob = hwpxInput.files[0];
+            hwpxBtn?.classList.remove('hidden');
+            alert("✅ 청소 구역 HWPX 양식이 등록되었습니다.");
+        }
+    });
+
+    hwpxBtn?.addEventListener('click', () => {
+        downloadCleaningHwpx();
+    });
 }
 
-// 🎯 청소 구역 테이블 렌더링 함수
+// 🎯 청소 구역 테이블 렌더링 (배정된 곳에 학생 번호와 이름 표시)
 function renderCleaningGrid() {
     const tbody = document.getElementById('cleaningGridBody');
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    const rowLabels = [
-        "교실 쓸기 - 창", "교실 쓸기 - 중앙", "교실 쓸기 - 복도", 
-        "컴퓨터실 - 창문쪽", "컴퓨터실 - 복도쪽", "교탁 및 칠판"
-    ];
-
     for (let r = 0; r < 6; r++) {
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50 transition-colors";
-        
-        const th = document.createElement('td');
-        th.className = "py-3 px-2 border-r border-slate-200 font-bold text-xs bg-slate-50";
-        th.textContent = rowLabels[r];
-        tr.appendChild(th);
+
+        let html = `<td class="py-3.5 px-3 border-r border-slate-200 font-bold bg-slate-50 text-slate-700 text-xs sm:text-sm whitespace-nowrap">${cleaningAreas[r]}</td>`;
 
         for (let c = 0; c < 5; c++) {
-            const td = document.createElement('td');
-            const isLast = c === 4;
-            td.className = `py-3 px-2 cursor-pointer transition-all ${isLast ? '' : 'border-r border-slate-200'}`;
-            
-            const st = cleaningMatrix[r][c];
-            if (st) {
-                td.innerHTML = `<div class="bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold py-1.5 rounded-lg text-[11px] hover:bg-emerald-100">${st.number}. ${st.name}</div>`;
-            } else {
-                td.innerHTML = `<div class="text-slate-300 text-[10px] py-1.5 border border-dashed border-slate-200 rounded-lg hover:bg-slate-100">+ 배정</div>`;
-            }
+            const student = homeroomState.cleaningData[r][c];
 
-            td.onclick = () => openCleaningStudentSelect(r, c);
-            tr.appendChild(td);
+            if (student && student.name) {
+                // 🎯 배정된 상태: 번호와 이름을 명확하게 표시
+                html += `
+                    <td class="p-1.5 border-r border-slate-200 align-middle">
+                        <div class="group relative flex items-center justify-between px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 rounded-xl font-bold shadow-sm transition-all select-none">
+                            <div class="flex items-center gap-1.5 overflow-hidden cursor-pointer flex-1" onclick="window.openCleaningSelectModal(${r}, ${c})">
+                                <span class="bg-emerald-200 text-emerald-800 text-[11px] font-extrabold px-1.5 py-0.5 rounded">${student.num}번</span>
+                                <span class="text-xs truncate font-extrabold text-slate-800">${student.name}</span>
+                            </div>
+                            <button type="button" class="text-slate-400 hover:text-rose-500 p-1 rounded-md transition-colors ml-1" title="배정 해제" onclick="window.clearCleaningSlot(${r}, ${c})">
+                                <i class="fa-solid fa-xmark text-xs pointer-events-none"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+            } else {
+                // 🎯 미배정 상태: + 배정 버튼
+                html += `
+                    <td class="p-1.5 border-r border-slate-200 align-middle">
+                        <button type="button" onclick="window.openCleaningSelectModal(${r}, ${c})" class="w-full py-2.5 border-2 border-dashed border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/50 hover:text-emerald-700 text-slate-300 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1">
+                            <i class="fa-solid fa-plus text-[10px]"></i> 배정
+                        </button>
+                    </td>
+                `;
+            }
         }
+        tr.innerHTML = html;
         tbody.appendChild(tr);
     }
 }
 
-// 청소 구역 학생 선택 팝업 오픈
-function openCleaningStudentSelect(row, col) {
-    cleaningSelectRow = row;
-    cleaningSelectCol = col;
-    
-    const list = document.getElementById('cleaningStudentList');
-    list.innerHTML = '';
-    
-    // 빈칸 비우기 버튼
-    const clearBtn = document.createElement('button');
-    clearBtn.className = "col-span-full py-2 bg-slate-100 text-slate-500 font-bold rounded-lg hover:bg-slate-200 mb-2 border border-slate-200";
-    clearBtn.textContent = "비우기 (삭제)";
-    clearBtn.onclick = async () => {
-        cleaningMatrix[cleaningSelectRow][cleaningSelectCol] = null;
-        document.getElementById('cleaningStudentSelectModal').classList.add('hidden');
-        await setDoc(doc(db, "homeroom_cleaning_data", `homeroom_cleaning_${currentClassStr}`), { matrix: cleaningMatrix });
-    };
-    list.appendChild(clearBtn);
+// 전역 모달 열기 함수
+window.openCleaningSelectModal = function(row, col) {
+    homeroomState.currentCleaningSlot = { row, col };
+    const modal = document.getElementById('cleaningStudentSelectModal');
+    const container = document.getElementById('cleaningStudentList');
+    if (!container || !modal) return;
 
-    students.forEach(st => {
-        // 이미 다른 칸에 있는지 확인
-        let isAlreadyAssigned = false;
-        for(let r=0; r<6; r++){
-            for(let c=0; c<5; c++){
-                if(cleaningMatrix[r][c] && cleaningMatrix[r][c].number === st.number) isAlreadyAssigned = true;
+    container.innerHTML = '';
+
+    // 상단 [이 자리 비우기] 버튼
+    const clearBtn = document.createElement('button');
+    clearBtn.className = "col-span-full py-2 px-3 mb-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm";
+    clearBtn.innerHTML = `<i class="fa-solid fa-trash-can"></i> 이 자리 비우기 (배정 해제)`;
+    clearBtn.onclick = () => {
+        window.clearCleaningSlot(row, col);
+        modal.classList.add('hidden');
+    };
+    container.appendChild(clearBtn);
+
+    // 학생 목록 불러오기 (연락처 데이터 또는 1~30번)
+    const list = homeroomState.contacts.length > 0 
+        ? homeroomState.contacts 
+        : Array.from({ length: 30 }, (_, i) => ({ num: i + 1, name: `${i + 1}번 학생` }));
+
+    list.forEach(s => {
+        const btn = document.createElement('button');
+        btn.className = "p-2 rounded-xl border text-center font-bold transition-all hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-800 border-slate-200 text-slate-700 bg-white shadow-sm flex flex-col items-center justify-center gap-0.5";
+        btn.innerHTML = `
+            <span class="text-[10px] text-slate-400 font-semibold">${s.num}번</span>
+            <span class="text-xs font-bold text-slate-800">${s.name}</span>
+        `;
+        btn.onclick = () => {
+            homeroomState.cleaningData[row][col] = { num: s.num, name: s.name };
+            saveCleaningData();
+            renderCleaningGrid();
+            modal.classList.add('hidden');
+        };
+        container.appendChild(btn);
+    });
+
+    modal.classList.remove('hidden');
+};
+
+// 전역 슬롯 비우기 함수
+window.clearCleaningSlot = function(row, col) {
+    homeroomState.cleaningData[row][col] = null;
+    saveCleaningData();
+    renderCleaningGrid();
+};
+
+async function saveCleaningData() {
+    const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+    localStorage.setItem(`cleaning_grid_${classKey}`, JSON.stringify(homeroomState.cleaningData));
+
+    try {
+        await setDoc(doc(db, "homeroom_cleaning", classKey), {
+            grade: homeroomState.grade,
+            classNum: homeroomState.classNum,
+            grid: homeroomState.cleaningData,
+            updatedAt: new Date().toISOString()
+        });
+    } catch (e) {
+        console.warn("청소구역 DB 저장 실패 (로컬 유지):", e);
+    }
+}
+
+async function downloadCleaningHwpx() {
+    if (!cleaningHwpxBlob) return alert("등록된 HWPX 양식이 없습니다.");
+    try {
+        const zip = await JSZip.loadAsync(cleaningHwpxBlob);
+        let sectionXml = await zip.file("Contents/section0.xml")?.async("string");
+        if (!sectionXml) return alert("HWPX 문서 구조를 읽을 수 없습니다.");
+
+        for (let r = 0; r < 6; r++) {
+            for (let c = 0; c < 5; c++) {
+                const tag = `{{C_${r+1}_${c+1}}}`;
+                const item = homeroomState.cleaningData[r][c];
+                const text = item ? `${item.num}번 ${item.name}` : "";
+                sectionXml = sectionXml.replaceAll(tag, text);
             }
         }
 
-        const btn = document.createElement('button');
-        btn.className = `p-2 rounded-xl border text-center font-bold text-[11px] transition-colors ${isAlreadyAssigned ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'}`;
-        btn.textContent = `${st.number}. ${st.name}`;
-        
-        btn.onclick = async () => {
-            // 다른 칸에 있던 학생이면 예전 칸 지우기
-            for(let r=0; r<6; r++){
-                for(let c=0; c<5; c++){
-                    if(cleaningMatrix[r][c] && cleaningMatrix[r][c].number === st.number) cleaningMatrix[r][c] = null;
+        zip.file("Contents/section0.xml", sectionXml);
+        const outBlob = await zip.generateAsync({ type: "blob" });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(outBlob);
+        a.download = `${homeroomState.grade}학년_${homeroomState.classNum}반_청소구역.hwpx`;
+        a.click();
+    } catch(e) {
+        alert("HWPX 다운로드 중 오류가 발생했습니다.");
+    }
+}
+
+/* ==========================================================================
+   3. 비상연락망 모듈
+   ========================================================================== */
+function setupContactsModule() {
+    const contactModal = document.getElementById('contactModal');
+    const bulkModal = document.getElementById('bulkPasteModal');
+
+    document.getElementById('closeContactModalBtn')?.addEventListener('click', () => contactModal?.classList.add('hidden'));
+
+    document.getElementById('openNewContactModalBtn')?.addEventListener('click', () => openContactEditMode(null));
+
+    document.getElementById('deleteAllContactsBtn')?.addEventListener('click', async () => {
+        if (!confirm("정말 모든 학생 연락처를 삭제하시겠습니까?")) return;
+        homeroomState.contacts = [];
+        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+        localStorage.removeItem(`contacts_${classKey}`);
+        try {
+            await deleteDoc(doc(db, "homeroom_contacts", classKey));
+        } catch (e) {}
+        renderContactGrid();
+        renderExcludeStudentList();
+    });
+
+    document.getElementById('openBulkPasteModalBtn')?.addEventListener('click', () => {
+        document.getElementById('bulkPasteTextarea').value = '';
+        bulkModal?.classList.remove('hidden');
+    });
+    document.getElementById('closeBulkPasteModalBtn')?.addEventListener('click', () => bulkModal?.classList.add('hidden'));
+    document.getElementById('cancelBulkPasteBtn')?.addEventListener('click', () => bulkModal?.classList.add('hidden'));
+
+    document.getElementById('saveBulkPasteBtn')?.addEventListener('click', async () => {
+        const text = document.getElementById('bulkPasteTextarea').value;
+        if (!text.trim()) return alert("데이터를 입력해주세요.");
+
+        const lines = text.split('\n');
+        const parsed = [];
+
+        lines.forEach((line, idx) => {
+            const raw = line.trim();
+            if (!raw) return;
+
+            const tokens = raw.split(/[\t\s]+/).filter(Boolean);
+            if (tokens.length < 2) return;
+
+            let num = parseInt(tokens[0], 10);
+            let name = tokens[1];
+            let studentPhone = "";
+            let parent1 = "";
+            let parent2 = "";
+
+            if (isNaN(num)) {
+                num = idx + 1;
+                name = tokens[0];
+            }
+
+            const phoneMatches = raw.match(/01[0-9]-?[0-9]{3,4}-?[0-9]{4}/g) || [];
+            if (phoneMatches.length >= 1) studentPhone = phoneMatches[0];
+            if (phoneMatches.length >= 2) parent1 = phoneMatches[1];
+            if (phoneMatches.length >= 3) parent2 = phoneMatches[2];
+
+            parsed.push({
+                id: `st_${Date.now()}_${idx}`,
+                num: num,
+                name: name,
+                phone: studentPhone,
+                parentPhone: parent1,
+                parent2Phone: parent2
+            });
+        });
+
+        if (parsed.length === 0) return alert("유효한 학생 데이터를 찾지 못했습니다.");
+
+        parsed.sort((a, b) => a.num - b.num);
+        homeroomState.contacts = parsed;
+
+        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+        localStorage.setItem(`contacts_${classKey}`, JSON.stringify(parsed));
+        try {
+            await setDoc(doc(db, "homeroom_contacts", classKey), {
+                grade: homeroomState.grade,
+                classNum: homeroomState.classNum,
+                list: parsed,
+                updatedAt: new Date().toISOString()
+            });
+        } catch (e) {}
+
+        renderContactGrid();
+        renderExcludeStudentList();
+        bulkModal?.classList.add('hidden');
+        alert(`✅ 총 ${parsed.length}명의 학생 연락처가 등록되었습니다.`);
+    });
+
+    document.getElementById('editContactModeBtn')?.addEventListener('click', () => {
+        const id = document.getElementById('editContactId').value;
+        const target = homeroomState.contacts.find(c => c.id === id);
+        if (target) openContactEditMode(target);
+    });
+
+    document.getElementById('cancelContactEditBtn')?.addEventListener('click', () => {
+        document.getElementById('contactEditMode')?.classList.add('hidden');
+        document.getElementById('contactViewMode')?.classList.remove('hidden');
+    });
+
+    document.getElementById('saveContactBtn')?.addEventListener('click', async () => {
+        const id = document.getElementById('editContactId').value;
+        const num = Number(document.getElementById('contactNumInput').value);
+        const name = document.getElementById('contactNameInput').value.trim();
+        const phone = document.getElementById('contactStudentPhone').value.trim();
+        const parentPhone = document.getElementById('contactParentPhone').value.trim();
+        const parent2Phone = document.getElementById('contactParent2Phone').value.trim();
+
+        if (!name) return alert("학생 이름을 입력해주세요.");
+
+        if (id) {
+            const idx = homeroomState.contacts.findIndex(c => c.id === id);
+            if (idx !== -1) {
+                homeroomState.contacts[idx] = { id, num, name, phone, parentPhone, parent2Phone };
+            }
+        } else {
+            homeroomState.contacts.push({
+                id: `st_${Date.now()}`,
+                num: num || homeroomState.contacts.length + 1,
+                name,
+                phone,
+                parentPhone,
+                parent2Phone
+            });
+        }
+
+        homeroomState.contacts.sort((a, b) => a.num - b.num);
+        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+        localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
+        try {
+            await setDoc(doc(db, "homeroom_contacts", classKey), {
+                grade: homeroomState.grade,
+                classNum: homeroomState.classNum,
+                list: homeroomState.contacts,
+                updatedAt: new Date().toISOString()
+            });
+        } catch (e) {}
+
+        renderContactGrid();
+        renderExcludeStudentList();
+        contactModal?.classList.add('hidden');
+    });
+
+    document.getElementById('deleteContactBtn')?.addEventListener('click', async () => {
+        const id = document.getElementById('editContactId').value;
+        if (!confirm("이 연락처를 삭제하시겠습니까?")) return;
+
+        homeroomState.contacts = homeroomState.contacts.filter(c => c.id !== id);
+        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+        localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
+        try {
+            await setDoc(doc(db, "homeroom_contacts", classKey), {
+                grade: homeroomState.grade,
+                classNum: homeroomState.classNum,
+                list: homeroomState.contacts,
+                updatedAt: new Date().toISOString()
+            });
+        } catch (e) {}
+
+        renderContactGrid();
+        renderExcludeStudentList();
+        contactModal?.classList.add('hidden');
+    });
+}
+
+function renderContactGrid() {
+    const container = document.getElementById('contactGridContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (homeroomState.contacts.length === 0) {
+        container.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400 font-bold bg-white rounded-3xl border border-dashed border-slate-200">등록된 연락처가 없습니다. 우측 상단의 버튼을 통해 등록해보세요.</div>`;
+        return;
+    }
+
+    homeroomState.contacts.forEach(c => {
+        const card = document.createElement('div');
+        card.className = "bg-white border border-slate-200 hover:border-rose-300 rounded-2xl p-2.5 flex flex-col items-center justify-center gap-1 shadow-sm hover:shadow transition-all cursor-pointer group";
+        card.innerHTML = `
+            <span class="text-[11px] font-extrabold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">${c.num}번</span>
+            <span class="text-xs font-bold text-slate-800 group-hover:text-rose-600 transition-colors">${c.name}</span>
+        `;
+        card.onclick = () => openContactViewMode(c);
+        container.appendChild(card);
+    });
+}
+
+function openContactViewMode(contact) {
+    const modal = document.getElementById('contactModal');
+    document.getElementById('contactViewMode')?.classList.remove('hidden');
+    document.getElementById('contactEditMode')?.classList.add('hidden');
+
+    document.getElementById('editContactId').value = contact.id;
+    document.getElementById('contactModalNumber').textContent = `${contact.num}번`;
+    document.getElementById('contactModalName').textContent = contact.name;
+
+    const btnStd = document.getElementById('callStudentBtn');
+    const btnP1 = document.getElementById('callParentBtn');
+    const btnP2 = document.getElementById('callParent2Btn');
+
+    if (btnStd) {
+        btnStd.href = contact.phone ? `tel:${contact.phone}` : "#";
+        btnStd.className = contact.phone 
+            ? "flex items-center justify-center gap-2 w-full bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold py-3 rounded-2xl transition-colors text-sm border border-sky-200 shadow-sm"
+            : "flex items-center justify-center gap-2 w-full bg-slate-50 text-slate-300 font-bold py-3 rounded-2xl pointer-events-none border border-slate-100 text-sm";
+    }
+
+    if (btnP1) {
+        btnP1.href = contact.parentPhone ? `tel:${contact.parentPhone}` : "#";
+        btnP1.className = contact.parentPhone 
+            ? "flex items-center justify-center gap-1.5 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3 rounded-2xl transition-colors text-xs border border-emerald-200 shadow-sm"
+            : "flex items-center justify-center gap-1.5 w-full bg-slate-50 text-slate-300 font-bold py-3 rounded-2xl pointer-events-none border border-slate-100 text-xs";
+    }
+
+    if (btnP2) {
+        btnP2.href = contact.parent2Phone ? `tel:${contact.parent2Phone}` : "#";
+        btnP2.className = contact.parent2Phone 
+            ? "flex items-center justify-center gap-1.5 w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-3 rounded-2xl transition-colors text-xs border border-amber-200 shadow-sm"
+            : "flex items-center justify-center gap-1.5 w-full bg-slate-50 text-slate-300 font-bold py-3 rounded-2xl pointer-events-none border border-slate-100 text-xs";
+    }
+
+    modal?.classList.remove('hidden');
+}
+
+function openContactEditMode(contact) {
+    const modal = document.getElementById('contactModal');
+    document.getElementById('contactViewMode')?.classList.add('hidden');
+    document.getElementById('contactEditMode')?.classList.remove('hidden');
+
+    document.getElementById('editContactId').value = contact ? contact.id : '';
+    document.getElementById('contactNumInput').value = contact ? contact.num : (homeroomState.contacts.length + 1);
+    document.getElementById('contactNameInput').value = contact ? contact.name : '';
+    document.getElementById('contactStudentPhone').value = contact ? contact.phone : '';
+    document.getElementById('contactParentPhone').value = contact ? contact.parentPhone : '';
+    document.getElementById('contactParent2Phone').value = contact ? contact.parent2Phone : '';
+
+    modal?.classList.remove('hidden');
+}
+
+/* ==========================================================================
+   4. 자리 바꾸기 모듈
+   ========================================================================== */
+function setupSeatingModule() {
+    // 교탁 클릭 -> 기피 조합 비밀 모달 열기
+    document.getElementById('teacherDeskBtn')?.addEventListener('click', () => {
+        const modal = document.getElementById('antiPairModal');
+        const area = document.getElementById('antiPairTextarea');
+        if (area) {
+            area.value = homeroomState.antiPairs.map(p => `${p[0]}, ${p[1]}`).join('\n');
+        }
+        modal?.classList.remove('hidden');
+    });
+
+    document.getElementById('closeAntiPairModalBtn')?.addEventListener('click', () => {
+        document.getElementById('antiPairModal')?.classList.add('hidden');
+    });
+
+    document.getElementById('saveAntiPairBtn')?.addEventListener('click', async () => {
+        const text = document.getElementById('antiPairTextarea').value;
+        const lines = text.split('\n');
+        const pairs = [];
+
+        lines.forEach(line => {
+            const parts = line.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+            if (parts.length >= 2) {
+                pairs.push([parts[0], parts[1]]);
+            }
+        });
+
+        homeroomState.antiPairs = pairs;
+        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+        localStorage.setItem(`anti_pairs_${classKey}`, JSON.stringify(pairs));
+        try {
+            await setDoc(doc(db, "homeroom_anti_pairs", classKey), {
+                grade: homeroomState.grade,
+                classNum: homeroomState.classNum,
+                pairs: pairs
+            });
+        } catch(e) {}
+
+        document.getElementById('antiPairModal')?.classList.add('hidden');
+        alert("🤫 기피 조합이 안전하게 비밀 저장되었습니다.");
+    });
+
+    document.getElementById('startSeatingBtn')?.addEventListener('click', runSeatingArrangement);
+
+    const hwpxInput = document.getElementById('hwpxTemplateInput');
+    const hwpxBtn = document.getElementById('downloadHwpxBtn');
+    hwpxInput?.addEventListener('change', () => {
+        if (hwpxInput.files.length > 0) {
+            seatingHwpxBlob = hwpxInput.files[0];
+            hwpxBtn?.classList.remove('hidden');
+            alert("✅ 자리배치 HWPX 양식이 등록되었습니다.");
+        }
+    });
+
+    hwpxBtn?.addEventListener('click', () => {
+        downloadSeatingHwpx();
+    });
+}
+
+function initSeatingGrid() {
+    homeroomState.seatingSeats = Array.from({ length: 30 }, (_, idx) => ({
+        id: idx,
+        disabled: false,
+        student: null
+    }));
+    renderSeatingDesks();
+}
+
+function renderSeatingDesks() {
+    const grid = document.getElementById('seatingGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    homeroomState.seatingSeats.forEach(seat => {
+        const desk = document.createElement('div');
+        desk.className = seat.disabled
+            ? "h-16 rounded-2xl bg-slate-200 border-2 border-slate-300 flex items-center justify-center text-slate-400 font-bold text-xs cursor-pointer select-none transition-all shadow-inner"
+            : "h-16 rounded-2xl bg-white border-2 border-indigo-100 hover:border-indigo-400 flex flex-col items-center justify-center gap-0.5 font-bold cursor-pointer select-none transition-all shadow-sm";
+
+        if (seat.disabled) {
+            desk.textContent = "제외";
+        } else if (seat.student) {
+            desk.innerHTML = `
+                <span class="text-[10px] text-indigo-500 font-extrabold">${seat.student.num}번</span>
+                <span class="text-xs font-bold text-slate-800">${seat.student.name}</span>
+            `;
+        } else {
+            desk.innerHTML = `<span class="text-xs text-slate-300">${seat.id + 1}</span>`;
+        }
+
+        desk.onclick = () => {
+            seat.disabled = !seat.disabled;
+            seat.student = null;
+            renderSeatingDesks();
+        };
+
+        grid.appendChild(desk);
+    });
+}
+
+function renderExcludeStudentList() {
+    const container = document.getElementById('excludeStudentList');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const list = homeroomState.contacts.length > 0 
+        ? homeroomState.contacts 
+        : Array.from({ length: 30 }, (_, i) => ({ num: i + 1, name: `${i + 1}번` }));
+
+    list.forEach(s => {
+        const isExcluded = homeroomState.excludedStudentNums.has(s.num);
+        const chip = document.createElement('button');
+        chip.className = `px-2 py-0.5 rounded-lg text-[10px] font-bold whitespace-nowrap transition-colors ${
+            isExcluded 
+                ? 'bg-rose-500 text-white shadow-sm' 
+                : 'bg-white/20 text-white hover:bg-white/30'
+        }`;
+        chip.textContent = `${s.num} ${s.name}`;
+        chip.onclick = () => {
+            if (homeroomState.excludedStudentNums.has(s.num)) {
+                homeroomState.excludedStudentNums.delete(s.num);
+            } else {
+                homeroomState.excludedStudentNums.add(s.num);
+            }
+            renderExcludeStudentList();
+        };
+        container.appendChild(chip);
+    });
+}
+
+// 🎯 자리 뽑기 실행 알고리즘 (기피 조합 고려 및 애니메이션 지원)
+async function runSeatingArrangement() {
+    const availableSeats = homeroomState.seatingSeats.filter(s => !s.disabled);
+    
+    // 결석자 제외한 실제 배치 대상 학생들
+    let students = homeroomState.contacts.length > 0 
+        ? homeroomState.contacts.filter(s => !homeroomState.excludedStudentNums.has(s.num))
+        : Array.from({ length: availableSeats.length }, (_, i) => ({ num: i + 1, name: `${i + 1}번` }));
+
+    if (students.length > availableSeats.length) {
+        return alert(`배치할 학생(${students.length}명)이 활성화된 자리(${availableSeats.length}개)보다 많습니다. 자리를 추가해주세요.`);
+    }
+
+    // 셔플 알고리즘 (기피 조합 충돌 체크 포함, 최대 100회 시도)
+    let bestOrder = null;
+    let attempts = 0;
+
+    while (attempts < 100) {
+        attempts++;
+        const shuffled = [...students].sort(() => Math.random() - 0.5);
+        let hasConflict = false;
+
+        // 상하좌우 충돌 검증 (6열 배치 기준)
+        for (let i = 0; i < shuffled.length; i++) {
+            const seatIdx = availableSeats[i].id;
+            const r1 = Math.floor(seatIdx / 6);
+            const c1 = seatIdx % 6;
+            const st1 = shuffled[i].num;
+
+            for (let j = i + 1; j < shuffled.length; j++) {
+                const seatIdx2 = availableSeats[j].id;
+                const r2 = Math.floor(seatIdx2 / 6);
+                const c2 = seatIdx2 % 6;
+                const st2 = shuffled[j].num;
+
+                const isAdjacent = (Math.abs(r1 - r2) + Math.abs(c1 - c2)) === 1;
+                if (isAdjacent) {
+                    const isAntiPair = homeroomState.antiPairs.some(
+                        p => (p[0] === st1 && p[1] === st2) || (p[0] === st2 && p[1] === st1)
+                    );
+                    if (isAntiPair) {
+                        hasConflict = true;
+                        break;
+                    }
                 }
             }
-            cleaningMatrix[cleaningSelectRow][cleaningSelectCol] = { number: st.number, name: st.name };
-            document.getElementById('cleaningStudentSelectModal').classList.add('hidden');
-            await setDoc(doc(db, "homeroom_cleaning_data", `homeroom_cleaning_${currentClassStr}`), { matrix: cleaningMatrix });
-        };
-        list.appendChild(btn);
-    });
-    
-    document.getElementById('cleaningStudentSelectModal').classList.remove('hidden');
+            if (hasConflict) break;
+        }
+
+        if (!hasConflict) {
+            bestOrder = shuffled;
+            break;
+        }
+    }
+
+    if (!bestOrder) {
+        bestOrder = [...students].sort(() => Math.random() - 0.5);
+    }
+
+    const skipAnim = document.getElementById('skipAnimationCheckbox')?.checked;
+
+    if (skipAnim) {
+        availableSeats.forEach((seat, idx) => {
+            seat.student = bestOrder[idx] || null;
+        });
+        renderSeatingDesks();
+        if (typeof confetti === 'function') confetti({ particleCount: 70, spread: 60 });
+    } else {
+        // 애니메이션 효과
+        availableSeats.forEach(s => s.student = null);
+        renderSeatingDesks();
+
+        for (let i = 0; i < availableSeats.length; i++) {
+            availableSeats[i].student = bestOrder[i] || null;
+            renderSeatingDesks();
+            await new Promise(r => setTimeout(r, 60));
+        }
+        if (typeof confetti === 'function') confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+    }
 }
 
-function triggerConfetti() {
-    var duration = 2 * 1000;
-    var animationEnd = Date.now() + duration;
-    var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
-    function randomInRange(min, max) { return Math.random() * (max - min) + min; }
-    var interval = setInterval(function() {
-        var timeLeft = animationEnd - Date.now();
-        if (timeLeft <= 0) { return clearInterval(interval); }
-        var particleCount = 50 * (timeLeft / duration);
-        confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
-        confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
-    }, 250);
-}
+async function downloadSeatingHwpx() {
+    if (!seatingHwpxBlob) return alert("등록된 HWPX 양식이 없습니다.");
+    try {
+        const zip = await JSZip.loadAsync(seatingHwpxBlob);
+        let sectionXml = await zip.file("Contents/section0.xml")?.async("string");
+        if (!sectionXml) return alert("HWPX 문서 구조를 읽을 수 없습니다.");
 
-function openContactModal(st) {
-    document.getElementById('contactModalNumber').textContent = String(st.number).padStart(2, '0');
-    document.getElementById('contactModalName').textContent = st.name;
-    const p1 = st.parentPhone1 || ''; const p2 = st.parentPhone2 || '';
-    document.getElementById('editContactId').value = st.id; document.getElementById('contactNumInput').value = st.number;
-    document.getElementById('contactNameInput').value = st.name; document.getElementById('contactStudentPhone').value = st.studentPhone || '';
-    document.getElementById('contactParentPhone').value = p1; document.getElementById('contactParent2Phone').value = p2;
+        homeroomState.seatingSeats.forEach((seat, idx) => {
+            const tag = `{{S_${idx + 1}}}`;
+            const text = seat.student ? `${seat.student.num} ${seat.student.name}` : (seat.disabled ? "제외" : "");
+            sectionXml = sectionXml.replaceAll(tag, text);
+        });
 
-    const btnS = document.getElementById('callStudentBtn'); const txtS = document.getElementById('callStudentText');
-    if (st.studentPhone) { btnS.href = `tel:${st.studentPhone}`; btnS.className = "flex items-center justify-center gap-2 w-full bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold py-3.5 rounded-2xl text-sm border border-sky-200 shadow-sm"; txtS.textContent = `학생 연결`; } 
-    else { btnS.removeAttribute('href'); btnS.className = "flex items-center justify-center gap-2 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-sm border border-slate-200"; txtS.textContent = "학생 연락처 없음"; }
-
-    const btnP1 = document.getElementById('callParentBtn'); const txtP1 = document.getElementById('callParentText');
-    if (p1) { btnP1.href = `tel:${p1}`; btnP1.className = "flex items-center justify-center gap-1.5 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3.5 rounded-2xl text-xs sm:text-sm border border-emerald-200 shadow-sm"; txtP1.textContent = `학부모 1 연결`; } 
-    else { btnP1.removeAttribute('href'); btnP1.className = "flex items-center justify-center gap-1.5 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-xs sm:text-sm border border-slate-200"; txtP1.textContent = "학부모 1 없음"; }
-
-    const btnP2 = document.getElementById('callParent2Btn'); const txtP2 = document.getElementById('callParent2Text');
-    if (p2 && p2 !== '없다') { btnP2.href = `tel:${p2}`; btnP2.className = "flex items-center justify-center gap-1.5 w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-3.5 rounded-2xl text-xs sm:text-sm border border-amber-200 shadow-sm"; txtP2.textContent = `학부모 2 연결`; } 
-    else { btnP2.removeAttribute('href'); btnP2.className = "flex items-center justify-center gap-1.5 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-xs sm:text-sm border border-slate-200"; txtP2.textContent = "학부모 2 없음"; }
-
-    document.getElementById('contactEditMode').classList.add('hidden'); document.getElementById('contactViewMode').classList.remove('hidden'); document.getElementById('contactModal').classList.remove('hidden');
+        zip.file("Contents/section0.xml", sectionXml);
+        const outBlob = await zip.generateAsync({ type: "blob" });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(outBlob);
+        a.download = `${homeroomState.grade}학년_${homeroomState.classNum}반_자리배치.hwpx`;
+        a.click();
+    } catch(e) {
+        alert("HWPX 다운로드 중 오류가 발생했습니다.");
+    }
 }
