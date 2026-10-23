@@ -21,10 +21,9 @@ export let officeState = {
 const schoolCode = "72886";
 let scData = null;
 
-// 🎯 DB에서 불러온 기본 시간표 상태 변수
 let currentTeacherBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
 let currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
-let activeBaseModalType = null; // 'teacher' or 'class'
+let activeBaseModalType = null; 
 
 // 🎯 이벤트(민트색) 과목 필터링 키워드
 const eventKeywords = ['자치', '동아', '봉사', '진로'];
@@ -32,7 +31,6 @@ const eventKeywords = ['자치', '동아', '봉사', '진로'];
 export function initOfficeTab(currentUser) {
     if (!currentUser) return;
     
-    // 교사/학급 선택 UI 연결
     document.getElementById('titleTeacherNameBtn')?.addEventListener('click', () => {
         const container = document.getElementById('modalTeacherList');
         container.innerHTML = '';
@@ -76,7 +74,6 @@ export function initOfficeTab(currentUser) {
     
     document.getElementById('closeClassSelectModalBtn')?.addEventListener('click', () => document.getElementById('classSelectModal').classList.add('hidden'));
 
-    // 🎯 기본 시간표 설정 모달 연결 로직
     const baseModal = document.getElementById('baseTimetableModal');
     const baseInputBody = document.getElementById('baseTimetableInputBody');
     
@@ -120,7 +117,7 @@ export function initOfficeTab(currentUser) {
             renderTeacherTimetable();
             renderClassTimetable();
         } catch (e) {
-            alert("저장 중 오류가 발생했습니다.");
+            alert("저장 중 오류가 발생했습니다. 파이어베이스 권한을 확인해주세요.");
         }
     });
 
@@ -156,7 +153,6 @@ export function initOfficeTab(currentUser) {
     document.getElementById('titleTeacherNameBtn').textContent = officeState.selectedTeacher.name;
     document.getElementById('titleClassNameBtn').textContent = `${officeState.selectedGrade}-${officeState.selectedClassNum}`;
 
-    // 초기 데이터 로딩
     loadBaseTimetablesAndRender();
     fetchMeal();
 }
@@ -175,8 +171,9 @@ function renderBaseTimetableInputGrid(dataMatrix) {
     }
 }
 
-// 🎯 파이어베이스 기본 시간표 로딩 & 컴시간 로딩 통합 함수
+// 🎯 파이어베이스 데이터 로딩과 컴시간 로딩을 완벽히 분리
 async function loadBaseTimetablesAndRender() {
+    // 1. 파이어베이스 기본 시간표 가져오기 (실패해도 컴시간은 돌아가야 함)
     try {
         const tSnap = await getDoc(doc(db, "base_timetables", `teacher_${officeState.selectedTeacher.short}`));
         if (tSnap.exists() && tSnap.data().matrix) currentTeacherBaseTimetable = tSnap.data().matrix;
@@ -185,23 +182,27 @@ async function loadBaseTimetablesAndRender() {
         const cSnap = await getDoc(doc(db, "base_timetables", `class_${officeState.selectedGrade}_${officeState.selectedClassNum}`));
         if (cSnap.exists() && cSnap.data().matrix) currentClassBaseTimetable = cSnap.data().matrix;
         else currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
-        
-        await fetchComciData();
     } catch(e) {
-        console.error("초기 로딩 오류:", e);
+        console.warn("DB 권한 또는 네트워크 문제로 기본 시간표를 가져오지 못했습니다.", e);
+        currentTeacherBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
+        currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
     }
+    
+    // 2. 컴시간 데이터 가져오기 (무조건 실행)
+    await fetchComciData();
+    
+    // 3. 렌더링
     renderTeacherTimetable();
     renderClassTimetable();
 }
 
-// 🎯 컴시간 API 예외 처리 강화
 async function fetchComciData() {
     try {
         const res = await fetch(`https://comci.kro.kr/api/GET/${schoolCode}`);
         if (!res.ok) throw new Error();
         scData = await res.json();
     } catch(e) {
-        scData = null; // 실패 시 안전장치
+        scData = null; 
     }
 }
 
@@ -226,7 +227,6 @@ function getPureSubjectText(code) {
     return `${sbjName}${tNumStr}`;
 }
 
-// 교사 시간표 렌더링
 function renderTeacherTimetable() {
     const tbody = document.getElementById('teacherTimetableGridBody');
     if(!tbody) return;
@@ -265,22 +265,20 @@ function renderTeacherTimetable() {
                         if (tId === tIdx) {
                             const subjectName = scData.지명[parseInt(String(code).slice(0, -2), 10)] || "";
                             
-                            // 🎯 1. 이벤트 (민트색) 확인
-                            if (eventKeywords.some(k => subjectName.startsWith(k))) {
+                            // 🎯 '포함' 여부로 이벤트 확실히 감지
+                            if (eventKeywords.some(k => subjectName.includes(k))) {
                                 isMintEvent = true;
                             }
                             
-                            // 🎯 2. 변경(보라색) 확인 (교사가 저장한 기본 시간표 'g-c' 값과 대조)
                             const baseText = currentTeacherBaseTimetable[period - 1][day - 1];
                             const currentText = `${g}-${c}`;
                             if (baseText && baseText !== currentText) {
                                 isChanged = true;
                             }
 
-                            // 셀 색상 로직 적용
                             let cellClass = '';
-                            if (isMintEvent) cellClass = 'bg-[#d1fae5] text-[#047857]'; // Mint
-                            else if (isChanged) cellClass = 'bg-[#d8b4fe] text-white'; // Purple
+                            if (isMintEvent) cellClass = 'bg-[#d1fae5] text-[#047857]'; 
+                            else if (isChanged) cellClass = 'bg-[#d8b4fe] text-white'; 
                             
                             info = `<div class="h-full flex flex-col items-center justify-center py-2 ${cellClass} rounded-sm">
                                         <span>${currentText}</span>
@@ -297,7 +295,6 @@ function renderTeacherTimetable() {
     }
 }
 
-// 학급 시간표 렌더링
 function renderClassTimetable() {
     const tbody = document.getElementById('classTimetableGridBody');
     if(!tbody) return;
@@ -324,26 +321,25 @@ function renderClassTimetable() {
         for (let day = 1; day <= 5; day++) {
             const code = wData[g][c][day][period];
             if (code > 0) {
-                const pureText = getPureSubjectText(code); // ex) "체육34"
+                const pureText = getPureSubjectText(code); 
                 const subjectName = scData.지명[parseInt(String(code).slice(0, -2), 10)] || "";
                 
                 let isChanged = false;
                 let isMintEvent = false;
                 
-                // 🎯 1. 이벤트 (민트색) 확인
-                if (eventKeywords.some(k => subjectName.startsWith(k))) {
+                // 🎯 '포함' 여부로 이벤트 확실히 감지
+                if (eventKeywords.some(k => subjectName.includes(k))) {
                     isMintEvent = true;
                 }
 
-                // 🎯 2. 변경 (보라색) 확인
                 const baseText = currentClassBaseTimetable[period - 1][day - 1];
                 if (baseText && pureText && pureText !== baseText) {
                     isChanged = true;
                 }
 
                 let cellClass = '';
-                if (isMintEvent) cellClass = 'bg-[#d1fae5] text-[#047857]'; // Mint
-                else if (isChanged) cellClass = 'bg-[#d8b4fe] text-white'; // Purple
+                if (isMintEvent) cellClass = 'bg-[#d1fae5] text-[#047857]'; 
+                else if (isChanged) cellClass = 'bg-[#d8b4fe] text-white'; 
                 
                 const displayHtml = parseComciSubject(code);
                 html += `<td class="border-r border-slate-200 font-bold text-sky-700 ${cellClass}">${displayHtml}</td>`;
