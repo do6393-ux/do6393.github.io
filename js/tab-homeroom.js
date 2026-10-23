@@ -1,37 +1,85 @@
-import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from './firebase-config.js';
+import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc, onSnapshot, query, orderBy } from './firebase-config.js';
 
 let students = [];
 let disabledSeats = []; 
 let excludedStudents = []; 
 let antiPairs = []; 
 let allocatedSeats = new Array(36).fill(null); 
-let hwpxFileBlob = null; 
 
-let currentClassStr = '1-7'; // 기본값
-let unsubscribeContacts = null; // 리스너 관리용
+// 🎯 청소 및 파일 상태 관리
+let hwpxFileBlob = null; 
+let cleaningHwpxBlob = null;
+let cleaningMatrix = Array(6).fill().map(() => Array(5).fill(null)); 
+let cleaningSelectRow = -1;
+let cleaningSelectCol = -1;
+
+let currentClassStr = '1-7'; 
+let unsubscribeContacts = null; 
+let unsubscribeCleaning = null;
+
+// Helper: Base64를 Blob으로 변환 (로컬 저장소 복구용)
+function dataURItoBlob(dataURI) {
+    const byteString = atob(dataURI.split(',')[1]);
+    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+    return new Blob([ab], {type: mimeString});
+}
+
+// 🎯 브라우저에 영구 보존된 HWPX 양식 불러오기
+function loadSavedTemplates() {
+    const seatingURI = localStorage.getItem(`hwpx_seating_${currentClassStr}`);
+    if (seatingURI) {
+        hwpxFileBlob = dataURItoBlob(seatingURI);
+        document.getElementById('downloadHwpxBtn')?.classList.remove('hidden');
+        document.getElementById('seatingHwpxLabel').innerHTML = '<i class="fa-solid fa-check"></i> 저장된 양식 켬';
+    } else {
+        hwpxFileBlob = null;
+        document.getElementById('downloadHwpxBtn')?.classList.add('hidden');
+        document.getElementById('seatingHwpxLabel').innerHTML = '<i class="fa-solid fa-file-arrow-up"></i> 양식 등록(.hwpx)';
+    }
+    
+    const cleaningURI = localStorage.getItem(`hwpx_cleaning_${currentClassStr}`);
+    if (cleaningURI) {
+        cleaningHwpxBlob = dataURItoBlob(cleaningURI);
+        document.getElementById('downloadCleaningHwpxBtn')?.classList.remove('hidden');
+        document.getElementById('cleaningHwpxLabel').innerHTML = '<i class="fa-solid fa-check"></i> 저장된 양식 켬';
+    } else {
+        cleaningHwpxBlob = null;
+        document.getElementById('downloadCleaningHwpxBtn')?.classList.add('hidden');
+        document.getElementById('cleaningHwpxLabel').innerHTML = '<i class="fa-solid fa-file-arrow-up"></i> 양식 등록(.hwpx)';
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
 
     const tabContactBtn = document.getElementById('homeroomSubTabContacts');
     const tabSeatingBtn = document.getElementById('homeroomSubTabSeating');
+    const tabCleaningBtn = document.getElementById('homeroomSubTabCleaning');
     const secContacts = document.getElementById('homeroomSectionContacts');
     const secSeating = document.getElementById('homeroomSectionSeating');
+    const secCleaning = document.getElementById('homeroomSectionCleaning');
 
-    tabContactBtn?.addEventListener('click', () => {
-        tabContactBtn.className = "px-4 py-2 text-sm font-bold bg-white text-rose-600 rounded-xl shadow-sm transition-all";
-        tabSeatingBtn.className = "px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all";
-        secContacts.classList.remove('hidden');
-        secSeating.classList.add('hidden');
-    });
+    function switchSubTab(target) {
+        const onClass = "px-4 py-2 text-sm font-bold bg-white rounded-xl shadow-sm transition-all ";
+        const offClass = "px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all";
+        
+        tabContactBtn.className = offClass; tabSeatingBtn.className = offClass; tabCleaningBtn.className = offClass;
+        secContacts.classList.add('hidden'); secSeating.classList.add('hidden'); secCleaning.classList.add('hidden');
 
-    tabSeatingBtn?.addEventListener('click', () => {
-        tabSeatingBtn.className = "px-4 py-2 text-sm font-bold bg-white text-indigo-600 rounded-xl shadow-sm transition-all";
-        tabContactBtn.className = "px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all";
-        secSeating.classList.remove('hidden');
-        secContacts.classList.add('hidden');
-        renderSeatGrid(); 
-        renderExcludeList();
-    });
+        if (target === 'cleaning') {
+            tabCleaningBtn.className = onClass + "text-emerald-600"; secCleaning.classList.remove('hidden'); renderCleaningGrid();
+        } else if (target === 'seating') {
+            tabSeatingBtn.className = onClass + "text-indigo-600"; secSeating.classList.remove('hidden'); renderSeatGrid(); renderExcludeList();
+        } else {
+            tabContactBtn.className = onClass + "text-rose-600"; secContacts.classList.remove('hidden');
+        }
+    }
+
+    tabContactBtn?.addEventListener('click', () => switchSubTab('contacts'));
+    tabSeatingBtn?.addEventListener('click', () => switchSubTab('seating'));
+    tabCleaningBtn?.addEventListener('click', () => switchSubTab('cleaning'));
 
     document.getElementById('deleteAllContactsBtn')?.addEventListener('click', async () => {
         if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
@@ -130,13 +178,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let deskClicks = 0;
     let deskTimer;
     document.getElementById('teacherDeskBtn')?.addEventListener('click', () => {
-        deskClicks++;
-        clearTimeout(deskTimer);
-        deskTimer = setTimeout(() => { deskClicks = 0; }, 1000); 
-        if (deskClicks >= 3) {
-            document.getElementById('antiPairModal').classList.remove('hidden');
-            deskClicks = 0;
-        }
+        deskClicks++; clearTimeout(deskTimer); deskTimer = setTimeout(() => { deskClicks = 0; }, 1000); 
+        if (deskClicks >= 3) { document.getElementById('antiPairModal').classList.remove('hidden'); deskClicks = 0; }
     });
 
     document.getElementById('closeAntiPairModalBtn')?.addEventListener('click', () => document.getElementById('antiPairModal').classList.add('hidden'));
@@ -150,117 +193,81 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('antiPairModal').classList.add('hidden');
     });
 
+    // 🎯 HWPX 양식 등록 시 LocalStorage로 내장 영구 보존 처리 (자리 뽑기)
     document.getElementById('hwpxTemplateInput')?.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if(file) {
-            hwpxFileBlob = file;
-            alert("✅ HWPX 템플릿 파일이 정상적으로 등록되었습니다.\n자리 뽑기 후 [HWPX로 저장] 버튼이 활성화됩니다.");
-            if(allocatedSeats.some(s => s !== null)) document.getElementById('downloadHwpxBtn').classList.remove('hidden');
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                localStorage.setItem(`hwpx_seating_${currentClassStr}`, evt.target.result);
+                hwpxFileBlob = dataURItoBlob(evt.target.result);
+                document.getElementById('seatingHwpxLabel').innerHTML = '<i class="fa-solid fa-check"></i> 저장된 양식 켬';
+                alert(`✅ HWPX 템플릿 파일이 브라우저에 영구 보존되었습니다.\n(앞으로는 양식이 바뀔 때만 다시 올려주시면 됩니다.)`);
+                if(allocatedSeats.some(s => s !== null)) document.getElementById('downloadHwpxBtn').classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
         }
     });
 
     document.getElementById('startSeatingBtn')?.addEventListener('click', async () => {
         if (students.length === 0) return alert("학생 명단이 없습니다. 먼저 비상연락망에 학생을 등록해주세요.");
-
         const activeStudents = students.filter(s => !excludedStudents.includes(s.number));
-        
         const validSeatIndices = [];
-        for (let i = 0; i < 36; i++) {
-            if (!disabledSeats.includes(i)) validSeatIndices.push(i);
-        }
+        for (let i = 0; i < 36; i++) { if (!disabledSeats.includes(i)) validSeatIndices.push(i); }
 
-        if (activeStudents.length > validSeatIndices.length) {
-            return alert(`자리가 부족합니다!\n학생 수: ${activeStudents.length}명\n빈자리 수: ${validSeatIndices.length}석\n(회색칸을 클릭해 자리를 늘려주세요.)`);
-        }
+        if (activeStudents.length > validSeatIndices.length) return alert(`자리가 부족합니다!\n학생 수: ${activeStudents.length}명\n빈자리 수: ${validSeatIndices.length}석`);
 
         let finalAllocation = null;
         let attempts = 0;
-
         while (attempts < 2000) { 
             attempts++;
             let shuffled = [...activeStudents];
-            for (let i = shuffled.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-            }
+            for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
 
             let tempSeats = new Array(36).fill(null);
             let sIdx = 0;
-            for (let idx of validSeatIndices) {
-                if (sIdx < shuffled.length) {
-                    tempSeats[idx] = shuffled[sIdx];
-                    sIdx++;
-                }
-            }
+            for (let idx of validSeatIndices) { if (sIdx < shuffled.length) { tempSeats[idx] = shuffled[sIdx]; sIdx++; } }
 
             let isSafe = true;
             for (let pair of antiPairs) {
                 const pos1 = tempSeats.findIndex(s => s && s.number === pair[0]);
                 const pos2 = tempSeats.findIndex(s => s && s.number === pair[1]);
                 if (pos1 !== -1 && pos2 !== -1) {
-                    const r1 = Math.floor(pos1 / 6), c1 = pos1 % 6;
-                    const r2 = Math.floor(pos2 / 6), c2 = pos2 % 6;
-                    if ((r1 === r2 && Math.abs(c1 - c2) === 1) || (c1 === c2 && Math.abs(r1 - r2) === 1)) {
-                        isSafe = false;
-                        break;
-                    }
+                    const r1 = Math.floor(pos1 / 6), c1 = pos1 % 6; const r2 = Math.floor(pos2 / 6), c2 = pos2 % 6;
+                    if ((r1 === r2 && Math.abs(c1 - c2) === 1) || (c1 === c2 && Math.abs(r1 - r2) === 1)) { isSafe = false; break; }
                 }
             }
-
-            if (isSafe) {
-                finalAllocation = tempSeats;
-                break;
-            }
+            if (isSafe) { finalAllocation = tempSeats; break; }
         }
 
         if (!finalAllocation) return alert("기피 조합 조건이 너무 빡빡하여 배치를 찾지 못했습니다. 기피 조합을 조금 줄여주세요.");
-
         allocatedSeats = finalAllocation; 
 
         const skipAnim = document.getElementById('skipAnimationCheckbox').checked;
-        if (skipAnim) {
-            renderSeatGrid();
-            triggerConfetti();
-        } else {
-            const btn = document.getElementById('startSeatingBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 돌리는 중...';
-            
-            let ticks = 0;
-            const maxTicks = 15; 
+        if (skipAnim) { renderSeatGrid(); triggerConfetti(); } else {
+            const btn = document.getElementById('startSeatingBtn'); btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 돌리는 중...';
+            let ticks = 0; const maxTicks = 15; 
             const interval = setInterval(() => {
-                const grid = document.getElementById('seatingGrid');
-                grid.innerHTML = '';
+                const grid = document.getElementById('seatingGrid'); grid.innerHTML = '';
                 for (let i = 0; i < 36; i++) {
                     const cell = document.createElement('div');
                     if (disabledSeats.includes(i)) {
-                        cell.className = "h-16 sm:h-20 bg-slate-200 border-2 border-slate-300 rounded-xl flex items-center justify-center opacity-50";
-                        cell.innerHTML = `<i class="fa-solid fa-xmark text-slate-400"></i>`;
+                        cell.className = "h-16 sm:h-20 bg-slate-200 border-2 border-slate-300 rounded-xl flex items-center justify-center opacity-50"; cell.innerHTML = `<i class="fa-solid fa-xmark text-slate-400"></i>`;
                     } else if (validSeatIndices.includes(i) && Math.random() > 0.3) {
                         const randStudent = activeStudents[Math.floor(Math.random() * activeStudents.length)];
                         cell.className = "h-16 sm:h-20 bg-indigo-50 border-2 border-indigo-200 rounded-xl flex flex-col items-center justify-center shadow-sm";
                         cell.innerHTML = `<span class="text-xs text-indigo-400 font-bold">${randStudent.number}</span><span class="text-sm sm:text-base font-extrabold text-indigo-700">${randStudent.name}</span>`;
-                    } else {
-                        cell.className = "h-16 sm:h-20 bg-slate-50 border-2 border-slate-200 rounded-xl";
-                    }
+                    } else { cell.className = "h-16 sm:h-20 bg-slate-50 border-2 border-slate-200 rounded-xl"; }
                     grid.appendChild(cell);
                 }
-
                 ticks++;
-                if (ticks >= maxTicks) {
-                    clearInterval(interval);
-                    renderSeatGrid(); 
-                    triggerConfetti();
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-play"></i> 자리 뽑기';
-                }
+                if (ticks >= maxTicks) { clearInterval(interval); renderSeatGrid(); triggerConfetti(); btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-play"></i> 자리 뽑기'; }
             }, 100);
         }
     });
 
     document.getElementById('downloadHwpxBtn')?.addEventListener('click', async () => {
-        if(!hwpxFileBlob) return alert("먼저 상단의 [양식 등록]을 눌러 HWPX 템플릿 파일을 올려주세요.");
-        
+        if(!hwpxFileBlob) return alert("양식이 등록되어 있지 않습니다. 양식을 등록해주세요.");
         try {
             const zip = await JSZip.loadAsync(hwpxFileBlob);
             let xmlContent = await zip.file("Contents/section0.xml").async("string");
@@ -272,45 +279,119 @@ document.addEventListener('DOMContentLoaded', () => {
                 const regex = new RegExp(`\\{\\{자리${hwpxIndex}\\}\\}`, 'g');
                 xmlContent = xmlContent.replace(regex, replaceText);
             }
-            
             zip.file("Contents/section0.xml", xmlContent);
             
             const newBlob = await zip.generateAsync({ type: "blob" });
             const url = window.URL.createObjectURL(newBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${currentClassStr}반_자리배치결과.hwpx`; // 파일명 동적 반영
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-        } catch (error) {
-            console.error(error);
-            alert("HWPX 파일을 처리하는 중 오류가 발생했습니다. 양식 파일이 맞는지 확인해 주세요.");
+            const a = document.createElement('a'); a.href = url; a.download = `${currentClassStr}반_자리배치결과.hwpx`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
+        } catch (error) { alert("HWPX 처리 오류. 올바른 양식 파일인지 확인해주세요."); }
+    });
+
+    // ==========================================
+    // 🎯 신규 기능: 청소 구역 (가로 1몸 회전 로직 + 영구 저장)
+    // ==========================================
+
+    document.getElementById('cleaningHwpxTemplateInput')?.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if(file) {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                localStorage.setItem(`hwpx_cleaning_${currentClassStr}`, evt.target.result);
+                cleaningHwpxBlob = dataURItoBlob(evt.target.result);
+                document.getElementById('cleaningHwpxLabel').innerHTML = '<i class="fa-solid fa-check"></i> 저장된 양식 켬';
+                document.getElementById('downloadCleaningHwpxBtn').classList.remove('hidden');
+                alert(`✅ 청소구역 HWPX 템플릿 파일이 브라우저에 영구 보존되었습니다.`);
+            };
+            reader.readAsDataURL(file);
         }
+    });
+
+    // 회전 저장 통합 로직
+    async function saveAndRenderCleaning() {
+        const docName = `homeroom_cleaning_${currentClassStr}`;
+        await setDoc(doc(db, "homeroom_cleaning_data", docName), { matrix: cleaningMatrix });
+    }
+
+    // ⬆️ 위로 교대
+    document.getElementById('rotateCleaningUpBtn')?.addEventListener('click', async () => {
+        if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
+        const firstRow = cleaningMatrix.shift(); // 첫 줄 빼서
+        cleaningMatrix.push(firstRow);           // 맨 밑에 삽입
+        await saveAndRenderCleaning();
+    });
+
+    // ⬇️ 아래로 교대
+    document.getElementById('rotateCleaningDownBtn')?.addEventListener('click', async () => {
+        if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
+        const lastRow = cleaningMatrix.pop();    // 맨 밑줄 빼서
+        cleaningMatrix.unshift(lastRow);         // 첫 줄에 삽입
+        await saveAndRenderCleaning();
+    });
+
+    document.getElementById('closeCleaningSelectModalBtn')?.addEventListener('click', () => document.getElementById('cleaningStudentSelectModal').classList.add('hidden'));
+
+    // HWPX 파일 다운로드 (청소 구역용)
+    document.getElementById('downloadCleaningHwpxBtn')?.addEventListener('click', async () => {
+        if(!cleaningHwpxBlob) return alert("먼저 상단의 [양식 등록]을 눌러 청소구역 HWPX 템플릿 파일을 올려주세요.");
+        
+        try {
+            const zip = await JSZip.loadAsync(cleaningHwpxBlob);
+            let xmlContent = await zip.file("Contents/section0.xml").async("string");
+            
+            // {{청소1}} ~ {{청소30}}
+            for (let r = 0; r < 6; r++) {
+                for (let c = 0; c < 5; c++) {
+                    const st = cleaningMatrix[r][c];
+                    const replaceText = st ? `${st.number}.${st.name}` : ""; 
+                    const hwpxIndex = (r * 5) + c + 1; 
+                    const regex = new RegExp(`\\{\\{청소${hwpxIndex}\\}\\}`, 'g');
+                    xmlContent = xmlContent.replace(regex, replaceText);
+                }
+            }
+            zip.file("Contents/section0.xml", xmlContent);
+            const newBlob = await zip.generateAsync({ type: "blob" });
+            const url = window.URL.createObjectURL(newBlob);
+            const a = document.createElement('a'); a.href = url; a.download = `${currentClassStr}반_청소구역결과.hwpx`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url);
+        } catch (error) { alert("HWPX 처리 오류. 올바른 양식 파일인지 확인해주세요."); }
     });
 });
 
-// 🎯 학급 정보가 변경될 때마다 DB 경로를 다시 물려주는 핵심 함수
 export function updateHomeroomClass(classStr) {
     if (!auth.currentUser) return;
     currentClassStr = classStr;
     
-    // 이전 학급의 실시간 데이터 수신 종료
+    loadSavedTemplates(); // 🎯 클래스가 바뀔 때마다 각 반의 로컬 양식을 불러옵니다.
+    
     if (unsubscribeContacts) unsubscribeContacts();
+    if (unsubscribeCleaning) unsubscribeCleaning();
     
     students = [];
+    allocatedSeats = new Array(36).fill(null);
+    cleaningMatrix = Array(6).fill().map(() => Array(5).fill(null)); 
+    
     renderContacts();
     renderExcludeList();
+    renderSeatGrid();
+    renderCleaningGrid();
     
-    // 바뀐 학급명으로 새 데이터베이스 경로 감지
     const colName = `homeroom_contacts_${currentClassStr}`;
     unsubscribeContacts = onSnapshot(query(collection(db, colName), orderBy("number", "asc")), (snapshot) => {
         students = [];
         snapshot.forEach(d => students.push({ id: d.id, ...d.data() }));
         renderContacts();
         renderExcludeList();
+    });
+
+    const cleanDocName = `homeroom_cleaning_${currentClassStr}`;
+    unsubscribeCleaning = onSnapshot(doc(db, "homeroom_cleaning_data", cleanDocName), (snapshot) => {
+        if(snapshot.exists() && snapshot.data().matrix) {
+            cleaningMatrix = snapshot.data().matrix;
+        } else {
+            cleaningMatrix = Array(6).fill().map(() => Array(5).fill(null)); 
+        }
+        renderCleaningGrid();
     });
 }
 
@@ -352,11 +433,9 @@ function renderSeatGrid() {
     const grid = document.getElementById('seatingGrid');
     if (!grid) return;
     grid.innerHTML = '';
-
     for (let i = 0; i < 36; i++) {
         const cell = document.createElement('div');
         const st = allocatedSeats[i]; 
-        
         if (disabledSeats.includes(i)) {
             cell.className = "h-16 sm:h-20 bg-slate-200 border-2 border-slate-300 rounded-xl flex items-center justify-center cursor-pointer hover:opacity-80 transition-all";
             cell.innerHTML = `<i class="fa-solid fa-xmark text-slate-400"></i>`;
@@ -372,7 +451,6 @@ function renderSeatGrid() {
             if(allocatedSeats.some(s => s !== null)) {
                 if(confirm("배치된 자리가 초기화됩니다. 변경하시겠습니까?")) {
                     allocatedSeats = new Array(36).fill(null);
-                    document.getElementById('downloadHwpxBtn')?.classList.add('hidden');
                     renderSeatGrid();
                 }
                 return;
@@ -383,10 +461,94 @@ function renderSeatGrid() {
         };
         grid.appendChild(cell);
     }
-    
-    if(allocatedSeats.some(s => s !== null) && hwpxFileBlob) {
-        document.getElementById('downloadHwpxBtn')?.classList.remove('hidden');
+}
+
+// 🎯 청소 구역 테이블 렌더링 함수
+function renderCleaningGrid() {
+    const tbody = document.getElementById('cleaningGridBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const rowLabels = [
+        "교실 쓸기 - 창", "교실 쓸기 - 중앙", "교실 쓸기 - 복도", 
+        "컴퓨터실 - 창문쪽", "컴퓨터실 - 복도쪽", "교탁 및 칠판"
+    ];
+
+    for (let r = 0; r < 6; r++) {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition-colors";
+        
+        const th = document.createElement('td');
+        th.className = "py-3 px-2 border-r border-slate-200 font-bold text-xs bg-slate-50";
+        th.textContent = rowLabels[r];
+        tr.appendChild(th);
+
+        for (let c = 0; c < 5; c++) {
+            const td = document.createElement('td');
+            const isLast = c === 4;
+            td.className = `py-3 px-2 cursor-pointer transition-all ${isLast ? '' : 'border-r border-slate-200'}`;
+            
+            const st = cleaningMatrix[r][c];
+            if (st) {
+                td.innerHTML = `<div class="bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold py-1.5 rounded-lg text-[11px] hover:bg-emerald-100">${st.number}. ${st.name}</div>`;
+            } else {
+                td.innerHTML = `<div class="text-slate-300 text-[10px] py-1.5 border border-dashed border-slate-200 rounded-lg hover:bg-slate-100">+ 배정</div>`;
+            }
+
+            td.onclick = () => openCleaningStudentSelect(r, c);
+            tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
     }
+}
+
+// 청소 구역 학생 선택 팝업 오픈
+function openCleaningStudentSelect(row, col) {
+    cleaningSelectRow = row;
+    cleaningSelectCol = col;
+    
+    const list = document.getElementById('cleaningStudentList');
+    list.innerHTML = '';
+    
+    // 빈칸 비우기 버튼
+    const clearBtn = document.createElement('button');
+    clearBtn.className = "col-span-full py-2 bg-slate-100 text-slate-500 font-bold rounded-lg hover:bg-slate-200 mb-2 border border-slate-200";
+    clearBtn.textContent = "비우기 (삭제)";
+    clearBtn.onclick = async () => {
+        cleaningMatrix[cleaningSelectRow][cleaningSelectCol] = null;
+        document.getElementById('cleaningStudentSelectModal').classList.add('hidden');
+        await setDoc(doc(db, "homeroom_cleaning_data", `homeroom_cleaning_${currentClassStr}`), { matrix: cleaningMatrix });
+    };
+    list.appendChild(clearBtn);
+
+    students.forEach(st => {
+        // 이미 다른 칸에 있는지 확인
+        let isAlreadyAssigned = false;
+        for(let r=0; r<6; r++){
+            for(let c=0; c<5; c++){
+                if(cleaningMatrix[r][c] && cleaningMatrix[r][c].number === st.number) isAlreadyAssigned = true;
+            }
+        }
+
+        const btn = document.createElement('button');
+        btn.className = `p-2 rounded-xl border text-center font-bold text-[11px] transition-colors ${isAlreadyAssigned ? 'bg-slate-50 text-slate-400 border-slate-200' : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'}`;
+        btn.textContent = `${st.number}. ${st.name}`;
+        
+        btn.onclick = async () => {
+            // 다른 칸에 있던 학생이면 예전 칸 지우기
+            for(let r=0; r<6; r++){
+                for(let c=0; c<5; c++){
+                    if(cleaningMatrix[r][c] && cleaningMatrix[r][c].number === st.number) cleaningMatrix[r][c] = null;
+                }
+            }
+            cleaningMatrix[cleaningSelectRow][cleaningSelectCol] = { number: st.number, name: st.name };
+            document.getElementById('cleaningStudentSelectModal').classList.add('hidden');
+            await setDoc(doc(db, "homeroom_cleaning_data", `homeroom_cleaning_${currentClassStr}`), { matrix: cleaningMatrix });
+        };
+        list.appendChild(btn);
+    });
+    
+    document.getElementById('cleaningStudentSelectModal').classList.remove('hidden');
 }
 
 function triggerConfetti() {
