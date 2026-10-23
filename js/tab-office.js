@@ -1,5 +1,6 @@
 import { db, doc, getDoc, setDoc } from './firebase-config.js';
 
+// 기존 모듈 호환성을 위한 export
 export const teacherList = [];
 
 export let officeState = {
@@ -16,17 +17,18 @@ export let officeState = {
     isNextWeek: false
 };
 
+// 동적 기본 시간표 상태 배열
 let currentTeacherBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
 let currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
 let activeBaseModalType = null; 
 
-// 이벤트(민트색) 과목 키워드
+// 이벤트(민트색) 과목 식별 키워드
 const eventKeywords = ['자치', '동아', '봉사', '진로'];
 
 export function initOfficeTab(currentUser) {
     if (!currentUser) return;
     
-    // 교사 성함 클릭 시 직접 변경 팝업
+    // 1. 교사 성함 클릭 시 직접 변경 팝업
     document.getElementById('titleTeacherNameBtn')?.addEventListener('click', () => {
         const container = document.getElementById('modalTeacherList');
         container.className = "flex flex-col gap-3 p-2";
@@ -61,7 +63,7 @@ export function initOfficeTab(currentUser) {
     
     document.getElementById('closeTeacherSelectModalBtn')?.addEventListener('click', () => document.getElementById('teacherSelectModal').classList.add('hidden'));
 
-    // 학급 선택 모달 (1~3학년, 1~10반 동적 생성)
+    // 2. 학급 선택 모달 동적 생성 (1~3학년, 1~10반)
     document.getElementById('titleClassNameBtn')?.addEventListener('click', () => {
         const container = document.getElementById('modalClassList');
         container.innerHTML = '';
@@ -85,7 +87,7 @@ export function initOfficeTab(currentUser) {
     
     document.getElementById('closeClassSelectModalBtn')?.addEventListener('click', () => document.getElementById('classSelectModal').classList.add('hidden'));
 
-    // 기본 시간표 설정 모달 연결
+    // 3. 기본 시간표 설정 모달 연결
     const baseModal = document.getElementById('baseTimetableModal');
     
     document.getElementById('openTeacherBaseBtn')?.addEventListener('click', () => {
@@ -99,14 +101,14 @@ export function initOfficeTab(currentUser) {
     document.getElementById('openClassBaseBtn')?.addEventListener('click', () => {
         activeBaseModalType = 'class';
         document.getElementById('baseTimetableModalTitle').textContent = `${officeState.selectedGrade}-${officeState.selectedClassNum} 학급 기본 시간표 설정`;
-        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 국어, 체육 (앞 2글자 교과목명만 적으셔도 됩니다)";
+        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 국어, 체육 (앞 2글자 교과목명만 일치하면 정상으로 판별합니다)";
         renderBaseTimetableInputGrid(currentClassBaseTimetable);
         baseModal.classList.remove('hidden');
     });
 
     document.getElementById('closeBaseTimetableModalBtn')?.addEventListener('click', () => baseModal.classList.add('hidden'));
 
-    // 기본 시간표 저장 (모달 입력값 영구 저장)
+    // 4. 기본 시간표 저장 (로컬스토리지 우선 저장 + Firestore 동기화)
     document.getElementById('saveBaseTimetableBtn')?.addEventListener('click', async () => {
         const newData = Array(7).fill().map(() => Array(5).fill(""));
         for (let r = 0; r < 7; r++) {
@@ -127,12 +129,12 @@ export function initOfficeTab(currentUser) {
             try { await setDoc(doc(db, "base_timetables", `class_${officeState.selectedGrade}_${officeState.selectedClassNum}`), { matrix: newData }); } catch(e){}
         }
         
-        alert("✅ 기본 시간표가 저장되었습니다.");
+        alert("✅ 기본 시간표가 안전하게 저장되었습니다.");
         baseModal.classList.add('hidden');
         loadAllTimetables();
     });
 
-    // 주간 전환 토글
+    // 5. 이번 주 / 다음 주 전환 토글
     const btnThis = document.getElementById('weekToggleThisBtn');
     const btnNext = document.getElementById('weekToggleNextBtn');
     
@@ -150,7 +152,7 @@ export function initOfficeTab(currentUser) {
         loadAllTimetables();
     });
 
-    // 설정 모달(톱니바퀴) 내 이름 직접 입력 연동
+    // 6. 설정 모달 내 이름 직접 입력 연동
     const profileInput = document.getElementById('profileTeacherInput');
     const profileBtn = document.getElementById('openProfileSettingsBtn');
     const saveProfileBtn = document.getElementById('saveProfileSettingsBtn');
@@ -174,7 +176,7 @@ export function initOfficeTab(currentUser) {
         });
     }
 
-    // 급식 조회 세팅
+    // 7. 급식 초기화
     const mealDateInput = document.getElementById('mealDateInput');
     const fetchMealBtn = document.getElementById('fetchMealBtn');
     const today = new Date();
@@ -206,6 +208,7 @@ function renderBaseTimetableInputGrid(dataMatrix) {
     }
 }
 
+// Firestore 및 로컬스토리지 연동 시간표 로드
 async function loadAllTimetables() {
     const weekKey = officeState.isNextWeek ? 'next' : 'this';
 
@@ -265,7 +268,7 @@ async function loadAllTimetables() {
     renderClassGrid(classScheduleMap);
 }
 
-// 교사 시간표 렌더링
+// 교사 시간표 렌더링 (배경 100% 꽉 채움, 잔상 표시 없음)
 function renderTeacherGrid(scheduleMap) {
     const tbody = document.getElementById('teacherTimetableGridBody');
     if(!tbody) return;
@@ -299,7 +302,7 @@ function renderTeacherGrid(scheduleMap) {
             if (isMint) bgStyle = "background-color: #6ee7b7 !important;";
             else if (isChanged) bgStyle = "background-color: #d8b4fe !important;";
 
-            // 🎯 옅은 기본 시간표 표시 완전 삭제 -> 실제 수업 또는 '-'만 깔끔하게 출력
+            // 잔상 없이 실제 수업 내용 또는 '-'만 출력
             html += `<td class="py-3.5 sm:py-4 border-r border-slate-200 font-bold text-center text-indigo-900" style="${bgStyle}">
                         ${text || '-'}
                      </td>`;
@@ -309,7 +312,7 @@ function renderTeacherGrid(scheduleMap) {
     }
 }
 
-// 학급 시간표 렌더링 (앞 2글자 교과목 매칭 적용)
+// 학급 시간표 렌더링 (교과목 앞 2글자 매칭 판별)
 function renderClassGrid(scheduleMap) {
     const tbody = document.getElementById('classTimetableGridBody');
     if(!tbody) return;
@@ -337,25 +340,34 @@ function renderClassGrid(scheduleMap) {
             // 1순위: 민트색 (자치, 동아, 봉사, 진로)
             const isMint = eventKeywords.some(k => text.includes(k));
 
-            // 🎯 2순위: 앞 2글자 교과목명 일치 여부 판별
+            // 2순위: 앞 2글자 교과목명 일치 여부 판별
             let isSubjectMatch = false;
             const cleanBase = (baseText || "").trim().replace(/\s+/g, '');
             const cleanText = (text || "").trim().replace(/\s+/g, '');
 
             if (cleanBase !== "" && cleanText !== "") {
-                const basePrefix = cleanBase.substring(0, 2);
-                const textPrefix = cleanText.substring(0, 2);
-                isSubjectMatch = (basePrefix === textPrefix); // 예: '국어' === '국어' -> 매칭 성공!
+                const baseSub = cleanBase.length >= 2 ? cleanBase.substring(0, 2) : cleanBase;
+                const textSub = cleanText.length >= 2 ? cleanText.substring(0, 2) : cleanText;
+                isSubjectMatch = (baseSub === textSub) || cleanText.startsWith(cleanBase);
             }
 
-            // 기본 시간표와 앞 2글자가 아예 다르거나 컴시간 red인 경우에만 보라색 변경
-            const isChanged = !isMint && ((cleanBase !== "" && cleanText !== "" && !isSubjectMatch) || isRed);
+            // 앞 2글자가 일치하면 보라색(변경)으로 변하지 않음
+            let isChanged = false;
+            if (!isMint) {
+                if (cleanBase !== "" && cleanText !== "") {
+                    isChanged = !isSubjectMatch;
+                } else if (cleanBase === "" && cleanText !== "") {
+                    isChanged = isRed;
+                } else {
+                    isChanged = isRed;
+                }
+            }
 
             let bgStyle = "";
             if (isMint) bgStyle = "background-color: #6ee7b7 !important;";
             else if (isChanged) bgStyle = "background-color: #d8b4fe !important;";
 
-            // 🎯 옅은 기본 시간표 표시 완전 삭제 -> 실제 수업 또는 '-'만 깔끔하게 출력
+            // 잔상 없이 실제 수업 내용 또는 '-'만 출력
             html += `<td class="py-3.5 sm:py-4 border-r border-slate-200 font-bold text-center text-sky-900" style="${bgStyle}">
                         ${text || '-'}
                      </td>`;
