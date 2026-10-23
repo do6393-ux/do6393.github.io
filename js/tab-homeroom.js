@@ -1,7 +1,7 @@
 import { db, doc, getDoc, setDoc } from './firebase-config.js';
 
 export let homeroomState = {
-    userId: "default_teacher",
+    userId: localStorage.getItem('user_id') || "default_teacher",
     grade: 1,
     classNum: 7,
     contacts: [],
@@ -24,7 +24,7 @@ const cleaningAreas = [
 let seatingHwpxBlob = null;
 let cleaningHwpxBlob = null;
 
-// 🎯 1. 서브탭 전환 전역 함수 (어디서든 즉시 화면 전환)
+// 서브탭 전환 함수
 export function switchHomeroomSubTab(tabName) {
     const tabContacts = document.getElementById('homeroomSubTabContacts');
     const tabSeating = document.getElementById('homeroomSubTabSeating');
@@ -59,10 +59,11 @@ export function switchHomeroomSubTab(tabName) {
     }
 }
 
-// 🎯 2. 메인 초기화 함수
+// 🎯 1. 초기화 함수 (선생님 로그인 정보 즉시 동기화)
 export async function initHomeroomTab(currentUser) {
-    if (currentUser) {
-        homeroomState.userId = currentUser.uid || currentUser.email || "default_teacher";
+    if (currentUser && currentUser.uid) {
+        homeroomState.userId = currentUser.uid;
+        localStorage.setItem('user_id', currentUser.uid);
     }
 
     const savedG = parseInt(localStorage.getItem('office_grade'), 10);
@@ -75,7 +76,7 @@ export async function initHomeroomTab(currentUser) {
     await loadHomeroomData();
 }
 
-// 🎯 3. main.js 연동 함수 (NaN 완벽 방어 및 리스너 재보장)
+// 🎯 2. 학급 변경 업데이트 함수 (NaN 방지)
 export function updateHomeroomClass(gradeOrObj, classNum) {
     let g, c;
     if (typeof gradeOrObj === 'object' && gradeOrObj !== null) {
@@ -112,7 +113,6 @@ function updateHomeroomHeaders() {
     if (titleCleaning) titleCleaning.textContent = `${g}학년 ${c}반 청소 구역`;
 }
 
-// 🎯 4. 모든 모듈 이벤트 리스너 바인딩
 function setupAllModules() {
     setupSubTabs();
     setupContactsModule();
@@ -120,9 +120,6 @@ function setupAllModules() {
     setupCleaningModule();
 }
 
-/* ==========================================================================
-   서브탭 전환 직접 연결
-   ========================================================================== */
 function setupSubTabs() {
     const tabContacts = document.getElementById('homeroomSubTabContacts');
     const tabSeating = document.getElementById('homeroomSubTabSeating');
@@ -134,74 +131,104 @@ function setupSubTabs() {
 }
 
 /* ==========================================================================
-   통합 데이터 로드 (Firestore + LocalStorage)
+   🎯 3. 스마트 통합 데이터 로드 (과거 모든 키를 뒤져서 복원)
    ========================================================================== */
 async function loadHomeroomData() {
-    const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-    const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
+    const g = homeroomState.grade;
+    const c = homeroomState.classNum;
+    const uid = homeroomState.userId;
 
-    // 1) 비상연락망 로드
-    const localContacts = localStorage.getItem(`contacts_${userClassKey}`) || localStorage.getItem(`contacts_${classKey}`);
-    if (localContacts) {
-        try { homeroomState.contacts = JSON.parse(localContacts); } catch(e){}
+    // 과거 및 현재 사용 가능한 모든 키 후보군 (언더바, 하이픈, UID 조합)
+    const candidateKeys = [
+        `${uid}_${g}_${c}`,
+        `${uid}_${g}-${c}`,
+        `${g}_${c}`,
+        `${g}-${c}`
+    ];
+
+    // 1) 비상연락망 복구 로드
+    let loadedContacts = null;
+    for (const key of candidateKeys) {
+        const local = localStorage.getItem(`contacts_${key}`);
+        if (local) {
+            try {
+                const parsed = JSON.parse(local);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    loadedContacts = parsed;
+                    break;
+                }
+            } catch(e){}
+        }
     }
-    try {
-        let cSnap = homeroomState.userId ? await getDoc(doc(db, "homeroom_contacts", userClassKey)) : null;
-        if (!cSnap || !cSnap.exists()) {
-            cSnap = await getDoc(doc(db, "homeroom_contacts", classKey));
-        }
-        if (cSnap && cSnap.exists() && cSnap.data().list) {
-            homeroomState.contacts = cSnap.data().list;
-            localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
-        }
-    } catch (e) {}
+
+    // Firestore DB에서 스마트 탐색
+    for (const key of candidateKeys) {
+        try {
+            const snap = await getDoc(doc(db, "homeroom_contacts", key));
+            if (snap.exists() && snap.data().list && snap.data().list.length > 0) {
+                loadedContacts = snap.data().list;
+                break;
+            }
+        } catch (e) {}
+    }
+
+    if (loadedContacts && loadedContacts.length > 0) {
+        homeroomState.contacts = loadedContacts;
+        // 가장 안전한 표준 키(`contacts_${uid}_${g}_${c}`)로 재동기화
+        localStorage.setItem(`contacts_${uid}_${g}_${c}`, JSON.stringify(loadedContacts));
+    }
     renderContactGrid();
     renderExcludeStudentList();
 
-    // 2) 기피조합 로드
-    const localAnti = localStorage.getItem(`anti_pairs_${userClassKey}`) || localStorage.getItem(`anti_pairs_${classKey}`);
-    if (localAnti) {
-        try { homeroomState.antiPairs = JSON.parse(localAnti); } catch(e){}
+    // 2) 청소 구역 복구 로드
+    let loadedCleaning = null;
+    for (const key of candidateKeys) {
+        const local = localStorage.getItem(`cleaning_grid_${key}`);
+        if (local) {
+            try { loadedCleaning = JSON.parse(local); break; } catch(e){}
+        }
     }
-    try {
-        let aSnap = homeroomState.userId ? await getDoc(doc(db, "homeroom_anti_pairs", userClassKey)) : null;
-        if (!aSnap || !aSnap.exists()) {
-            aSnap = await getDoc(doc(db, "homeroom_anti_pairs", classKey));
-        }
-        if (aSnap && aSnap.exists() && aSnap.data().pairs) {
-            homeroomState.antiPairs = aSnap.data().pairs;
-            localStorage.setItem(`anti_pairs_${classKey}`, JSON.stringify(homeroomState.antiPairs));
-        }
-    } catch(e) {}
-
-    // 3) 청소구역 로드
-    const localClean = localStorage.getItem(`cleaning_grid_${userClassKey}`) || localStorage.getItem(`cleaning_grid_${classKey}`);
-    if (localClean) {
-        try { homeroomState.cleaningData = JSON.parse(localClean); } catch(e){}
+    for (const key of candidateKeys) {
+        try {
+            const snap = await getDoc(doc(db, "homeroom_cleaning", key));
+            if (snap.exists() && snap.data().grid) {
+                loadedCleaning = snap.data().grid;
+                break;
+            }
+        } catch (e) {}
     }
-    try {
-        let cleanSnap = homeroomState.userId ? await getDoc(doc(db, "homeroom_cleaning", userClassKey)) : null;
-        if (!cleanSnap || !cleanSnap.exists()) {
-            cleanSnap = await getDoc(doc(db, "homeroom_cleaning", classKey));
-        }
-        if (cleanSnap && cleanSnap.exists() && cleanSnap.data().grid) {
-            homeroomState.cleaningData = cleanSnap.data().grid;
-            localStorage.setItem(`cleaning_grid_${classKey}`, JSON.stringify(homeroomState.cleaningData));
-        }
-    } catch(e) {}
+    if (loadedCleaning) {
+        homeroomState.cleaningData = loadedCleaning;
+        localStorage.setItem(`cleaning_grid_${uid}_${g}_${c}`, JSON.stringify(loadedCleaning));
+    }
     renderCleaningGrid();
 
-    // 4) 자리배치 기본 슬롯
+    // 3) 기피 조합 복구 로드
+    for (const key of candidateKeys) {
+        const local = localStorage.getItem(`anti_pairs_${key}`);
+        if (local) {
+            try { homeroomState.antiPairs = JSON.parse(local); break; } catch(e){}
+        }
+    }
+    for (const key of candidateKeys) {
+        try {
+            const snap = await getDoc(doc(db, "homeroom_anti_pairs", key));
+            if (snap.exists() && snap.data().pairs) {
+                homeroomState.antiPairs = snap.data().pairs;
+                break;
+            }
+        } catch (e) {}
+    }
+
     initSeatingGrid();
 }
 
 /* ==========================================================================
-   청소 구역 모듈 (학생 번호/이름 배지 즉시 표시)
+   4. 청소 구역 모듈 (학생 배지 즉시 렌더링 + 이중 안전 저장)
    ========================================================================== */
 function setupCleaningModule() {
     const modal = document.getElementById('cleaningStudentSelectModal');
     const closeBtn = document.getElementById('closeCleaningSelectModalBtn');
-
     if (closeBtn) closeBtn.onclick = () => modal?.classList.add('hidden');
 
     const btnUp = document.getElementById('rotateCleaningUpBtn');
@@ -340,31 +367,31 @@ window.clearCleaningSlot = function(row, col) {
 };
 
 async function saveCleaningData() {
-    const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-    const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
+    const g = homeroomState.grade;
+    const c = homeroomState.classNum;
+    const uid = homeroomState.userId;
+    const key = `${uid}_${g}_${c}`;
 
-    localStorage.setItem(`cleaning_grid_${classKey}`, JSON.stringify(homeroomState.cleaningData));
-    localStorage.setItem(`cleaning_grid_${userClassKey}`, JSON.stringify(homeroomState.cleaningData));
+    localStorage.setItem(`cleaning_grid_${key}`, JSON.stringify(homeroomState.cleaningData));
+    localStorage.setItem(`cleaning_grid_${g}_${c}`, JSON.stringify(homeroomState.cleaningData));
 
     try {
-        await setDoc(doc(db, "homeroom_cleaning", classKey), {
-            userId: homeroomState.userId,
-            grade: homeroomState.grade,
-            classNum: homeroomState.classNum,
+        await setDoc(doc(db, "homeroom_cleaning", key), {
+            userId: uid,
+            grade: g,
+            classNum: c,
             grid: homeroomState.cleaningData,
             updatedAt: new Date().toISOString()
         });
-        if (homeroomState.userId && homeroomState.userId !== "default_teacher") {
-            await setDoc(doc(db, "homeroom_cleaning", userClassKey), {
-                userId: homeroomState.userId,
-                grade: homeroomState.grade,
-                classNum: homeroomState.classNum,
-                grid: homeroomState.cleaningData,
-                updatedAt: new Date().toISOString()
-            });
-        }
+        await setDoc(doc(db, "homeroom_cleaning", `${g}_${c}`), {
+            userId: uid,
+            grade: g,
+            classNum: c,
+            grid: homeroomState.cleaningData,
+            updatedAt: new Date().toISOString()
+        });
     } catch (e) {
-        console.warn("청소구역 Firestore 저장 주의:", e);
+        console.warn("청소구역 DB 저장 에러:", e);
     }
 }
 
@@ -396,7 +423,7 @@ async function downloadCleaningHwpx() {
 }
 
 /* ==========================================================================
-   비상연락망 모듈
+   🎯 5. 비상연락망 모듈 (이중 키 영구 저장 & 빈 배열 덮어쓰기 방지)
    ========================================================================== */
 function setupContactsModule() {
     const contactModal = document.getElementById('contactModal');
@@ -408,6 +435,7 @@ function setupContactsModule() {
     const openNewBtn = document.getElementById('openNewContactModalBtn');
     if (openNewBtn) openNewBtn.onclick = () => openContactEditMode(null);
 
+    // 전체 삭제 (사용자가 직접 승인했을 때만 명시적 초기화)
     const deleteTotalBtn = document.getElementById('deleteAllContactsBtn');
     if (deleteTotalBtn) {
         deleteTotalBtn.onclick = async () => {
@@ -416,13 +444,16 @@ function setupContactsModule() {
             renderContactGrid();
             renderExcludeStudentList();
 
-            const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-            const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
-            localStorage.removeItem(`contacts_${classKey}`);
-            localStorage.removeItem(`contacts_${userClassKey}`);
+            const g = homeroomState.grade;
+            const c = homeroomState.classNum;
+            const uid = homeroomState.userId;
+
+            localStorage.removeItem(`contacts_${uid}_${g}_${c}`);
+            localStorage.removeItem(`contacts_${g}_${c}`);
+
             try {
-                await setDoc(doc(db, "homeroom_contacts", classKey), { list: [] });
-                if (homeroomState.userId) await setDoc(doc(db, "homeroom_contacts", userClassKey), { list: [] });
+                await setDoc(doc(db, "homeroom_contacts", `${uid}_${g}_${c}`), { list: [] });
+                await setDoc(doc(db, "homeroom_contacts", `${g}_${c}`), { list: [] });
             } catch (e) {}
         };
     }
@@ -442,6 +473,7 @@ function setupContactsModule() {
     const cancelBulkBtn = document.getElementById('cancelBulkPasteBtn');
     if (cancelBulkBtn) cancelBulkBtn.onclick = () => bulkModal?.classList.add('hidden');
 
+    // 🎯 여러 명 붙여넣기 영구 저장 (UID 키 + 학급 키 이중 저장)
     const saveBulkBtn = document.getElementById('saveBulkPasteBtn');
     if (saveBulkBtn) {
         saveBulkBtn.onclick = async () => {
@@ -493,30 +525,35 @@ function setupContactsModule() {
             renderExcludeStudentList();
             bulkModal?.classList.add('hidden');
 
-            const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-            const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
-            localStorage.setItem(`contacts_${classKey}`, JSON.stringify(parsed));
-            localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(parsed));
+            const g = homeroomState.grade;
+            const c = homeroomState.classNum;
+            const uid = homeroomState.userId;
+
+            // 로컬스토리지 저장
+            localStorage.setItem(`contacts_${uid}_${g}_${c}`, JSON.stringify(parsed));
+            localStorage.setItem(`contacts_${g}_${c}`, JSON.stringify(parsed));
+
+            // 파이어베이스 영구 저장 (어떤 환경에서도 복구되도록 2개 경로에 보관)
             try {
-                await setDoc(doc(db, "homeroom_contacts", classKey), {
-                    userId: homeroomState.userId,
-                    grade: homeroomState.grade,
-                    classNum: homeroomState.classNum,
+                await setDoc(doc(db, "homeroom_contacts", `${uid}_${g}_${c}`), {
+                    userId: uid,
+                    grade: g,
+                    classNum: c,
                     list: parsed,
                     updatedAt: new Date().toISOString()
                 });
-                if (homeroomState.userId) {
-                    await setDoc(doc(db, "homeroom_contacts", userClassKey), {
-                        userId: homeroomState.userId,
-                        grade: homeroomState.grade,
-                        classNum: homeroomState.classNum,
-                        list: parsed,
-                        updatedAt: new Date().toISOString()
-                    });
-                }
-            } catch (e) {}
+                await setDoc(doc(db, "homeroom_contacts", `${g}_${c}`), {
+                    userId: uid,
+                    grade: g,
+                    classNum: c,
+                    list: parsed,
+                    updatedAt: new Date().toISOString()
+                });
+            } catch (e) {
+                console.error("Firestore 연락망 저장 에러:", e);
+            }
 
-            alert(`✅ 총 ${parsed.length}명의 학생 연락처가 등록되었습니다.`);
+            alert(`✅ 총 ${parsed.length}명의 학생 연락처가 파이어베이스 DB에 영구 저장되었습니다.`);
         };
     }
 
@@ -537,6 +574,7 @@ function setupContactsModule() {
         };
     }
 
+    // 🎯 개별 학생 저장
     const saveContactBtn = document.getElementById('saveContactBtn');
     if (saveContactBtn) {
         saveContactBtn.onclick = async () => {
@@ -570,15 +608,25 @@ function setupContactsModule() {
             renderExcludeStudentList();
             contactModal?.classList.add('hidden');
 
-            const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-            const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
-            localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
-            localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(homeroomState.contacts));
+            const g = homeroomState.grade;
+            const c = homeroomState.classNum;
+            const uid = homeroomState.userId;
+
+            localStorage.setItem(`contacts_${uid}_${g}_${c}`, JSON.stringify(homeroomState.contacts));
+            localStorage.setItem(`contacts_${g}_${c}`, JSON.stringify(homeroomState.contacts));
+
             try {
-                await setDoc(doc(db, "homeroom_contacts", classKey), {
-                    userId: homeroomState.userId,
-                    grade: homeroomState.grade,
-                    classNum: homeroomState.classNum,
+                await setDoc(doc(db, "homeroom_contacts", `${uid}_${g}_${c}`), {
+                    userId: uid,
+                    grade: g,
+                    classNum: c,
+                    list: homeroomState.contacts,
+                    updatedAt: new Date().toISOString()
+                });
+                await setDoc(doc(db, "homeroom_contacts", `${g}_${c}`), {
+                    userId: uid,
+                    grade: g,
+                    classNum: c,
                     list: homeroomState.contacts,
                     updatedAt: new Date().toISOString()
                 });
@@ -586,6 +634,7 @@ function setupContactsModule() {
         };
     }
 
+    // 🎯 개별 학생 삭제
     const deleteContactBtn = document.getElementById('deleteContactBtn');
     if (deleteContactBtn) {
         deleteContactBtn.onclick = async () => {
@@ -597,15 +646,25 @@ function setupContactsModule() {
             renderExcludeStudentList();
             contactModal?.classList.add('hidden');
 
-            const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-            const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
-            localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
-            localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(homeroomState.contacts));
+            const g = homeroomState.grade;
+            const c = homeroomState.classNum;
+            const uid = homeroomState.userId;
+
+            localStorage.setItem(`contacts_${uid}_${g}_${c}`, JSON.stringify(homeroomState.contacts));
+            localStorage.setItem(`contacts_${g}_${c}`, JSON.stringify(homeroomState.contacts));
+
             try {
-                await setDoc(doc(db, "homeroom_contacts", classKey), {
-                    userId: homeroomState.userId,
-                    grade: homeroomState.grade,
-                    classNum: homeroomState.classNum,
+                await setDoc(doc(db, "homeroom_contacts", `${uid}_${g}_${c}`), {
+                    userId: uid,
+                    grade: g,
+                    classNum: c,
+                    list: homeroomState.contacts,
+                    updatedAt: new Date().toISOString()
+                });
+                await setDoc(doc(db, "homeroom_contacts", `${g}_${c}`), {
+                    userId: uid,
+                    grade: g,
+                    classNum: c,
                     list: homeroomState.contacts,
                     updatedAt: new Date().toISOString()
                 });
@@ -689,7 +748,7 @@ function openContactEditMode(contact) {
 }
 
 /* ==========================================================================
-   자리 바꾸기 모듈
+   6. 자리 바꾸기 모듈
    ========================================================================== */
 function setupSeatingModule() {
     const deskBtn = document.getElementById('teacherDeskBtn');
@@ -722,15 +781,24 @@ function setupSeatingModule() {
             });
 
             homeroomState.antiPairs = pairs;
-            const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-            const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
-            localStorage.setItem(`anti_pairs_${classKey}`, JSON.stringify(pairs));
-            localStorage.setItem(`anti_pairs_${userClassKey}`, JSON.stringify(pairs));
+            const g = homeroomState.grade;
+            const c = homeroomState.classNum;
+            const uid = homeroomState.userId;
+
+            localStorage.setItem(`anti_pairs_${uid}_${g}_${c}`, JSON.stringify(pairs));
+            localStorage.setItem(`anti_pairs_${g}_${c}`, JSON.stringify(pairs));
+
             try {
-                await setDoc(doc(db, "homeroom_anti_pairs", classKey), {
-                    userId: homeroomState.userId,
-                    grade: homeroomState.grade,
-                    classNum: homeroomState.classNum,
+                await setDoc(doc(db, "homeroom_anti_pairs", `${uid}_${g}_${c}`), {
+                    userId: uid,
+                    grade: g,
+                    classNum: c,
+                    pairs: pairs
+                });
+                await setDoc(doc(db, "homeroom_anti_pairs", `${g}_${c}`), {
+                    userId: uid,
+                    grade: g,
+                    classNum: c,
                     pairs: pairs
                 });
             } catch(e) {}
@@ -931,7 +999,7 @@ async function downloadSeatingHwpx() {
 }
 
 /* ==========================================================================
-   🎯 5. 전역 이벤트 위임 (어떤 환경에서도 버튼이 무조건 반응하도록 보장)
+   전역 이벤트 위임 (어떤 환경에서도 버튼이 무조건 반응하도록 보장)
    ========================================================================== */
 if (typeof document !== 'undefined') {
     document.addEventListener('click', (e) => {
@@ -987,7 +1055,6 @@ if (typeof document !== 'undefined') {
         }
     });
 
-    // 스크립트 로드 시점 자동 리스너 연결
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', setupAllModules);
     } else {
