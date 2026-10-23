@@ -2,7 +2,7 @@ import { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, doc,
 import { initClassTab } from './tab-class.js';
 import { initWorkTab } from './tab-work.js';
 import { initOfficeTab, officeState, teacherList } from './tab-office.js';
-import { initHomeroomTab } from './tab-homeroom.js';
+import { updateHomeroomClass } from './tab-homeroom.js';
 
 let currentUser = null;
 
@@ -59,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('mobileNavTabOffice')?.addEventListener('click', () => switchTab('office'));
     document.getElementById('mobileNavTabHomeroom')?.addEventListener('click', () => switchTab('homeroom'));
 
-    // 교사 로그인
     document.getElementById('openLoginModalBtn')?.addEventListener('click', () => document.getElementById('loginModal').classList.remove('hidden'));
     document.getElementById('closeLoginModalBtn')?.addEventListener('click', () => document.getElementById('loginModal').classList.add('hidden'));
     document.getElementById('logoutBtn')?.addEventListener('click', () => signOut(auth));
@@ -73,12 +72,22 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) { alert("로그인 실패"); }
     });
 
-    // 내 설정(프로필) 모달 띄우기 및 저장
     const tSelect = document.getElementById('profileTeacherSelect');
     if (tSelect) {
         teacherList.forEach(t => { const opt = document.createElement('option'); opt.value = t.short; opt.textContent = t.name; tSelect.appendChild(opt); });
     }
     
+    // 🎯 화면에 있는 학급 글자를 동적으로 모두 바꿔주는 핵심 함수
+    function updateHomeroomUI() {
+        const classStr = `${officeState.selectedGrade}-${officeState.selectedClassNum}`;
+        document.getElementById('navTabHomeroomText').textContent = `🔒 ${classStr}반`;
+        document.getElementById('mobileNavTabHomeroomText').textContent = `🔒 ${classStr}반`;
+        document.getElementById('homeroomTitleContacts').textContent = `${officeState.selectedGrade}학년 ${officeState.selectedClassNum}반 비상연락망`;
+        
+        // 데이터베이스 호출 라우팅 넘기기
+        updateHomeroomClass(classStr);
+    }
+
     document.getElementById('openProfileSettingsBtn')?.addEventListener('click', () => {
         document.getElementById('profileTeacherSelect').value = officeState.selectedTeacher.short;
         document.getElementById('profileGradeSelect').value = officeState.selectedGrade;
@@ -104,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("✅ 설정이 저장되었습니다. 이제 로그인 시 항상 이 설정으로 시작합니다.");
             
             initOfficeTab(currentUser);
+            updateHomeroomUI(); // UI 및 데이터 즉각 갱신
         } catch(e) { alert("저장 실패"); }
     });
 
@@ -135,6 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (p.classStr) { officeState.selectedGrade = Number(p.classStr.split('-')[0]); officeState.selectedClassNum = Number(p.classStr.split('-')[1]); }
                     }
                 } catch(e) {}
+                
+                // 로그인 시 불러온 데이터로 UI 동적 세팅
+                updateHomeroomUI();
             } else {
                 document.getElementById('openLoginModalBtn')?.classList.remove('hidden');
                 document.getElementById('logoutBtn')?.classList.add('hidden');
@@ -155,11 +168,9 @@ document.addEventListener('DOMContentLoaded', () => {
             initClassTab(user);
             initWorkTab(user);
             initOfficeTab(user);
-            initHomeroomTab(user);
         }
     });
 
-    // 폼 저장 및 모달 제어
     document.getElementById('closeLessonModalBtn')?.addEventListener('click', () => document.getElementById('lessonModal').classList.add('hidden'));
     document.getElementById('closeTaskModalBtn')?.addEventListener('click', () => document.getElementById('taskModal').classList.add('hidden'));
 
