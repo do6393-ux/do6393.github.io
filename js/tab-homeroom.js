@@ -1,6 +1,7 @@
-import { db, doc, getDoc, setDoc, deleteDoc } from './firebase-config.js';
+import { db, doc, getDoc, setDoc, deleteDoc, onSnapshot } from './firebase-config.js';
 
 let homeroomState = {
+    userId: null,
     grade: Number(localStorage.getItem('office_grade')) || 1,
     classNum: Number(localStorage.getItem('office_class')) || 7,
     contacts: [],
@@ -23,8 +24,16 @@ const cleaningAreas = [
 let seatingHwpxBlob = null;
 let cleaningHwpxBlob = null;
 
+// 중복 리스너 등록 방지를 위한 구독 해제 함수 참조
+let unsubCleaning = null;
+let unsubContacts = null;
+let unsubAnti = null;
+
 export async function initHomeroomTab(currentUser) {
     if (!currentUser) return;
+
+    // 🎯 1. 로그인한 사용자의 고유 ID(UID) 연동
+    homeroomState.userId = currentUser.uid || currentUser.email || "default_teacher";
 
     // 최신 설정 학급 동기화
     homeroomState.grade = Number(localStorage.getItem('office_grade')) || 1;
@@ -40,7 +49,8 @@ export async function initHomeroomTab(currentUser) {
     setupSeatingModule();
     setupCleaningModule();
 
-    await loadHomeroomData();
+    // 🎯 2. 실시간 데이터베이스(onSnapshot) 연동 시작
+    initRealtimeHomeroomSync();
 }
 
 /* ==========================================================================
@@ -75,53 +85,69 @@ function setupSubTabs() {
 }
 
 /* ==========================================================================
-   1. 데이터 통합 로드 (Firestore + LocalStorage)
+   1. 실시간 데이터베이스 동기화 (아이디 연동 + onSnapshot)
    ========================================================================== */
-async function loadHomeroomData() {
-    const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+function initRealtimeHomeroomSync() {
+    const userClassKey = `${homeroomState.userId}_${homeroomState.grade}_${homeroomState.classNum}`;
+    const legacyKey = `${homeroomState.grade}_${homeroomState.classNum}`;
 
-    // 1) 비상연락망 로드
-    const localContacts = localStorage.getItem(`contacts_${classKey}`);
-    if (localContacts) homeroomState.contacts = JSON.parse(localContacts);
-    try {
-        const cSnap = await getDoc(doc(db, "homeroom_contacts", classKey));
-        if (cSnap.exists() && cSnap.data().list) {
-            homeroomState.contacts = cSnap.data().list;
-            localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
+    // 기존 리스너 해제 (중복 구독 방지)
+    if (unsubCleaning) unsubCleaning();
+    if (unsubContacts) unsubContacts();
+    if (unsubAnti) unsubAnti();
+
+    // 🎯 1) 청소구역 실시간 수신
+    const cleanRef = doc(db, "homeroom_cleaning", userClassKey);
+    unsubCleaning = onSnapshot(cleanRef, (snap) => {
+        if (snap.exists() && snap.data().grid) {
+            homeroomState.cleaningData = snap.data().grid;
+            localStorage.setItem(`cleaning_grid_${userClassKey}`, JSON.stringify(homeroomState.cleaningData));
+            renderCleaningGrid();
+        } else {
+            // 사용자 ID 데이터가 없으면 기존 공용 데이터 조회(호환성)
+            getDoc(doc(db, "homeroom_cleaning", legacyKey)).then(lSnap => {
+                if (lSnap.exists() && lSnap.data().grid) {
+                    homeroomState.cleaningData = lSnap.data().grid;
+                    renderCleaningGrid();
+                }
+            }).catch(() => {});
         }
-    } catch (e) {}
-    renderContactGrid();
-    renderExcludeStudentList();
+    }, (err) => console.warn("청소구역 실시간 구독 에러:", err));
 
-    // 2) 기피조합 로드
-    const localAnti = localStorage.getItem(`anti_pairs_${classKey}`);
-    if (localAnti) homeroomState.antiPairs = JSON.parse(localAnti);
-    try {
-        const aSnap = await getDoc(doc(db, "homeroom_anti_pairs", classKey));
-        if (aSnap.exists() && aSnap.data().pairs) {
-            homeroomState.antiPairs = aSnap.data().pairs;
-            localStorage.setItem(`anti_pairs_${classKey}`, JSON.stringify(homeroomState.antiPairs));
+    // 🎯 2) 비상연락망 실시간 수신
+    const contactRef = doc(db, "homeroom_contacts", userClassKey);
+    unsubContacts = onSnapshot(contactRef, (snap) => {
+        if (snap.exists() && snap.data().list) {
+            homeroomState.contacts = snap.data().list;
+            localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(homeroomState.contacts));
+            renderContactGrid();
+            renderExcludeStudentList();
+        } else {
+            getDoc(doc(db, "homeroom_contacts", legacyKey)).then(lSnap => {
+                if (lSnap.exists() && lSnap.data().list) {
+                    homeroomState.contacts = lSnap.data().list;
+                    renderContactGrid();
+                    renderExcludeStudentList();
+                }
+            }).catch(() => {});
         }
-    } catch(e) {}
+    }, (err) => console.warn("연락망 실시간 구독 에러:", err));
 
-    // 3) 청소구역 로드
-    const localCleaning = localStorage.getItem(`cleaning_grid_${classKey}`);
-    if (localCleaning) homeroomState.cleaningData = JSON.parse(localCleaning);
-    try {
-        const cleanSnap = await getDoc(doc(db, "homeroom_cleaning", classKey));
-        if (cleanSnap.exists() && cleanSnap.data().grid) {
-            homeroomState.cleaningData = cleanSnap.data().grid;
-            localStorage.setItem(`cleaning_grid_${classKey}`, JSON.stringify(homeroomState.cleaningData));
+    // 🎯 3) 기피조합 실시간 수신
+    const antiRef = doc(db, "homeroom_anti_pairs", userClassKey);
+    unsubAnti = onSnapshot(antiRef, (snap) => {
+        if (snap.exists() && snap.data().pairs) {
+            homeroomState.antiPairs = snap.data().pairs;
+            localStorage.setItem(`anti_pairs_${userClassKey}`, JSON.stringify(homeroomState.antiPairs));
         }
-    } catch(e) {}
-    renderCleaningGrid();
+    }, (err) => console.warn("기피조합 실시간 구독 에러:", err));
 
-    // 4) 자리배치 기본 슬롯 초기화
+    // 초기 자리배치 슬롯 렌더링
     initSeatingGrid();
 }
 
 /* ==========================================================================
-   2. 청소 구역 모듈 (학생 번호/이름 표시 완벽 적용)
+   2. 청소 구역 모듈 (학생 번호/이름 실시간 즉시 렌더링)
    ========================================================================== */
 function setupCleaningModule() {
     const modal = document.getElementById('cleaningStudentSelectModal');
@@ -139,8 +165,8 @@ function setupCleaningModule() {
             }
         }
         homeroomState.cleaningData = newGrid;
+        renderCleaningGrid(); // 🎯 화면 즉시 반영
         saveCleaningData();
-        renderCleaningGrid();
     });
 
     // 아래로 교대 (1행씩 하향 회전)
@@ -153,8 +179,8 @@ function setupCleaningModule() {
             }
         }
         homeroomState.cleaningData = newGrid;
+        renderCleaningGrid(); // 🎯 화면 즉시 반영
         saveCleaningData();
-        renderCleaningGrid();
     });
 
     // HWPX 양식 등록 및 다운로드
@@ -168,9 +194,7 @@ function setupCleaningModule() {
         }
     });
 
-    hwpxBtn?.addEventListener('click', () => {
-        downloadCleaningHwpx();
-    });
+    hwpxBtn?.addEventListener('click', downloadCleaningHwpx);
 }
 
 // 🎯 청소 구역 테이블 렌더링 (배정된 곳에 학생 번호와 이름 표시)
@@ -189,7 +213,7 @@ function renderCleaningGrid() {
             const student = homeroomState.cleaningData[r][c];
 
             if (student && student.name) {
-                // 🎯 배정된 상태: 번호와 이름을 명확하게 표시
+                // 🎯 배정된 상태: 번호와 이름 배지 표시
                 html += `
                     <td class="p-1.5 border-r border-slate-200 align-middle">
                         <div class="group relative flex items-center justify-between px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 rounded-xl font-bold shadow-sm transition-all select-none">
@@ -219,7 +243,7 @@ function renderCleaningGrid() {
     }
 }
 
-// 전역 모달 열기 함수
+// 모달 열기 및 학생 배정 (클릭 즉시 화면 업데이트)
 window.openCleaningSelectModal = function(row, col) {
     homeroomState.currentCleaningSlot = { row, col };
     const modal = document.getElementById('cleaningStudentSelectModal');
@@ -238,7 +262,6 @@ window.openCleaningSelectModal = function(row, col) {
     };
     container.appendChild(clearBtn);
 
-    // 학생 목록 불러오기 (연락처 데이터 또는 1~30번)
     const list = homeroomState.contacts.length > 0 
         ? homeroomState.contacts 
         : Array.from({ length: 30 }, (_, i) => ({ num: i + 1, name: `${i + 1}번 학생` }));
@@ -251,10 +274,14 @@ window.openCleaningSelectModal = function(row, col) {
             <span class="text-xs font-bold text-slate-800">${s.name}</span>
         `;
         btn.onclick = () => {
+            // 🎯 1. 상태 즉시 갱신
             homeroomState.cleaningData[row][col] = { num: s.num, name: s.name };
-            saveCleaningData();
+            // 🎯 2. 화면 즉각 렌더링 (탭 변경 없이 0초 만에 반영)
             renderCleaningGrid();
+            // 🎯 3. 모달 닫기
             modal.classList.add('hidden');
+            // 🎯 4. 백그라운드 파이어베이스 저장 (사용자 UID 연동)
+            saveCleaningData();
         };
         container.appendChild(btn);
     });
@@ -262,26 +289,28 @@ window.openCleaningSelectModal = function(row, col) {
     modal.classList.remove('hidden');
 };
 
-// 전역 슬롯 비우기 함수
+// 개별 슬롯 배정 해제
 window.clearCleaningSlot = function(row, col) {
     homeroomState.cleaningData[row][col] = null;
+    renderCleaningGrid(); // 즉각 반영
     saveCleaningData();
-    renderCleaningGrid();
 };
 
+// 🎯 사용자 ID 키를 이용한 파이어베이스 저장
 async function saveCleaningData() {
-    const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-    localStorage.setItem(`cleaning_grid_${classKey}`, JSON.stringify(homeroomState.cleaningData));
+    const userClassKey = `${homeroomState.userId}_${homeroomState.grade}_${homeroomState.classNum}`;
+    localStorage.setItem(`cleaning_grid_${userClassKey}`, JSON.stringify(homeroomState.cleaningData));
 
     try {
-        await setDoc(doc(db, "homeroom_cleaning", classKey), {
+        await setDoc(doc(db, "homeroom_cleaning", userClassKey), {
+            userId: homeroomState.userId,
             grade: homeroomState.grade,
             classNum: homeroomState.classNum,
             grid: homeroomState.cleaningData,
             updatedAt: new Date().toISOString()
         });
     } catch (e) {
-        console.warn("청소구역 DB 저장 실패 (로컬 유지):", e);
+        console.warn("청소구역 DB 저장 오류:", e);
     }
 }
 
@@ -320,19 +349,20 @@ function setupContactsModule() {
     const bulkModal = document.getElementById('bulkPasteModal');
 
     document.getElementById('closeContactModalBtn')?.addEventListener('click', () => contactModal?.classList.add('hidden'));
-
     document.getElementById('openNewContactModalBtn')?.addEventListener('click', () => openContactEditMode(null));
 
+    // 전체 삭제
     document.getElementById('deleteAllContactsBtn')?.addEventListener('click', async () => {
         if (!confirm("정말 모든 학생 연락처를 삭제하시겠습니까?")) return;
         homeroomState.contacts = [];
-        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-        localStorage.removeItem(`contacts_${classKey}`);
-        try {
-            await deleteDoc(doc(db, "homeroom_contacts", classKey));
-        } catch (e) {}
         renderContactGrid();
         renderExcludeStudentList();
+
+        const userClassKey = `${homeroomState.userId}_${homeroomState.grade}_${homeroomState.classNum}`;
+        localStorage.removeItem(`contacts_${userClassKey}`);
+        try {
+            await deleteDoc(doc(db, "homeroom_contacts", userClassKey));
+        } catch (e) {}
     });
 
     document.getElementById('openBulkPasteModalBtn')?.addEventListener('click', () => {
@@ -342,6 +372,7 @@ function setupContactsModule() {
     document.getElementById('closeBulkPasteModalBtn')?.addEventListener('click', () => bulkModal?.classList.add('hidden'));
     document.getElementById('cancelBulkPasteBtn')?.addEventListener('click', () => bulkModal?.classList.add('hidden'));
 
+    // 일괄 붙여넣기 저장
     document.getElementById('saveBulkPasteBtn')?.addEventListener('click', async () => {
         const text = document.getElementById('bulkPasteTextarea').value;
         if (!text.trim()) return alert("데이터를 입력해주세요.");
@@ -387,10 +418,17 @@ function setupContactsModule() {
         parsed.sort((a, b) => a.num - b.num);
         homeroomState.contacts = parsed;
 
-        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-        localStorage.setItem(`contacts_${classKey}`, JSON.stringify(parsed));
+        // 즉각 렌더링
+        renderContactGrid();
+        renderExcludeStudentList();
+        bulkModal?.classList.add('hidden');
+
+        // 사용자 ID 연동 파이어베이스 저장
+        const userClassKey = `${homeroomState.userId}_${homeroomState.grade}_${homeroomState.classNum}`;
+        localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(parsed));
         try {
-            await setDoc(doc(db, "homeroom_contacts", classKey), {
+            await setDoc(doc(db, "homeroom_contacts", userClassKey), {
+                userId: homeroomState.userId,
                 grade: homeroomState.grade,
                 classNum: homeroomState.classNum,
                 list: parsed,
@@ -398,9 +436,6 @@ function setupContactsModule() {
             });
         } catch (e) {}
 
-        renderContactGrid();
-        renderExcludeStudentList();
-        bulkModal?.classList.add('hidden');
         alert(`✅ 총 ${parsed.length}명의 학생 연락처가 등록되었습니다.`);
     });
 
@@ -415,6 +450,7 @@ function setupContactsModule() {
         document.getElementById('contactViewMode')?.classList.remove('hidden');
     });
 
+    // 개별 저장
     document.getElementById('saveContactBtn')?.addEventListener('click', async () => {
         const id = document.getElementById('editContactId').value;
         const num = Number(document.getElementById('contactNumInput').value);
@@ -442,41 +478,44 @@ function setupContactsModule() {
         }
 
         homeroomState.contacts.sort((a, b) => a.num - b.num);
-        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-        localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
+        renderContactGrid();
+        renderExcludeStudentList();
+        contactModal?.classList.add('hidden');
+
+        const userClassKey = `${homeroomState.userId}_${homeroomState.grade}_${homeroomState.classNum}`;
+        localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(homeroomState.contacts));
         try {
-            await setDoc(doc(db, "homeroom_contacts", classKey), {
+            await setDoc(doc(db, "homeroom_contacts", userClassKey), {
+                userId: homeroomState.userId,
                 grade: homeroomState.grade,
                 classNum: homeroomState.classNum,
                 list: homeroomState.contacts,
                 updatedAt: new Date().toISOString()
             });
         } catch (e) {}
-
-        renderContactGrid();
-        renderExcludeStudentList();
-        contactModal?.classList.add('hidden');
     });
 
+    // 개별 삭제
     document.getElementById('deleteContactBtn')?.addEventListener('click', async () => {
         const id = document.getElementById('editContactId').value;
         if (!confirm("이 연락처를 삭제하시겠습니까?")) return;
 
         homeroomState.contacts = homeroomState.contacts.filter(c => c.id !== id);
-        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-        localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
+        renderContactGrid();
+        renderExcludeStudentList();
+        contactModal?.classList.add('hidden');
+
+        const userClassKey = `${homeroomState.userId}_${homeroomState.grade}_${homeroomState.classNum}`;
+        localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(homeroomState.contacts));
         try {
-            await setDoc(doc(db, "homeroom_contacts", classKey), {
+            await setDoc(doc(db, "homeroom_contacts", userClassKey), {
+                userId: homeroomState.userId,
                 grade: homeroomState.grade,
                 classNum: homeroomState.classNum,
                 list: homeroomState.contacts,
                 updatedAt: new Date().toISOString()
             });
         } catch (e) {}
-
-        renderContactGrid();
-        renderExcludeStudentList();
-        contactModal?.classList.add('hidden');
     });
 }
 
@@ -558,7 +597,6 @@ function openContactEditMode(contact) {
    4. 자리 바꾸기 모듈
    ========================================================================== */
 function setupSeatingModule() {
-    // 교탁 클릭 -> 기피 조합 비밀 모달 열기
     document.getElementById('teacherDeskBtn')?.addEventListener('click', () => {
         const modal = document.getElementById('antiPairModal');
         const area = document.getElementById('antiPairTextarea');
@@ -585,10 +623,11 @@ function setupSeatingModule() {
         });
 
         homeroomState.antiPairs = pairs;
-        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-        localStorage.setItem(`anti_pairs_${classKey}`, JSON.stringify(pairs));
+        const userClassKey = `${homeroomState.userId}_${homeroomState.grade}_${homeroomState.classNum}`;
+        localStorage.setItem(`anti_pairs_${userClassKey}`, JSON.stringify(pairs));
         try {
-            await setDoc(doc(db, "homeroom_anti_pairs", classKey), {
+            await setDoc(doc(db, "homeroom_anti_pairs", userClassKey), {
+                userId: homeroomState.userId,
                 grade: homeroomState.grade,
                 classNum: homeroomState.classNum,
                 pairs: pairs
@@ -611,9 +650,7 @@ function setupSeatingModule() {
         }
     });
 
-    hwpxBtn?.addEventListener('click', () => {
-        downloadSeatingHwpx();
-    });
+    hwpxBtn?.addEventListener('click', downloadSeatingHwpx);
 }
 
 function initSeatingGrid() {
@@ -687,20 +724,18 @@ function renderExcludeStudentList() {
     });
 }
 
-// 🎯 자리 뽑기 실행 알고리즘 (기피 조합 고려 및 애니메이션 지원)
+// 기피 조합 고려 자리 뽑기 알고리즘
 async function runSeatingArrangement() {
     const availableSeats = homeroomState.seatingSeats.filter(s => !s.disabled);
     
-    // 결석자 제외한 실제 배치 대상 학생들
     let students = homeroomState.contacts.length > 0 
         ? homeroomState.contacts.filter(s => !homeroomState.excludedStudentNums.has(s.num))
         : Array.from({ length: availableSeats.length }, (_, i) => ({ num: i + 1, name: `${i + 1}번` }));
 
     if (students.length > availableSeats.length) {
-        return alert(`배치할 학생(${students.length}명)이 활성화된 자리(${availableSeats.length}개)보다 많습니다. 자리를 추가해주세요.`);
+        return alert(`배치할 학생(${students.length}명)이 활성화된 자리(${availableSeats.length}개)보다 많습니다.`);
     }
 
-    // 셔플 알고리즘 (기피 조합 충돌 체크 포함, 최대 100회 시도)
     let bestOrder = null;
     let attempts = 0;
 
@@ -709,7 +744,6 @@ async function runSeatingArrangement() {
         const shuffled = [...students].sort(() => Math.random() - 0.5);
         let hasConflict = false;
 
-        // 상하좌우 충돌 검증 (6열 배치 기준)
         for (let i = 0; i < shuffled.length; i++) {
             const seatIdx = availableSeats[i].id;
             const r1 = Math.floor(seatIdx / 6);
@@ -755,7 +789,6 @@ async function runSeatingArrangement() {
         renderSeatingDesks();
         if (typeof confetti === 'function') confetti({ particleCount: 70, spread: 60 });
     } else {
-        // 애니메이션 효과
         availableSeats.forEach(s => s.student = null);
         renderSeatingDesks();
 
