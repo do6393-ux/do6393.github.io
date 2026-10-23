@@ -59,7 +59,7 @@ export function switchHomeroomSubTab(tabName) {
     }
 }
 
-// 🎯 1. 초기화 함수 (선생님 로그인 정보 즉시 동기화)
+// 초기화 함수
 export async function initHomeroomTab(currentUser) {
     if (currentUser && currentUser.uid) {
         homeroomState.userId = currentUser.uid;
@@ -76,7 +76,7 @@ export async function initHomeroomTab(currentUser) {
     await loadHomeroomData();
 }
 
-// 🎯 2. 학급 변경 업데이트 함수 (NaN 방지)
+// 학급 변경 함수
 export function updateHomeroomClass(gradeOrObj, classNum) {
     let g, c;
     if (typeof gradeOrObj === 'object' && gradeOrObj !== null) {
@@ -131,14 +131,13 @@ function setupSubTabs() {
 }
 
 /* ==========================================================================
-   🎯 3. 스마트 통합 데이터 로드 (과거 모든 키를 뒤져서 복원)
+   스마트 통합 데이터 로드 (과거 모든 키를 뒤져서 복원)
    ========================================================================== */
 async function loadHomeroomData() {
     const g = homeroomState.grade;
     const c = homeroomState.classNum;
     const uid = homeroomState.userId;
 
-    // 과거 및 현재 사용 가능한 모든 키 후보군 (언더바, 하이픈, UID 조합)
     const candidateKeys = [
         `${uid}_${g}_${c}`,
         `${uid}_${g}-${c}`,
@@ -161,7 +160,6 @@ async function loadHomeroomData() {
         }
     }
 
-    // Firestore DB에서 스마트 탐색
     for (const key of candidateKeys) {
         try {
             const snap = await getDoc(doc(db, "homeroom_contacts", key));
@@ -174,7 +172,6 @@ async function loadHomeroomData() {
 
     if (loadedContacts && loadedContacts.length > 0) {
         homeroomState.contacts = loadedContacts;
-        // 가장 안전한 표준 키(`contacts_${uid}_${g}_${c}`)로 재동기화
         localStorage.setItem(`contacts_${uid}_${g}_${c}`, JSON.stringify(loadedContacts));
     }
     renderContactGrid();
@@ -224,7 +221,7 @@ async function loadHomeroomData() {
 }
 
 /* ==========================================================================
-   4. 청소 구역 모듈 (학생 배지 즉시 렌더링 + 이중 안전 저장)
+   청소 구역 모듈 (학생 번호/이름 배지 즉시 표시)
    ========================================================================== */
 function setupCleaningModule() {
     const modal = document.getElementById('cleaningStudentSelectModal');
@@ -423,8 +420,179 @@ async function downloadCleaningHwpx() {
 }
 
 /* ==========================================================================
-   🎯 5. 비상연락망 모듈 (이중 키 영구 저장 & 빈 배열 덮어쓰기 방지)
+   🎯 스마트 학생 목록 파서 (행 단위 & 웹 표 복사 스트림 양방향 지원)
    ========================================================================== */
+function parseBulkStudentText(rawText) {
+    if (!rawText || !rawText.trim()) return [];
+
+    const cleanText = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) return [];
+
+    const headerKeywords = ['성명', '학생명', '전화번호', '핸드폰', '보호자', '학부모', '집전화', '연락처', '비고'];
+
+    // 번호 표준화 도우미
+    const extractStdPhones = (str) => {
+        const matches = str.match(/01[0-9][-\s\.]?[0-9]{3,4}[-\s\.]?[0-9]{4}/g) || [];
+        return matches.map(p => {
+            const digits = p.replace(/\D/g, '');
+            if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+            if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+            return p;
+        });
+    };
+
+    // 🎯 방법 1: 일반 행 단위 파싱 (탭, 콤마, 세미콜론, 공백 구분)
+    const rowParsed = [];
+    lines.forEach((line, idx) => {
+        // 제목행 스킵
+        if (headerKeywords.some(k => line.includes(k)) && idx <= 1) return;
+
+        let tokens = [];
+        if (line.includes('\t')) {
+            tokens = line.split('\t').map(t => t.trim()).filter(Boolean);
+        } else if (line.includes(',')) {
+            tokens = line.split(',').map(t => t.trim()).filter(Boolean);
+        } else {
+            tokens = line.split(/\s+/).map(t => t.trim()).filter(Boolean);
+        }
+
+        if (tokens.length >= 2) {
+            let num = null;
+            let name = "";
+
+            const numMatch0 = tokens[0].match(/\d+/);
+            const numMatch1 = tokens[1].match(/\d+/);
+
+            if (numMatch0 && tokens[0].length <= 5) {
+                num = parseInt(numMatch0[0], 10);
+                name = tokens[1];
+            } else if (numMatch1 && tokens[1].length <= 5) {
+                name = tokens[0];
+                num = parseInt(numMatch1[0], 10);
+            } else {
+                num = idx + 1;
+                name = tokens[0];
+            }
+
+            name = name.replace(/[^가-힣a-zA-Z0-9]/g, '');
+            if (!name) return;
+
+            const phones = extractStdPhones(line);
+            rowParsed.push({
+                id: `st_${Date.now()}_${idx}`,
+                num: num,
+                name: name,
+                phone: phones[0] || "",
+                parentPhone: phones[1] || "",
+                parent2Phone: phones[2] || ""
+            });
+        }
+    });
+
+    if (rowParsed.length > 0) return rowParsed;
+
+    // 🎯 방법 2: 웹 표 복사 스트림 파싱 (셀마다 줄바꿈으로 분리되어 들어온 경우)
+    const allTokens = [];
+    lines.forEach(l => {
+        const parts = l.split(/[\t,]+|\s{2,}/).map(t => t.trim()).filter(Boolean);
+        allTokens.push(...parts);
+    });
+
+    const streamParsed = [];
+    let i = 0;
+    while (i < allTokens.length) {
+        const tok = allTokens[i];
+        if (headerKeywords.some(k => tok.includes(k))) {
+            i++;
+            continue;
+        }
+
+        // 번호 감지
+        if (/^\d{1,4}$/.test(tok)) {
+            const num = parseInt(tok, 10);
+            if (i + 1 < allTokens.length) {
+                const name = allTokens[i + 1].replace(/[^가-힣a-zA-Z0-9]/g, '');
+                i += 2;
+
+                const phones = [];
+                while (i < allTokens.length && !/^\d{1,4}$/.test(allTokens[i])) {
+                    const found = extractStdPhones(allTokens[i]);
+                    if (found.length > 0) phones.push(...found);
+                    i++;
+                }
+
+                if (name) {
+                    streamParsed.push({
+                        id: `st_${Date.now()}_${streamParsed.length}`,
+                        num: num,
+                        name: name,
+                        phone: phones[0] || "",
+                        parentPhone: phones[1] || "",
+                        parent2Phone: phones[2] || ""
+                    });
+                }
+                continue;
+            }
+        }
+        i++;
+    }
+
+    return streamParsed;
+}
+
+/* ==========================================================================
+   비상연락망 모듈
+   ========================================================================== */
+export async function handleSaveBulkPaste() {
+    const textarea = document.getElementById('bulkPasteTextarea');
+    const bulkModal = document.getElementById('bulkPasteModal');
+    const text = textarea?.value || '';
+
+    if (!text.trim()) return alert("데이터를 입력해주세요.");
+
+    const parsed = parseBulkStudentText(text);
+
+    if (parsed.length === 0) {
+        return alert("유효한 학생 데이터를 찾지 못했습니다.\n[번호] [이름] [전화번호...] 형태로 복사되었는지 확인해주세요.");
+    }
+
+    parsed.sort((a, b) => a.num - b.num);
+    homeroomState.contacts = parsed;
+
+    renderContactGrid();
+    renderExcludeStudentList();
+    if (bulkModal) bulkModal.classList.add('hidden');
+
+    const g = homeroomState.grade;
+    const c = homeroomState.classNum;
+    const uid = homeroomState.userId;
+
+    localStorage.setItem(`contacts_${uid}_${g}_${c}`, JSON.stringify(parsed));
+    localStorage.setItem(`contacts_${g}_${c}`, JSON.stringify(parsed));
+
+    try {
+        await setDoc(doc(db, "homeroom_contacts", `${uid}_${g}_${c}`), {
+            userId: uid,
+            grade: g,
+            classNum: c,
+            list: parsed,
+            updatedAt: new Date().toISOString()
+        });
+        await setDoc(doc(db, "homeroom_contacts", `${g}_${c}`), {
+            userId: uid,
+            grade: g,
+            classNum: c,
+            list: parsed,
+            updatedAt: new Date().toISOString()
+        });
+    } catch (e) {
+        console.error("Firestore 연락망 저장 에러:", e);
+    }
+
+    alert(`✅ 총 ${parsed.length}명의 학생 연락처가 파이어베이스 DB에 안전하게 등록되었습니다.`);
+}
+
 function setupContactsModule() {
     const contactModal = document.getElementById('contactModal');
     const bulkModal = document.getElementById('bulkPasteModal');
@@ -435,7 +603,6 @@ function setupContactsModule() {
     const openNewBtn = document.getElementById('openNewContactModalBtn');
     if (openNewBtn) openNewBtn.onclick = () => openContactEditMode(null);
 
-    // 전체 삭제 (사용자가 직접 승인했을 때만 명시적 초기화)
     const deleteTotalBtn = document.getElementById('deleteAllContactsBtn');
     if (deleteTotalBtn) {
         deleteTotalBtn.onclick = async () => {
@@ -473,89 +640,8 @@ function setupContactsModule() {
     const cancelBulkBtn = document.getElementById('cancelBulkPasteBtn');
     if (cancelBulkBtn) cancelBulkBtn.onclick = () => bulkModal?.classList.add('hidden');
 
-    // 🎯 여러 명 붙여넣기 영구 저장 (UID 키 + 학급 키 이중 저장)
     const saveBulkBtn = document.getElementById('saveBulkPasteBtn');
-    if (saveBulkBtn) {
-        saveBulkBtn.onclick = async () => {
-            const text = document.getElementById('bulkPasteTextarea')?.value || '';
-            if (!text.trim()) return alert("데이터를 입력해주세요.");
-
-            const lines = text.split('\n');
-            const parsed = [];
-
-            lines.forEach((line, idx) => {
-                const raw = line.trim();
-                if (!raw) return;
-
-                const tokens = raw.split(/[\t\s]+/).filter(Boolean);
-                if (tokens.length < 2) return;
-
-                let num = parseInt(tokens[0], 10);
-                let name = tokens[1];
-                let studentPhone = "";
-                let parent1 = "";
-                let parent2 = "";
-
-                if (isNaN(num)) {
-                    num = idx + 1;
-                    name = tokens[0];
-                }
-
-                const phoneMatches = raw.match(/01[0-9]-?[0-9]{3,4}-?[0-9]{4}/g) || [];
-                if (phoneMatches.length >= 1) studentPhone = phoneMatches[0];
-                if (phoneMatches.length >= 2) parent1 = phoneMatches[1];
-                if (phoneMatches.length >= 3) parent2 = phoneMatches[2];
-
-                parsed.push({
-                    id: `st_${Date.now()}_${idx}`,
-                    num: num,
-                    name: name,
-                    phone: studentPhone,
-                    parentPhone: parent1,
-                    parent2Phone: parent2
-                });
-            });
-
-            if (parsed.length === 0) return alert("유효한 학생 데이터를 찾지 못했습니다.");
-
-            parsed.sort((a, b) => a.num - b.num);
-            homeroomState.contacts = parsed;
-
-            renderContactGrid();
-            renderExcludeStudentList();
-            bulkModal?.classList.add('hidden');
-
-            const g = homeroomState.grade;
-            const c = homeroomState.classNum;
-            const uid = homeroomState.userId;
-
-            // 로컬스토리지 저장
-            localStorage.setItem(`contacts_${uid}_${g}_${c}`, JSON.stringify(parsed));
-            localStorage.setItem(`contacts_${g}_${c}`, JSON.stringify(parsed));
-
-            // 파이어베이스 영구 저장 (어떤 환경에서도 복구되도록 2개 경로에 보관)
-            try {
-                await setDoc(doc(db, "homeroom_contacts", `${uid}_${g}_${c}`), {
-                    userId: uid,
-                    grade: g,
-                    classNum: c,
-                    list: parsed,
-                    updatedAt: new Date().toISOString()
-                });
-                await setDoc(doc(db, "homeroom_contacts", `${g}_${c}`), {
-                    userId: uid,
-                    grade: g,
-                    classNum: c,
-                    list: parsed,
-                    updatedAt: new Date().toISOString()
-                });
-            } catch (e) {
-                console.error("Firestore 연락망 저장 에러:", e);
-            }
-
-            alert(`✅ 총 ${parsed.length}명의 학생 연락처가 파이어베이스 DB에 영구 저장되었습니다.`);
-        };
-    }
+    if (saveBulkBtn) saveBulkBtn.onclick = handleSaveBulkPaste;
 
     const editModeBtn = document.getElementById('editContactModeBtn');
     if (editModeBtn) {
@@ -574,7 +660,6 @@ function setupContactsModule() {
         };
     }
 
-    // 🎯 개별 학생 저장
     const saveContactBtn = document.getElementById('saveContactBtn');
     if (saveContactBtn) {
         saveContactBtn.onclick = async () => {
@@ -634,7 +719,6 @@ function setupContactsModule() {
         };
     }
 
-    // 🎯 개별 학생 삭제
     const deleteContactBtn = document.getElementById('deleteContactBtn');
     if (deleteContactBtn) {
         deleteContactBtn.onclick = async () => {
@@ -748,7 +832,7 @@ function openContactEditMode(contact) {
 }
 
 /* ==========================================================================
-   6. 자리 바꾸기 모듈
+   자리 바꾸기 모듈
    ========================================================================== */
 function setupSeatingModule() {
     const deskBtn = document.getElementById('teacherDeskBtn');
@@ -999,7 +1083,7 @@ async function downloadSeatingHwpx() {
 }
 
 /* ==========================================================================
-   전역 이벤트 위임 (어떤 환경에서도 버튼이 무조건 반응하도록 보장)
+   전역 이벤트 위임
    ========================================================================== */
 if (typeof document !== 'undefined') {
     document.addEventListener('click', (e) => {
@@ -1028,6 +1112,11 @@ if (typeof document !== 'undefined') {
         if (e.target.closest('#closeBulkPasteModalBtn, #cancelBulkPasteBtn')) {
             e.preventDefault();
             document.getElementById('bulkPasteModal')?.classList.add('hidden');
+            return;
+        }
+        if (e.target.closest('#saveBulkPasteBtn')) {
+            e.preventDefault();
+            handleSaveBulkPaste();
             return;
         }
         if (e.target.closest('#closeContactModalBtn')) {
