@@ -77,14 +77,16 @@ document.addEventListener('DOMContentLoaded', () => {
         teacherList.forEach(t => { const opt = document.createElement('option'); opt.value = t.short; opt.textContent = t.name; tSelect.appendChild(opt); });
     }
     
-    // 🎯 화면에 있는 학급 글자를 동적으로 모두 바꿔주는 핵심 함수
     function updateHomeroomUI() {
         const classStr = `${officeState.selectedGrade}-${officeState.selectedClassNum}`;
         document.getElementById('navTabHomeroomText').textContent = `🔒 ${classStr}반`;
         document.getElementById('mobileNavTabHomeroomText').textContent = `🔒 ${classStr}반`;
         document.getElementById('homeroomTitleContacts').textContent = `${officeState.selectedGrade}학년 ${officeState.selectedClassNum}반 비상연락망`;
         
-        // 데이터베이스 호출 라우팅 넘기기
+        // 🎯 청소 구역 제목 업데이트 추가
+        const cleanTitle = document.getElementById('homeroomTitleCleaning');
+        if (cleanTitle) cleanTitle.textContent = `${officeState.selectedGrade}학년 ${officeState.selectedClassNum}반 청소 구역`;
+        
         updateHomeroomClass(classStr);
     }
 
@@ -113,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("✅ 설정이 저장되었습니다. 이제 로그인 시 항상 이 설정으로 시작합니다.");
             
             initOfficeTab(currentUser);
-            updateHomeroomUI(); // UI 및 데이터 즉각 갱신
+            updateHomeroomUI();
         } catch(e) { alert("저장 실패"); }
     });
 
@@ -146,7 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch(e) {}
                 
-                // 로그인 시 불러온 데이터로 UI 동적 세팅
                 updateHomeroomUI();
             } else {
                 document.getElementById('openLoginModalBtn')?.classList.remove('hidden');
