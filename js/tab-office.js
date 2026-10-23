@@ -12,8 +12,8 @@ export let officeState = {
         if (typeof val === 'string') this.teacherName = val;
         else if (val && (val.name || val.short)) this.teacherName = val.name || val.short;
     },
-    selectedGrade: 1,
-    selectedClassNum: 7,
+    selectedGrade: Number(localStorage.getItem('office_grade')) || 1,
+    selectedClassNum: Number(localStorage.getItem('office_class')) || 7,
     isNextWeek: false
 };
 
@@ -25,10 +25,32 @@ let activeBaseModalType = null;
 // 이벤트(민트색) 과목 식별 키워드
 const eventKeywords = ['자치', '동아', '봉사', '진로'];
 
-export function initOfficeTab(currentUser) {
+export async function initOfficeTab(currentUser) {
     if (!currentUser) return;
     
-    // 1. 교사 성함 클릭 시 직접 변경 팝업
+    // 🎯 1. 파이어베이스 DB에서 저장된 기본 설정(교사명, 학급) 불러오기
+    try {
+        const settingSnap = await getDoc(doc(db, "app_settings", "office_profile"));
+        if (settingSnap.exists()) {
+            const data = settingSnap.data();
+            if (data.teacherName) {
+                officeState.teacherName = data.teacherName;
+                localStorage.setItem('office_teacher_name', data.teacherName);
+            }
+            if (data.grade) {
+                officeState.selectedGrade = Number(data.grade);
+                localStorage.setItem('office_grade', data.grade);
+            }
+            if (data.classNum) {
+                officeState.selectedClassNum = Number(data.classNum);
+                localStorage.setItem('office_class', data.classNum);
+            }
+        }
+    } catch (e) {
+        console.warn("파이어베이스 설정 로드 실패 (로컬 데이터 유지):", e);
+    }
+    
+    // 🎯 2. 교사 성함 클릭 시 직접 변경 팝업
     document.getElementById('titleTeacherNameBtn')?.addEventListener('click', () => {
         const container = document.getElementById('modalTeacherList');
         container.className = "flex flex-col gap-3 p-2";
@@ -43,13 +65,24 @@ export function initOfficeTab(currentUser) {
         const inputEl = document.getElementById('teacherDirectInput');
         const confirmBtn = document.getElementById('teacherDirectConfirmBtn');
 
-        const applyTeacherName = () => {
+        const applyTeacherName = async () => {
             const val = inputEl.value.trim();
             if (val) {
                 officeState.teacherName = val;
                 localStorage.setItem('office_teacher_name', val);
                 document.getElementById('titleTeacherNameBtn').textContent = val;
                 document.getElementById('teacherSelectModal').classList.add('hidden');
+                
+                // 파이어베이스 DB에 교사명 업데이트
+                try {
+                    await setDoc(doc(db, "app_settings", "office_profile"), {
+                        teacherName: val,
+                        grade: officeState.selectedGrade,
+                        classNum: officeState.selectedClassNum,
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                } catch(e) {}
+                
                 loadAllTimetables();
             }
         };
@@ -63,7 +96,7 @@ export function initOfficeTab(currentUser) {
     
     document.getElementById('closeTeacherSelectModalBtn')?.addEventListener('click', () => document.getElementById('teacherSelectModal').classList.add('hidden'));
 
-    // 2. 학급 선택 모달 동적 생성 (1~3학년, 1~10반)
+    // 🎯 3. 학급 선택 모달 (1~3학년, 1~10반)
     document.getElementById('titleClassNameBtn')?.addEventListener('click', () => {
         const container = document.getElementById('modalClassList');
         container.innerHTML = '';
@@ -72,11 +105,24 @@ export function initOfficeTab(currentUser) {
                 const btn = document.createElement('button');
                 btn.className = `p-2 rounded-xl border text-center font-bold transition-colors ${(officeState.selectedGrade === g && officeState.selectedClassNum === c) ? 'bg-sky-50 text-sky-700 border-sky-200' : 'hover:bg-slate-50 border-slate-200 text-slate-600'}`;
                 btn.textContent = `${g}-${c}`;
-                btn.onclick = () => {
+                btn.onclick = async () => {
                     officeState.selectedGrade = g;
                     officeState.selectedClassNum = c;
+                    localStorage.setItem('office_grade', g);
+                    localStorage.setItem('office_class', c);
                     document.getElementById('titleClassNameBtn').textContent = `${g}-${c}`;
                     document.getElementById('classSelectModal').classList.add('hidden');
+                    
+                    // 파이어베이스 DB에 학급 설정 동기화
+                    try {
+                        await setDoc(doc(db, "app_settings", "office_profile"), {
+                            teacherName: officeState.teacherName,
+                            grade: g,
+                            classNum: c,
+                            updatedAt: new Date().toISOString()
+                        }, { merge: true });
+                    } catch(e) {}
+
                     loadAllTimetables();
                 };
                 container.appendChild(btn);
@@ -87,13 +133,61 @@ export function initOfficeTab(currentUser) {
     
     document.getElementById('closeClassSelectModalBtn')?.addEventListener('click', () => document.getElementById('classSelectModal').classList.add('hidden'));
 
-    // 3. 기본 시간표 설정 모달 연결
+    // 🎯 4. 내 계정 설정 모달 (상단 ⚙️ 버튼) 연동
+    const profileModal = document.getElementById('profileSettingsModal');
+    const profileTeacherInput = document.getElementById('profileTeacherInput');
+    const profileGradeSelect = document.getElementById('profileGradeSelect');
+    const profileClassSelect = document.getElementById('profileClassSelect');
+
+    document.getElementById('openProfileSettingsBtn')?.addEventListener('click', () => {
+        if (profileTeacherInput) profileTeacherInput.value = officeState.teacherName;
+        if (profileGradeSelect) profileGradeSelect.value = String(officeState.selectedGrade);
+        if (profileClassSelect) profileClassSelect.value = String(officeState.selectedClassNum);
+        profileModal?.classList.remove('hidden');
+    });
+
+    document.getElementById('closeProfileSettingsBtn')?.addEventListener('click', () => profileModal?.classList.add('hidden'));
+
+    document.getElementById('saveProfileSettingsBtn')?.addEventListener('click', async () => {
+        const tName = profileTeacherInput ? profileTeacherInput.value.trim() : "";
+        const gr = profileGradeSelect ? Number(profileGradeSelect.value) : 1;
+        const cl = profileClassSelect ? Number(profileClassSelect.value) : 7;
+
+        if (tName) officeState.teacherName = tName;
+        officeState.selectedGrade = gr;
+        officeState.selectedClassNum = cl;
+
+        localStorage.setItem('office_teacher_name', officeState.teacherName);
+        localStorage.setItem('office_grade', gr);
+        localStorage.setItem('office_class', cl);
+
+        document.getElementById('titleTeacherNameBtn').textContent = officeState.teacherName;
+        document.getElementById('titleClassNameBtn').textContent = `${gr}-${cl}`;
+
+        // 파이어베이스 DB에 저장
+        try {
+            await setDoc(doc(db, "app_settings", "office_profile"), {
+                teacherName: officeState.teacherName,
+                grade: gr,
+                classNum: cl,
+                updatedAt: new Date().toISOString()
+            });
+            alert("✅ 설정이 파이어베이스 DB에 저장되었습니다.");
+        } catch(e) {
+            console.error("설정 DB 저장 실패:", e);
+        }
+
+        profileModal?.classList.add('hidden');
+        loadAllTimetables();
+    });
+
+    // 🎯 5. 기본 시간표 설정 모달 연결
     const baseModal = document.getElementById('baseTimetableModal');
     
     document.getElementById('openTeacherBaseBtn')?.addEventListener('click', () => {
         activeBaseModalType = 'teacher';
         document.getElementById('baseTimetableModalTitle').textContent = `${officeState.teacherName} 교사 기본 시간표 설정`;
-        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 108정보";
+        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 108정보 (수정하기 전까지 파이어베이스 DB에 영구 유지됩니다)";
         renderBaseTimetableInputGrid(currentTeacherBaseTimetable);
         baseModal.classList.remove('hidden');
     });
@@ -101,14 +195,14 @@ export function initOfficeTab(currentUser) {
     document.getElementById('openClassBaseBtn')?.addEventListener('click', () => {
         activeBaseModalType = 'class';
         document.getElementById('baseTimetableModalTitle').textContent = `${officeState.selectedGrade}-${officeState.selectedClassNum} 학급 기본 시간표 설정`;
-        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 국어, 체육 (앞 2글자 교과목명만 일치하면 정상으로 판별합니다)";
+        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 국어, 체육 (앞 2글자 교과목명만 일치하면 정상으로 인식합니다)";
         renderBaseTimetableInputGrid(currentClassBaseTimetable);
         baseModal.classList.remove('hidden');
     });
 
     document.getElementById('closeBaseTimetableModalBtn')?.addEventListener('click', () => baseModal.classList.add('hidden'));
 
-    // 4. 기본 시간표 저장 (로컬스토리지 우선 저장 + Firestore 동기화)
+    // 🎯 6. 기본 시간표 저장 (Firestore DB 저장 필수화)
     document.getElementById('saveBaseTimetableBtn')?.addEventListener('click', async () => {
         const newData = Array(7).fill().map(() => Array(5).fill(""));
         for (let r = 0; r < 7; r++) {
@@ -118,23 +212,40 @@ export function initOfficeTab(currentUser) {
             }
         }
 
-        if (activeBaseModalType === 'teacher') {
-            currentTeacherBaseTimetable = newData;
-            localStorage.setItem(`base_tt_teacher_${officeState.teacherName}`, JSON.stringify(newData));
-            try { await setDoc(doc(db, "base_timetables", `teacher_${officeState.teacherName}`), { matrix: newData }); } catch(e){}
-        } else {
-            currentClassBaseTimetable = newData;
-            const classKey = `${officeState.selectedGrade}-${officeState.selectedClassNum}`;
-            localStorage.setItem(`base_tt_class_${classKey}`, JSON.stringify(newData));
-            try { await setDoc(doc(db, "base_timetables", `class_${officeState.selectedGrade}_${officeState.selectedClassNum}`), { matrix: newData }); } catch(e){}
+        try {
+            if (activeBaseModalType === 'teacher') {
+                currentTeacherBaseTimetable = newData;
+                localStorage.setItem(`base_tt_teacher_${officeState.teacherName}`, JSON.stringify(newData));
+                // Firestore 저장
+                await setDoc(doc(db, "base_timetables", `teacher_${officeState.teacherName}`), {
+                    teacherName: officeState.teacherName,
+                    matrix: newData,
+                    updatedAt: new Date().toISOString()
+                });
+            } else {
+                currentClassBaseTimetable = newData;
+                const classKey = `${officeState.selectedGrade}-${officeState.selectedClassNum}`;
+                const classDocKey = `class_${officeState.selectedGrade}_${officeState.selectedClassNum}`;
+                localStorage.setItem(`base_tt_class_${classKey}`, JSON.stringify(newData));
+                // Firestore 저장
+                await setDoc(doc(db, "base_timetables", classDocKey), {
+                    grade: officeState.selectedGrade,
+                    classNum: officeState.selectedClassNum,
+                    matrix: newData,
+                    updatedAt: new Date().toISOString()
+                });
+            }
+            alert("✅ 기본 시간표가 파이어베이스 DB에 안전하게 저장되었습니다.");
+        } catch (e) {
+            console.error("Firestore 기본 시간표 저장 에러:", e);
+            alert("기본 시간표가 브라우저에 임시 저장되었습니다. (DB 권한 확인 필요)");
         }
         
-        alert("✅ 기본 시간표가 안전하게 저장되었습니다.");
         baseModal.classList.add('hidden');
         loadAllTimetables();
     });
 
-    // 5. 이번 주 / 다음 주 전환 토글
+    // 7. 이번 주 / 다음 주 전환 토글
     const btnThis = document.getElementById('weekToggleThisBtn');
     const btnNext = document.getElementById('weekToggleNextBtn');
     
@@ -152,31 +263,7 @@ export function initOfficeTab(currentUser) {
         loadAllTimetables();
     });
 
-    // 6. 설정 모달 내 이름 직접 입력 연동
-    const profileInput = document.getElementById('profileTeacherInput');
-    const profileBtn = document.getElementById('openProfileSettingsBtn');
-    const saveProfileBtn = document.getElementById('saveProfileSettingsBtn');
-
-    if (profileBtn && profileInput) {
-        profileBtn.addEventListener('click', () => {
-            profileInput.value = officeState.teacherName;
-        });
-    }
-
-    if (saveProfileBtn) {
-        saveProfileBtn.addEventListener('click', () => {
-            const inputVal = document.getElementById('profileTeacherInput')?.value.trim();
-            if (inputVal) {
-                officeState.teacherName = inputVal;
-                localStorage.setItem('office_teacher_name', inputVal);
-                const titleBtn = document.getElementById('titleTeacherNameBtn');
-                if (titleBtn) titleBtn.textContent = inputVal;
-                loadAllTimetables();
-            }
-        });
-    }
-
-    // 7. 급식 초기화
+    // 8. 급식 초기화
     const mealDateInput = document.getElementById('mealDateInput');
     const fetchMealBtn = document.getElementById('fetchMealBtn');
     const today = new Date();
@@ -187,6 +274,7 @@ export function initOfficeTab(currentUser) {
     
     fetchMealBtn?.addEventListener('click', fetchMeal);
     
+    // UI 타이틀 반영
     document.getElementById('titleTeacherNameBtn').textContent = officeState.teacherName;
     document.getElementById('titleClassNameBtn').textContent = `${officeState.selectedGrade}-${officeState.selectedClassNum}`;
 
@@ -208,38 +296,63 @@ function renderBaseTimetableInputGrid(dataMatrix) {
     }
 }
 
-// Firestore 및 로컬스토리지 연동 시간표 로드
+// 🎯 파이어베이스 Firestore 우선 로드 함수
 async function loadAllTimetables() {
     const weekKey = officeState.isNextWeek ? 'next' : 'this';
 
-    // 1) 등록된 교사 기본 시간표 로드
-    const localT = localStorage.getItem(`base_tt_teacher_${officeState.teacherName}`);
-    if (localT) {
-        currentTeacherBaseTimetable = JSON.parse(localT);
-    } else {
-        try {
-            const tSnap = await getDoc(doc(db, "base_timetables", `teacher_${officeState.teacherName}`));
-            currentTeacherBaseTimetable = (tSnap.exists() && tSnap.data().matrix) ? tSnap.data().matrix : Array(7).fill().map(() => Array(5).fill(""));
-        } catch(e) {
-            currentTeacherBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
+    // 1) 교사 기본 시간표 Firestore 조회 (DB 우선 -> 로컬 백업)
+    try {
+        const tSnap = await getDoc(doc(db, "base_timetables", `teacher_${officeState.teacherName}`));
+        if (tSnap.exists() && tSnap.data().matrix) {
+            currentTeacherBaseTimetable = tSnap.data().matrix;
+            localStorage.setItem(`base_tt_teacher_${officeState.teacherName}`, JSON.stringify(currentTeacherBaseTimetable));
+        } else {
+            // DB에 없으면 로컬 스토리지 확인 후 DB로 자동 동기화
+            const localT = localStorage.getItem(`base_tt_teacher_${officeState.teacherName}`);
+            if (localT) {
+                currentTeacherBaseTimetable = JSON.parse(localT);
+                setDoc(doc(db, "base_timetables", `teacher_${officeState.teacherName}`), {
+                    teacherName: officeState.teacherName,
+                    matrix: currentTeacherBaseTimetable,
+                    updatedAt: new Date().toISOString()
+                }).catch(() => {});
+            } else {
+                currentTeacherBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
+            }
         }
+    } catch(e) {
+        const localT = localStorage.getItem(`base_tt_teacher_${officeState.teacherName}`);
+        currentTeacherBaseTimetable = localT ? JSON.parse(localT) : Array(7).fill().map(() => Array(5).fill(""));
     }
 
-    // 2) 등록된 학급 기본 시간표 로드
+    // 2) 학급 기본 시간표 Firestore 조회 (DB 우선 -> 로컬 백업)
     const classKey = `${officeState.selectedGrade}-${officeState.selectedClassNum}`;
-    const localC = localStorage.getItem(`base_tt_class_${classKey}`);
-    if (localC) {
-        currentClassBaseTimetable = JSON.parse(localC);
-    } else {
-        try {
-            const cSnap = await getDoc(doc(db, "base_timetables", `class_${officeState.selectedGrade}_${officeState.selectedClassNum}`));
-            currentClassBaseTimetable = (cSnap.exists() && cSnap.data().matrix) ? cSnap.data().matrix : Array(7).fill().map(() => Array(5).fill(""));
-        } catch(e) {
-            currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
+    const classDocKey = `class_${officeState.selectedGrade}_${officeState.selectedClassNum}`;
+    try {
+        const cSnap = await getDoc(doc(db, "base_timetables", classDocKey));
+        if (cSnap.exists() && cSnap.data().matrix) {
+            currentClassBaseTimetable = cSnap.data().matrix;
+            localStorage.setItem(`base_tt_class_${classKey}`, JSON.stringify(currentClassBaseTimetable));
+        } else {
+            const localC = localStorage.getItem(`base_tt_class_${classKey}`);
+            if (localC) {
+                currentClassBaseTimetable = JSON.parse(localC);
+                setDoc(doc(db, "base_timetables", classDocKey), {
+                    grade: officeState.selectedGrade,
+                    classNum: officeState.selectedClassNum,
+                    matrix: currentClassBaseTimetable,
+                    updatedAt: new Date().toISOString()
+                }).catch(() => {});
+            } else {
+                currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
+            }
         }
+    } catch(e) {
+        const localC = localStorage.getItem(`base_tt_class_${classKey}`);
+        currentClassBaseTimetable = localC ? JSON.parse(localC) : Array(7).fill().map(() => Array(5).fill(""));
     }
 
-    // 3) Firestore에서 교사 시간표 로드
+    // 3) Firestore에서 GitHub Actions가 수집한 교사 시간표 로드
     let teacherScheduleMap = null;
     const namePrefix = officeState.teacherName.substring(0, 2);
     const tKeysToTry = [namePrefix, officeState.teacherName];
@@ -255,7 +368,7 @@ async function loadAllTimetables() {
         } catch(e) {}
     }
 
-    // 4) Firestore에서 학급 시간표 로드
+    // 4) Firestore에서 GitHub Actions가 수집한 학급 시간표 로드
     let classScheduleMap = null;
     try {
         const snap = await getDoc(doc(db, "timetable_schedules", `tt_class_${weekKey}_${classKey}`));
@@ -302,7 +415,6 @@ function renderTeacherGrid(scheduleMap) {
             if (isMint) bgStyle = "background-color: #6ee7b7 !important;";
             else if (isChanged) bgStyle = "background-color: #d8b4fe !important;";
 
-            // 잔상 없이 실제 수업 내용 또는 '-'만 출력
             html += `<td class="py-3.5 sm:py-4 border-r border-slate-200 font-bold text-center text-indigo-900" style="${bgStyle}">
                         ${text || '-'}
                      </td>`;
@@ -367,7 +479,6 @@ function renderClassGrid(scheduleMap) {
             if (isMint) bgStyle = "background-color: #6ee7b7 !important;";
             else if (isChanged) bgStyle = "background-color: #d8b4fe !important;";
 
-            // 잔상 없이 실제 수업 내용 또는 '-'만 출력
             html += `<td class="py-3.5 sm:py-4 border-r border-slate-200 font-bold text-center text-sky-900" style="${bgStyle}">
                         ${text || '-'}
                      </td>`;
