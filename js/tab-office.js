@@ -497,7 +497,7 @@ async function fetchMeal() {
     listDiv.innerHTML = "데이터 조회 중...";
     const dateStr = dateInput.replace(/-/g, '');
     const ATPT_OFCDC_SC_CODE = 'E10'; 
-    const SD_SCHUL_CODE = '7331078';  
+    const SD_SCHUL_CODE = '7331057';  
 
     try {
         const res = await fetch(`https://open.neis.go.kr/hub/mealServiceDietInfo?KEY=4095db6a1ff547ecae2ce3dbf074d9e9&Type=json&ATPT_OFCDC_SC_CODE=${ATPT_OFCDC_SC_CODE}&SD_SCHUL_CODE=${SD_SCHUL_CODE}&MLSV_YMD=${dateStr}`);
