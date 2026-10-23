@@ -25,7 +25,6 @@ let currentTeacherBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
 let currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
 let activeBaseModalType = null; 
 
-// 🎯 이벤트(민트색) 과목 필터링 키워드
 const eventKeywords = ['자치', '동아', '봉사', '진로'];
 
 export function initOfficeTab(currentUser) {
@@ -75,7 +74,6 @@ export function initOfficeTab(currentUser) {
     document.getElementById('closeClassSelectModalBtn')?.addEventListener('click', () => document.getElementById('classSelectModal').classList.add('hidden'));
 
     const baseModal = document.getElementById('baseTimetableModal');
-    const baseInputBody = document.getElementById('baseTimetableInputBody');
     
     document.getElementById('openTeacherBaseBtn')?.addEventListener('click', () => {
         activeBaseModalType = 'teacher';
@@ -117,7 +115,7 @@ export function initOfficeTab(currentUser) {
             renderTeacherTimetable();
             renderClassTimetable();
         } catch (e) {
-            alert("저장 중 오류가 발생했습니다. 파이어베이스 권한을 확인해주세요.");
+            alert("저장 중 오류가 발생했습니다.");
         }
     });
 
@@ -171,9 +169,7 @@ function renderBaseTimetableInputGrid(dataMatrix) {
     }
 }
 
-// 🎯 파이어베이스 데이터 로딩과 컴시간 로딩을 완벽히 분리
 async function loadBaseTimetablesAndRender() {
-    // 1. 파이어베이스 기본 시간표 가져오기 (실패해도 컴시간은 돌아가야 함)
     try {
         const tSnap = await getDoc(doc(db, "base_timetables", `teacher_${officeState.selectedTeacher.short}`));
         if (tSnap.exists() && tSnap.data().matrix) currentTeacherBaseTimetable = tSnap.data().matrix;
@@ -183,26 +179,50 @@ async function loadBaseTimetablesAndRender() {
         if (cSnap.exists() && cSnap.data().matrix) currentClassBaseTimetable = cSnap.data().matrix;
         else currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
     } catch(e) {
-        console.warn("DB 권한 또는 네트워크 문제로 기본 시간표를 가져오지 못했습니다.", e);
         currentTeacherBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
         currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
     }
     
-    // 2. 컴시간 데이터 가져오기 (무조건 실행)
-    await fetchComciData();
+    // 파이어베이스 1일 1회 백엔드 캐시 로직 실행
+    await fetchComciDataWithDailyCache();
     
-    // 3. 렌더링
     renderTeacherTimetable();
     renderClassTimetable();
 }
 
-async function fetchComciData() {
+// 🎯 핵심 로직: 파이어베이스 백엔드 1일 1회 캐싱
+async function fetchComciDataWithDailyCache() {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    // 1단계: 오늘 날짜로 이미 저장된 파이어베이스 캐시가 있는지 확인
+    try {
+        const cacheSnap = await getDoc(doc(db, "comci_daily_cache", todayStr));
+        if (cacheSnap.exists() && cacheSnap.data().payload) {
+            scData = cacheSnap.data().payload;
+            return; // 캐시가 있으면 외부 API를 절대 호출하지 않음!
+        }
+    } catch (err) {
+        console.warn("파이어베이스 캐시 확인 실패:", err);
+    }
+
+    // 2단계: 오늘 캐시가 없을 때만 아침 첫 접속자 1명이 1회 외부 조회 시도
     try {
         const res = await fetch(`https://comci.kro.kr/api/GET/${schoolCode}`);
-        if (!res.ok) throw new Error();
-        scData = await res.json();
-    } catch(e) {
-        scData = null; 
+        if (!res.ok) throw new Error("네트워크 응답 오류");
+        const fetched = await res.json();
+        
+        if (fetched && fetched.성명) {
+            scData = fetched;
+            // 다음 접속자들을 위해 파이어베이스에 당일 데이터로 저장
+            await setDoc(doc(db, "comci_daily_cache", todayStr), {
+                payload: fetched,
+                cachedAt: new Date().toISOString()
+            });
+        }
+    } catch (e) {
+        console.warn("외부 컴시간 API 연결 불가 (안전 모드로 전환):", e);
+        scData = null; // 실패해도 플랫폼 다운 방지
     }
 }
 
@@ -232,14 +252,15 @@ function renderTeacherTimetable() {
     if(!tbody) return;
     tbody.innerHTML = '';
     
+    // 🎯 외부 서버 연결 실패 시: 등록된 기본 시간표를 대신 띄워 안전하게 방어
     if(!scData) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-10 text-slate-400 font-bold bg-slate-50 rounded-xl">⚠️ 컴시간 서버 응답 지연/오류입니다. 잠시 후 다시 시도해주세요.</td></tr>`;
+        renderTeacherFallbackTimetable(tbody);
         return;
     }
 
     const tIdx = scData.성명.indexOf(officeState.selectedTeacher.short);
     if(tIdx === -1) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-10 text-slate-400">해당 교사의 시간표 정보가 없습니다.</td></tr>`;
+        renderTeacherFallbackTimetable(tbody);
         return;
     }
 
@@ -265,7 +286,6 @@ function renderTeacherTimetable() {
                         if (tId === tIdx) {
                             const subjectName = scData.지명[parseInt(String(code).slice(0, -2), 10)] || "";
                             
-                            // 🎯 '포함' 여부로 이벤트 확실히 감지
                             if (eventKeywords.some(k => subjectName.includes(k))) {
                                 isMintEvent = true;
                             }
@@ -300,8 +320,9 @@ function renderClassTimetable() {
     if(!tbody) return;
     tbody.innerHTML = '';
     
+    // 🎯 외부 서버 연결 실패 시: 등록된 기본 시간표를 대신 띄워 안전하게 방어
     if(!scData) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-10 text-slate-400 font-bold bg-slate-50 rounded-xl">⚠️ 컴시간 서버 응답 지연/오류입니다. 잠시 후 다시 시도해주세요.</td></tr>`;
+        renderClassFallbackTimetable(tbody);
         return;
     }
 
@@ -309,7 +330,7 @@ function renderClassTimetable() {
     const c = officeState.selectedClassNum;
     const wData = officeState.isNextWeek ? scData.자료481 : scData.자료481;
     if(!wData || !wData[g] || !wData[g][c]) {
-        tbody.innerHTML = `<tr><td colspan="6" class="py-10 text-slate-400">시간표 정보가 없습니다.</td></tr>`;
+        renderClassFallbackTimetable(tbody);
         return;
     }
 
@@ -327,7 +348,6 @@ function renderClassTimetable() {
                 let isChanged = false;
                 let isMintEvent = false;
                 
-                // 🎯 '포함' 여부로 이벤트 확실히 감지
                 if (eventKeywords.some(k => subjectName.includes(k))) {
                     isMintEvent = true;
                 }
@@ -346,6 +366,35 @@ function renderClassTimetable() {
             } else {
                 html += `<td class="border-r border-slate-200 font-bold text-slate-300">-</td>`;
             }
+        }
+        tr.innerHTML = html;
+        tbody.appendChild(tr);
+    }
+}
+
+// 🎯 외부 통신 에러 시 기본 시간표로 자연스럽게 채워주는 폴백 렌더러
+function renderTeacherFallbackTimetable(tbody) {
+    for (let period = 1; period <= 7; period++) {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition-colors";
+        let html = `<td class="py-3 sm:py-4 border-r border-slate-200 font-bold bg-slate-50">${period}교시</td>`;
+        for (let day = 1; day <= 5; day++) {
+            const val = currentTeacherBaseTimetable[period - 1][day - 1] || '-';
+            html += `<td class="border-r border-slate-200 font-bold ${val !== '-' ? 'text-indigo-700' : 'text-slate-300'}">${val}</td>`;
+        }
+        tr.innerHTML = html;
+        tbody.appendChild(tr);
+    }
+}
+
+function renderClassFallbackTimetable(tbody) {
+    for (let period = 1; period <= 7; period++) {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition-colors";
+        let html = `<td class="py-3 sm:py-4 border-r border-slate-200 font-bold bg-slate-50">${period}교시</td>`;
+        for (let day = 1; day <= 5; day++) {
+            const val = currentClassBaseTimetable[period - 1][day - 1] || '-';
+            html += `<td class="border-r border-slate-200 font-bold ${val !== '-' ? 'text-sky-700' : 'text-slate-300'}">${val}</td>`;
         }
         tr.innerHTML = html;
         tbody.appendChild(tr);
