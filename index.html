@@ -8,6 +8,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- 🎯 엑셀, HWPX(압축), 폭죽 효과를 위한 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
     <script>
         tailwind.config = { theme: { extend: { colors: { primary: '#0284c7', secondary: '#0d9488', mint: '#14b8a6', lightbg: '#f8fafc' }, fontFamily: { sans: ['Noto Sans KR', 'sans-serif'] } } } }
     </script>
@@ -86,25 +92,85 @@
             </main>
         </div>
 
-        <!-- 🔒 1-7반 연락망 -->
+        <!-- 🔒 1-7반 (연락망 & 자리배치) -->
         <div id="tabContentHomeroom" class="tab-view-content hidden">
-            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
-                <section class="bg-gradient-to-r from-rose-500 to-orange-400 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center flex-wrap gap-4">
-                    <div>
-                        <span class="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-bold">🔒 담임 전용</span>
-                        <h2 class="text-2xl font-extrabold mt-2">1학년 7반 비상연락망</h2>
-                        <p class="text-sm mt-1 text-rose-100">엑셀/한글 등의 표 전체를 복사해서 바로 붙여넣어 보세요.</p>
+            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
+                <!-- 🎯 하위 탭 메뉴 추가 -->
+                <div class="flex gap-2 mb-2 bg-slate-100 p-1 rounded-2xl w-fit">
+                    <button id="homeroomSubTabContacts" class="px-4 py-2 text-sm font-bold bg-white text-rose-600 rounded-xl shadow-sm transition-all"><i class="fa-solid fa-address-book mr-1"></i> 비상연락망</button>
+                    <button id="homeroomSubTabSeating" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all"><i class="fa-solid fa-chair mr-1"></i> 자리 바꾸기</button>
+                </div>
+
+                <!-- (1) 비상연락망 섹션 -->
+                <div id="homeroomSectionContacts">
+                    <section class="bg-gradient-to-r from-rose-500 to-orange-400 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center flex-wrap gap-4 mb-6">
+                        <div>
+                            <span class="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-bold">🔒 담임 전용</span>
+                            <h2 class="text-2xl font-extrabold mt-2">1학년 7반 비상연락망</h2>
+                            <p class="text-sm mt-1 text-rose-100">엑셀/한글 등의 표 전체를 복사해서 바로 붙여넣어 보세요.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button id="deleteAllContactsBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors"><i class="fa-solid fa-trash-can"></i> 전체 삭제</button>
+                            <button id="openBulkPasteModalBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors"><i class="fa-solid fa-paste"></i> 여러 명 붙여넣기</button>
+                            <button id="openNewContactModalBtn" class="bg-white text-rose-600 hover:bg-rose-50 font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-colors"><i class="fa-solid fa-user-plus"></i> 직접 추가</button>
+                        </div>
+                    </section>
+                    <div id="contactGridContainer" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 sm:gap-3"></div>
+                </div>
+
+                <!-- (2) 자리 바꾸기 섹션 (신규) -->
+                <div id="homeroomSectionSeating" class="hidden space-y-6">
+                    <section class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <span class="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-bold">🪑 자리 배치 자동화</span>
+                            <h2 class="text-2xl font-extrabold mt-2">랜덤 자리 뽑기</h2>
+                            <p class="text-sm mt-1 text-indigo-100">회색으로 비활성화된 자리는 제외하고, 명단에 있는 학생들을 무작위 배치합니다.</p>
+                        </div>
+                        <div class="flex flex-col gap-2 w-full md:w-auto">
+                            <div class="flex gap-2 items-center bg-white/10 p-2 rounded-xl">
+                                <label class="text-xs font-bold whitespace-nowrap">결석/제외자 선택:</label>
+                                <div id="excludeStudentList" class="flex gap-1 overflow-x-auto max-w-[200px] sm:max-w-xs custom-scrollbar pb-1">
+                                    <!-- 체크박스로 렌더링 됨 -->
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <label class="flex-1 bg-white/20 hover:bg-white/30 cursor-pointer text-white font-bold text-xs px-3.5 py-2.5 rounded-xl text-center transition-colors flex items-center justify-center gap-1.5">
+                                    <input type="checkbox" id="skipAnimationCheckbox" class="w-3.5 h-3.5 rounded"> 애니메이션 끄기
+                                </label>
+                                <button id="startSeatingBtn" class="flex-1 bg-white text-indigo-600 hover:bg-indigo-50 font-extrabold text-sm px-5 py-2.5 rounded-xl shadow-lg transition-colors"><i class="fa-solid fa-play"></i> 자리 뽑기</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+                        <div class="flex justify-between items-center mb-6">
+                            <p class="text-xs text-slate-500 font-bold"><i class="fa-solid fa-hand-pointer"></i> 6열 배치입니다. 안 쓰는 빈자리(비품 공간 등)는 클릭해서 <span class="bg-slate-200 px-1 rounded text-slate-400">회색</span>으로 만들어 제외하세요.</p>
+                            
+                            <!-- HWPX 파일 등록 및 저장 버튼 -->
+                            <div class="flex items-center gap-2">
+                                <label for="hwpxTemplateInput" class="cursor-pointer text-[11px] font-bold bg-slate-100 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-200 border border-slate-200 transition-colors">
+                                    <i class="fa-solid fa-file-arrow-up"></i> 양식 등록(.hwpx)
+                                </label>
+                                <input type="file" id="hwpxTemplateInput" accept=".hwpx" class="hidden">
+                                <button id="downloadHwpxBtn" class="hidden text-[11px] font-bold bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
+                                    <i class="fa-solid fa-download"></i> HWPX로 저장
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 6x6 그리드 (총 36석) -->
+                        <div id="seatingGrid" class="grid grid-cols-6 gap-2 sm:gap-3 max-w-3xl mx-auto mb-8">
+                            <!-- JS에서 36개의 칸 렌더링 -->
+                        </div>
+
+                        <!-- 교탁 (비밀 스위치 포함) -->
+                        <div class="flex justify-center border-t-2 border-dashed border-slate-200 pt-6">
+                            <button id="teacherDeskBtn" class="bg-amber-100 border-2 border-amber-300 text-amber-800 font-extrabold text-lg px-20 py-4 rounded-xl shadow-sm hover:bg-amber-200 transition-colors cursor-default select-none">
+                                교 탁
+                            </button>
+                        </div>
                     </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <button id="deleteAllContactsBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors"><i class="fa-solid fa-trash-can"></i> 전체 삭제</button>
-                        <button id="openBulkPasteModalBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors"><i class="fa-solid fa-paste"></i> 여러 명 붙여넣기</button>
-                        <button id="openNewContactModalBtn" class="bg-white text-rose-600 hover:bg-rose-50 font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-colors"><i class="fa-solid fa-user-plus"></i> 직접 추가</button>
-                    </div>
-                </section>
-                
-                <!-- 🎯 가로 4열이 무조건 확보되도록 grid-cols-4 및 gap 최소화 적용 -->
-                <div id="contactGridContainer" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 sm:gap-3"></div>
-                
+                </div>
             </main>
         </div>
 
@@ -141,64 +207,23 @@
         </div>
     </div>
 
-    <!-- 🎯 모달: 학생 연락처 상세 및 편집 (학부모 1, 2 버튼 완벽 분리 반영) -->
-    <div id="contactModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl relative space-y-6">
-            <button id="closeContactModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
-            <div class="text-center border-b border-slate-100 pb-4">
-                <span id="contactModalNumber" class="text-rose-500 font-bold text-lg mr-1"></span>
-                <span id="contactModalName" class="text-2xl font-extrabold text-slate-800"></span>
-            </div>
-            
-            <!-- 읽기 모드 (버튼 뷰) -->
-            <div id="contactViewMode" class="space-y-3">
-                <a id="callStudentBtn" href="#" class="flex items-center justify-center gap-2 w-full bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-sky-200 shadow-sm">
-                    <i class="fa-solid fa-mobile-screen text-lg"></i> <span id="callStudentText">학생 본인</span>
-                </a>
-                <div class="grid grid-cols-2 gap-2">
-                    <a id="callParentBtn" href="#" class="flex items-center justify-center gap-1.5 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3.5 rounded-2xl transition-colors text-xs sm:text-sm border border-emerald-200 shadow-sm">
-                        <i class="fa-solid fa-phone text-base"></i> <span id="callParentText">학부모 1</span>
-                    </a>
-                    <a id="callParent2Btn" href="#" class="flex items-center justify-center gap-1.5 w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-3.5 rounded-2xl transition-colors text-xs sm:text-sm border border-amber-200 shadow-sm">
-                        <i class="fa-solid fa-phone text-base"></i> <span id="callParent2Text">학부모 2</span>
-                    </a>
-                </div>
-                <div class="pt-4 flex justify-between">
-                    <button id="deleteContactBtn" class="text-xs text-slate-400 hover:text-rose-500 underline">개별 삭제</button>
-                    <button id="editContactModeBtn" class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg">연락처 수정</button>
-                </div>
-            </div>
+    <div id="contactModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4"><div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl relative space-y-6"><button id="closeContactModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button><div class="text-center border-b border-slate-100 pb-4"><span id="contactModalNumber" class="text-rose-500 font-bold text-lg mr-1"></span><span id="contactModalName" class="text-2xl font-extrabold text-slate-800"></span></div><div id="contactViewMode" class="space-y-3"><a id="callStudentBtn" href="#" class="flex items-center justify-center gap-2 w-full bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-sky-200 shadow-sm"><i class="fa-solid fa-mobile-screen text-lg"></i> <span id="callStudentText">학생 연결</span></a><div class="grid grid-cols-2 gap-2"><a id="callParentBtn" href="#" class="flex items-center justify-center gap-1.5 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3.5 rounded-2xl transition-colors text-xs sm:text-sm border border-emerald-200 shadow-sm"><i class="fa-solid fa-phone text-base"></i> <span id="callParentText">학부모 1</span></a><a id="callParent2Btn" href="#" class="flex items-center justify-center gap-1.5 w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-3.5 rounded-2xl transition-colors text-xs sm:text-sm border border-amber-200 shadow-sm"><i class="fa-solid fa-phone text-base"></i> <span id="callParent2Text">학부모 2</span></a></div><div class="pt-4 flex justify-between"><button id="deleteContactBtn" class="text-xs text-slate-400 hover:text-rose-500 underline">개별 삭제</button><button id="editContactModeBtn" class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg">연락처 수정</button></div></div><div id="contactEditMode" class="hidden space-y-4"><input type="hidden" id="editContactId"><div class="grid grid-cols-3 gap-2"><input type="number" id="contactNumInput" placeholder="번호" required class="col-span-1 text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center font-bold"><input type="text" id="contactNameInput" placeholder="학생 이름" required class="col-span-2 text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold"></div><div><label class="text-xs text-slate-500 ml-1">학생 전화번호</label><input type="tel" id="contactStudentPhone" placeholder="010-0000-0000" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 mt-1"></div><div class="grid grid-cols-2 gap-2"><div><label class="text-[10px] sm:text-xs text-slate-500 ml-1">학부모 1 번호</label><input type="tel" id="contactParentPhone" placeholder="010-0000-0000" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 mt-1"></div><div><label class="text-[10px] sm:text-xs text-slate-500 ml-1">학부모 2 번호</label><input type="tel" id="contactParent2Phone" placeholder="선택사항" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 mt-1"></div></div><div class="flex gap-2 pt-2"><button id="cancelContactEditBtn" class="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl text-sm">취소</button><button id="saveContactBtn" class="flex-1 bg-rose-500 text-white font-bold py-2.5 rounded-xl text-sm shadow-sm">저장</button></div></div></div></div>
 
-            <!-- 편집 모드 (입력 뷰) -->
-            <div id="contactEditMode" class="hidden space-y-4">
-                <input type="hidden" id="editContactId">
-                <div class="grid grid-cols-3 gap-2">
-                    <input type="number" id="contactNumInput" placeholder="번호" required class="col-span-1 text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center font-bold">
-                    <input type="text" id="contactNameInput" placeholder="학생 이름" required class="col-span-2 text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold">
-                </div>
-                <div>
-                    <label class="text-xs text-slate-500 ml-1">학생 전화번호</label>
-                    <input type="tel" id="contactStudentPhone" placeholder="010-0000-0000" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 mt-1">
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="text-[10px] sm:text-xs text-slate-500 ml-1">학부모 1 번호</label>
-                        <input type="tel" id="contactParentPhone" placeholder="010-0000-0000" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 mt-1">
-                    </div>
-                    <div>
-                        <label class="text-[10px] sm:text-xs text-slate-500 ml-1">학부모 2 번호</label>
-                        <input type="tel" id="contactParent2Phone" placeholder="선택사항" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 mt-1">
-                    </div>
-                </div>
-                <div class="flex gap-2 pt-2">
-                    <button id="cancelContactEditBtn" class="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl text-sm">취소</button>
-                    <button id="saveContactBtn" class="flex-1 bg-rose-500 text-white font-bold py-2.5 rounded-xl text-sm shadow-sm">저장</button>
-                </div>
+    <!-- 🎯 모달: 비밀 스위치 (기피 조합 설정) -->
+    <div id="antiPairModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl relative space-y-4">
+            <button id="closeAntiPairModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+            <div class="text-center border-b border-slate-100 pb-3">
+                <i class="fa-solid fa-user-ninja text-3xl text-indigo-500 mb-2"></i>
+                <h3 class="text-lg font-bold text-slate-800">비밀 설정: 기피 조합</h3>
+                <p class="text-[11px] text-slate-500 mt-1">서로 상하좌우에 앉으면 안 되는 학생 번호를 짝지어주세요.<br>(콤마로 구분, 엔터로 줄바꿈)</p>
             </div>
+            <textarea id="antiPairTextarea" rows="4" placeholder="예시)&#10;3, 7&#10;12, 15&#10;1, 5" class="w-full text-sm p-3.5 bg-slate-50 rounded-2xl border border-slate-200 font-mono"></textarea>
+            <button id="saveAntiPairBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors">몰래 저장하기</button>
         </div>
     </div>
 
-    <!-- 기타 모달 -->
+    <!-- 기타 수업/업무 관련 모달들 (생략 없이 유지) -->
     <div id="lessonModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4"><div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto"><button id="closeLessonModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl"><i class="fa-solid fa-xmark"></i></button><h3 class="text-xl font-bold">새 수업 자료</h3><form id="lessonForm" class="space-y-3.5"><input type="hidden" id="editLessonId"><div class="grid grid-cols-2 gap-3"><select id="lessonUnitSelect" class="text-xs p-2.5 rounded-xl border"><option value="unit1">1단원</option><option value="unit2">2단원</option><option value="unit3">3단원</option><option value="unit4">4단원</option><option value="unit5">5단원</option></select><input type="text" id="lessonNumInput" placeholder="차시" class="text-xs p-2.5 rounded-xl border"></div><input type="text" id="lessonTitleInput" placeholder="제목" required class="w-full text-xs p-2.5 rounded-xl border font-bold"><input type="text" id="lessonSummaryInput" placeholder="요약" required class="w-full text-xs p-2.5 rounded-xl border"><input type="url" id="lessonCoverInput" placeholder="커버 이미지 URL" class="w-full text-xs p-2.5 rounded-xl border"><textarea id="lessonContentInput" rows="6" placeholder="본문 (Ctrl+V 이미지 첨부 지원)" class="w-full text-xs p-3 rounded-xl border font-mono"></textarea><div class="flex items-center gap-2 p-3 bg-slate-50 rounded-xl"><input type="checkbox" id="lessonVisibilityCheckbox" checked class="w-4 h-4 text-sky-600"><label class="text-xs">학생 공개</label></div><div class="flex justify-end gap-2"><button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-teal-600 rounded-xl">저장</button></div></form></div></div>
     <div id="taskModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4"><div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto"><button id="closeTaskModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl"><i class="fa-solid fa-xmark"></i></button><h3 class="text-xl font-bold">새 정보 업무</h3><form id="taskForm" class="space-y-3.5"><input type="hidden" id="editTaskId"><div class="grid grid-cols-2 gap-3"><select id="taskCatSelect" class="text-xs p-2.5 rounded-xl border"><option value="devices">💻 계정 및 기기</option><option value="network">🌐 네트워크/서버</option><option value="privacy">🛡️ 보안점검</option><option value="software">🔑 SW관리자</option><option value="disposal">📊 행정/공시</option></select><select id="taskStatusSelect" class="text-xs p-2.5 rounded-xl border font-bold"><option value="todo">⏳ 대기</option><option value="doing">🚀 진행</option><option value="done">✅ 완료</option></select></div><input type="text" id="taskTitleInput" placeholder="업무명" required class="w-full text-xs p-2.5 rounded-xl border font-bold"><input type="text" id="taskSummaryInput" placeholder="요약" required class="w-full text-xs p-2.5 rounded-xl border"><textarea id="taskContentInput" rows="6" placeholder="본문 (Ctrl+V 이미지 첨부 지원)" class="w-full text-xs p-3 rounded-xl border font-mono"></textarea><div class="flex justify-end gap-2"><button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 rounded-xl">저장</button></div></form></div></div>
     <div id="teacherSelectModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4"><div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4"><div class="flex justify-between items-center border-b pb-2"><h3 class="font-bold text-slate-800 text-sm">교사 선택</h3><button id="closeTeacherSelectModalBtn" class="text-slate-400"><i class="fa-solid fa-xmark"></i></button></div><div id="modalTeacherList" class="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-80 overflow-y-auto text-xs p-1"></div></div></div>
