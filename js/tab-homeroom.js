@@ -6,7 +6,8 @@ export let homeroomState = {
     classNum: 7,
     contacts: [],
     excludedStudentNums: new Set(),
-    seatingSeats: [], // 30석
+    seatingRows: parseInt(localStorage.getItem('seating_rows'), 10) || 6, // 기본 6줄(36석)
+    seatingSeats: [],
     antiPairs: [],
     cleaningData: Array(6).fill().map(() => Array(5).fill(null)), // 6구역 x 5조
     currentCleaningSlot: null
@@ -50,8 +51,9 @@ export function switchHomeroomSubTab(tabName) {
     } else if (tabName === 'seating') {
         if (tabSeating) tabSeating.className = "px-4 py-2 text-sm font-bold bg-white text-indigo-600 rounded-xl shadow-sm transition-all";
         if (secSeating) secSeating.classList.remove('hidden');
-        initSeatingGrid();
+        renderSeatingDesks();
         renderExcludeStudentList();
+        updateSeatingDimensionUI();
     } else if (tabName === 'cleaning') {
         if (tabCleaning) tabCleaning.className = "px-4 py-2 text-sm font-bold bg-white text-emerald-600 rounded-xl shadow-sm transition-all";
         if (secCleaning) secCleaning.classList.remove('hidden');
@@ -59,7 +61,7 @@ export function switchHomeroomSubTab(tabName) {
     }
 }
 
-// 초기화 함수
+// 🎯 초기화 함수 (선생님 로그인 계정 ID 연동)
 export async function initHomeroomTab(currentUser) {
     if (currentUser && currentUser.uid) {
         homeroomState.userId = currentUser.uid;
@@ -76,7 +78,7 @@ export async function initHomeroomTab(currentUser) {
     await loadHomeroomData();
 }
 
-// 학급 변경 함수
+// 🎯 학급 변경 함수 (1-7반, 1-8반 전환 시 상태 완전 분리 및 독립 로드)
 export function updateHomeroomClass(gradeOrObj, classNum) {
     let g, c;
     if (typeof gradeOrObj === 'object' && gradeOrObj !== null) {
@@ -98,6 +100,13 @@ export function updateHomeroomClass(gradeOrObj, classNum) {
         homeroomState.classNum = parsedC;
         localStorage.setItem('office_class', parsedC);
     }
+
+    // 🎯 학급 변경 시 메모리 잔상 완전 초기화
+    homeroomState.contacts = [];
+    homeroomState.cleaningData = Array(6).fill().map(() => Array(5).fill(null));
+    homeroomState.antiPairs = [];
+    homeroomState.seatingSeats = [];
+    homeroomState.excludedStudentNums.clear();
 
     updateHomeroomHeaders();
     setupAllModules();
@@ -131,7 +140,7 @@ function setupSubTabs() {
 }
 
 /* ==========================================================================
-   스마트 통합 데이터 로드 (과거 모든 키를 뒤져서 복원)
+   스마트 통합 데이터 로드 (아이디 + 학년/반 독립 조회)
    ========================================================================== */
 async function loadHomeroomData() {
     const g = homeroomState.grade;
@@ -145,7 +154,7 @@ async function loadHomeroomData() {
         `${g}-${c}`
     ];
 
-    // 1) 비상연락망 복구 로드
+    // 1) 비상연락망 로드
     let loadedContacts = null;
     for (const key of candidateKeys) {
         const local = localStorage.getItem(`contacts_${key}`);
@@ -177,7 +186,7 @@ async function loadHomeroomData() {
     renderContactGrid();
     renderExcludeStudentList();
 
-    // 2) 청소 구역 복구 로드
+    // 2) 청소 구역 로드
     let loadedCleaning = null;
     for (const key of candidateKeys) {
         const local = localStorage.getItem(`cleaning_grid_${key}`);
@@ -200,7 +209,7 @@ async function loadHomeroomData() {
     }
     renderCleaningGrid();
 
-    // 3) 기피 조합 복구 로드
+    // 3) 기피 조합 로드
     for (const key of candidateKeys) {
         const local = localStorage.getItem(`anti_pairs_${key}`);
         if (local) {
@@ -217,11 +226,39 @@ async function loadHomeroomData() {
         } catch (e) {}
     }
 
-    initSeatingGrid();
+    // 🎯 4) 자리배치 결과 DB 복구 로드 (아이디 + 학년/반 독립 조회)
+    let loadedSeating = null;
+    for (const key of candidateKeys) {
+        const local = localStorage.getItem(`seating_${key}`);
+        if (local) {
+            try { loadedSeating = JSON.parse(local); break; } catch(e){}
+        }
+    }
+    for (const key of candidateKeys) {
+        try {
+            const snap = await getDoc(doc(db, "homeroom_seating", key));
+            if (snap.exists() && snap.data().seats) {
+                loadedSeating = snap.data();
+                break;
+            }
+        } catch (e) {}
+    }
+
+    if (loadedSeating && Array.isArray(loadedSeating.seats) && loadedSeating.seats.length > 0) {
+        homeroomState.seatingRows = loadedSeating.rows || 6;
+        homeroomState.seatingSeats = loadedSeating.seats;
+        localStorage.setItem('seating_rows', homeroomState.seatingRows);
+        localStorage.setItem(`seating_${uid}_${g}_${c}`, JSON.stringify(loadedSeating));
+        updateSeatingDimensionUI();
+        renderSeatingDesks();
+    } else {
+        initSeatingGrid(false);
+        updateSeatingDimensionUI();
+    }
 }
 
 /* ==========================================================================
-   청소 구역 모듈 (학생 번호/이름 배지 즉시 표시)
+   청소 구역 모듈
    ========================================================================== */
 function setupCleaningModule() {
     const modal = document.getElementById('cleaningStudentSelectModal');
@@ -336,7 +373,7 @@ window.openCleaningSelectModal = function(row, col) {
 
     const list = homeroomState.contacts.length > 0 
         ? homeroomState.contacts 
-        : Array.from({ length: 30 }, (_, i) => ({ num: i + 1, name: `${i + 1}번 학생` }));
+        : Array.from({ length: 36 }, (_, i) => ({ num: i + 1, name: `${i + 1}번 학생` }));
 
     list.forEach(s => {
         const btn = document.createElement('button');
@@ -370,17 +407,9 @@ async function saveCleaningData() {
     const key = `${uid}_${g}_${c}`;
 
     localStorage.setItem(`cleaning_grid_${key}`, JSON.stringify(homeroomState.cleaningData));
-    localStorage.setItem(`cleaning_grid_${g}_${c}`, JSON.stringify(homeroomState.cleaningData));
 
     try {
         await setDoc(doc(db, "homeroom_cleaning", key), {
-            userId: uid,
-            grade: g,
-            classNum: c,
-            grid: homeroomState.cleaningData,
-            updatedAt: new Date().toISOString()
-        });
-        await setDoc(doc(db, "homeroom_cleaning", `${g}_${c}`), {
             userId: uid,
             grade: g,
             classNum: c,
@@ -420,7 +449,7 @@ async function downloadCleaningHwpx() {
 }
 
 /* ==========================================================================
-   🎯 스마트 학생 목록 파서 (행 단위 & 웹 표 복사 스트림 양방향 지원)
+   스마트 학생 목록 파서
    ========================================================================== */
 function parseBulkStudentText(rawText) {
     if (!rawText || !rawText.trim()) return [];
@@ -431,7 +460,6 @@ function parseBulkStudentText(rawText) {
 
     const headerKeywords = ['성명', '학생명', '전화번호', '핸드폰', '보호자', '학부모', '집전화', '연락처', '비고'];
 
-    // 번호 표준화 도우미
     const extractStdPhones = (str) => {
         const matches = str.match(/01[0-9][-\s\.]?[0-9]{3,4}[-\s\.]?[0-9]{4}/g) || [];
         return matches.map(p => {
@@ -442,10 +470,8 @@ function parseBulkStudentText(rawText) {
         });
     };
 
-    // 🎯 방법 1: 일반 행 단위 파싱 (탭, 콤마, 세미콜론, 공백 구분)
     const rowParsed = [];
     lines.forEach((line, idx) => {
-        // 제목행 스킵
         if (headerKeywords.some(k => line.includes(k)) && idx <= 1) return;
 
         let tokens = [];
@@ -492,7 +518,6 @@ function parseBulkStudentText(rawText) {
 
     if (rowParsed.length > 0) return rowParsed;
 
-    // 🎯 방법 2: 웹 표 복사 스트림 파싱 (셀마다 줄바꿈으로 분리되어 들어온 경우)
     const allTokens = [];
     lines.forEach(l => {
         const parts = l.split(/[\t,]+|\s{2,}/).map(t => t.trim()).filter(Boolean);
@@ -508,7 +533,6 @@ function parseBulkStudentText(rawText) {
             continue;
         }
 
-        // 번호 감지
         if (/^\d{1,4}$/.test(tok)) {
             const num = parseInt(tok, 10);
             if (i + 1 < allTokens.length) {
@@ -569,17 +593,9 @@ export async function handleSaveBulkPaste() {
     const uid = homeroomState.userId;
 
     localStorage.setItem(`contacts_${uid}_${g}_${c}`, JSON.stringify(parsed));
-    localStorage.setItem(`contacts_${g}_${c}`, JSON.stringify(parsed));
 
     try {
         await setDoc(doc(db, "homeroom_contacts", `${uid}_${g}_${c}`), {
-            userId: uid,
-            grade: g,
-            classNum: c,
-            list: parsed,
-            updatedAt: new Date().toISOString()
-        });
-        await setDoc(doc(db, "homeroom_contacts", `${g}_${c}`), {
             userId: uid,
             grade: g,
             classNum: c,
@@ -616,11 +632,9 @@ function setupContactsModule() {
             const uid = homeroomState.userId;
 
             localStorage.removeItem(`contacts_${uid}_${g}_${c}`);
-            localStorage.removeItem(`contacts_${g}_${c}`);
 
             try {
                 await setDoc(doc(db, "homeroom_contacts", `${uid}_${g}_${c}`), { list: [] });
-                await setDoc(doc(db, "homeroom_contacts", `${g}_${c}`), { list: [] });
             } catch (e) {}
         };
     }
@@ -698,17 +712,9 @@ function setupContactsModule() {
             const uid = homeroomState.userId;
 
             localStorage.setItem(`contacts_${uid}_${g}_${c}`, JSON.stringify(homeroomState.contacts));
-            localStorage.setItem(`contacts_${g}_${c}`, JSON.stringify(homeroomState.contacts));
 
             try {
                 await setDoc(doc(db, "homeroom_contacts", `${uid}_${g}_${c}`), {
-                    userId: uid,
-                    grade: g,
-                    classNum: c,
-                    list: homeroomState.contacts,
-                    updatedAt: new Date().toISOString()
-                });
-                await setDoc(doc(db, "homeroom_contacts", `${g}_${c}`), {
                     userId: uid,
                     grade: g,
                     classNum: c,
@@ -735,17 +741,9 @@ function setupContactsModule() {
             const uid = homeroomState.userId;
 
             localStorage.setItem(`contacts_${uid}_${g}_${c}`, JSON.stringify(homeroomState.contacts));
-            localStorage.setItem(`contacts_${g}_${c}`, JSON.stringify(homeroomState.contacts));
 
             try {
                 await setDoc(doc(db, "homeroom_contacts", `${uid}_${g}_${c}`), {
-                    userId: uid,
-                    grade: g,
-                    classNum: c,
-                    list: homeroomState.contacts,
-                    updatedAt: new Date().toISOString()
-                });
-                await setDoc(doc(db, "homeroom_contacts", `${g}_${c}`), {
                     userId: uid,
                     grade: g,
                     classNum: c,
@@ -832,7 +830,7 @@ function openContactEditMode(contact) {
 }
 
 /* ==========================================================================
-   자리 바꾸기 모듈
+   🎯 자리 바꾸기 모듈 (초기화 + DB 영구 저장 + 줄 증감 지원)
    ========================================================================== */
 function setupSeatingModule() {
     const deskBtn = document.getElementById('teacherDeskBtn');
@@ -870,16 +868,9 @@ function setupSeatingModule() {
             const uid = homeroomState.userId;
 
             localStorage.setItem(`anti_pairs_${uid}_${g}_${c}`, JSON.stringify(pairs));
-            localStorage.setItem(`anti_pairs_${g}_${c}`, JSON.stringify(pairs));
 
             try {
                 await setDoc(doc(db, "homeroom_anti_pairs", `${uid}_${g}_${c}`), {
-                    userId: uid,
-                    grade: g,
-                    classNum: c,
-                    pairs: pairs
-                });
-                await setDoc(doc(db, "homeroom_anti_pairs", `${g}_${c}`), {
                     userId: uid,
                     grade: g,
                     classNum: c,
@@ -890,6 +881,23 @@ function setupSeatingModule() {
             document.getElementById('antiPairModal')?.classList.add('hidden');
             alert("🤫 기피 조합이 안전하게 비밀 저장되었습니다.");
         };
+    }
+
+    // 🎯 자리 초기화 버튼 이벤트
+    const resetBtn = document.getElementById('resetSeatingBtn');
+    if (resetBtn) {
+        resetBtn.onclick = handleResetSeating;
+    }
+
+    // 줄 수 조절 버튼 연결
+    const decreaseBtn = document.getElementById('decreaseRowBtn');
+    const increaseBtn = document.getElementById('increaseRowBtn');
+
+    if (decreaseBtn) {
+        decreaseBtn.onclick = () => changeSeatingRows(-1);
+    }
+    if (increaseBtn) {
+        increaseBtn.onclick = () => changeSeatingRows(1);
     }
 
     const startBtn = document.getElementById('startSeatingBtn');
@@ -909,14 +917,82 @@ function setupSeatingModule() {
     if (hwpxBtn) hwpxBtn.onclick = downloadSeatingHwpx;
 }
 
-function initSeatingGrid() {
-    if (homeroomState.seatingSeats.length === 0) {
-        homeroomState.seatingSeats = Array.from({ length: 30 }, (_, idx) => ({
-            id: idx,
-            disabled: false,
-            student: null
-        }));
+// 🎯 자리 초기화 실행 함수
+export function handleResetSeating() {
+    if (!confirm("현재 배치된 자리를 모두 비우시겠습니까? (제외 자리는 유지됩니다)")) return;
+
+    homeroomState.seatingSeats.forEach(seat => {
+        seat.student = null;
+    });
+
+    renderSeatingDesks();
+    saveSeatingData();
+    alert("✅ 자리가 초기화되었습니다.");
+}
+
+// 🎯 자리배치 결과 DB 및 로컬 영구 저장
+async function saveSeatingData() {
+    const g = homeroomState.grade;
+    const c = homeroomState.classNum;
+    const uid = homeroomState.userId;
+    const key = `${uid}_${g}_${c}`;
+
+    const payload = {
+        rows: homeroomState.seatingRows,
+        seats: homeroomState.seatingSeats
+    };
+
+    localStorage.setItem(`seating_${key}`, JSON.stringify(payload));
+
+    try {
+        await setDoc(doc(db, "homeroom_seating", key), {
+            userId: uid,
+            grade: g,
+            classNum: c,
+            ...payload,
+            updatedAt: new Date().toISOString()
+        });
+    } catch (e) {
+        console.warn("자리배치 DB 저장 실패:", e);
     }
+}
+
+function changeSeatingRows(delta) {
+    const targetRows = homeroomState.seatingRows + delta;
+    if (targetRows < 4 || targetRows > 8) return;
+
+    homeroomState.seatingRows = targetRows;
+    localStorage.setItem('seating_rows', targetRows);
+    initSeatingGrid(true);
+    updateSeatingDimensionUI();
+    saveSeatingData();
+}
+
+function updateSeatingDimensionUI() {
+    const dimText = document.getElementById('seatingDimensionText');
+    if (dimText) {
+        const totalSeats = homeroomState.seatingRows * 6;
+        dimText.textContent = `${homeroomState.seatingRows}줄 (${totalSeats}석)`;
+    }
+}
+
+function initSeatingGrid(preserveExisting = false) {
+    const totalSeats = homeroomState.seatingRows * 6;
+    const oldSeats = homeroomState.seatingSeats || [];
+
+    const newSeats = [];
+    for (let idx = 0; idx < totalSeats; idx++) {
+        if (preserveExisting && oldSeats[idx]) {
+            newSeats.push(oldSeats[idx]);
+        } else {
+            newSeats.push({
+                id: idx,
+                disabled: false,
+                student: null
+            });
+        }
+    }
+    homeroomState.seatingSeats = newSeats;
     renderSeatingDesks();
 }
 
@@ -946,6 +1022,7 @@ function renderSeatingDesks() {
             seat.disabled = !seat.disabled;
             seat.student = null;
             renderSeatingDesks();
+            saveSeatingData(); // 제외/해제 상태 즉시 DB 저장
         };
 
         grid.appendChild(desk);
@@ -959,7 +1036,7 @@ function renderExcludeStudentList() {
 
     const list = homeroomState.contacts.length > 0 
         ? homeroomState.contacts 
-        : Array.from({ length: 30 }, (_, i) => ({ num: i + 1, name: `${i + 1}번` }));
+        : Array.from({ length: 36 }, (_, i) => ({ num: i + 1, name: `${i + 1}번` }));
 
     list.forEach(s => {
         const isExcluded = homeroomState.excludedStudentNums.has(s.num);
@@ -990,7 +1067,7 @@ async function runSeatingArrangement() {
         : Array.from({ length: availableSeats.length }, (_, i) => ({ num: i + 1, name: `${i + 1}번` }));
 
     if (students.length > availableSeats.length) {
-        return alert(`배치할 학생(${students.length}명)이 활성화된 자리(${availableSeats.length}개)보다 많습니다.`);
+        return alert(`배치할 학생(${students.length}명)이 활성화된 자리(${availableSeats.length}개)보다 많습니다. 자리를 추가해주세요.`);
     }
 
     let bestOrder = null;
@@ -1044,6 +1121,7 @@ async function runSeatingArrangement() {
             seat.student = bestOrder[idx] || null;
         });
         renderSeatingDesks();
+        saveSeatingData(); // 🎯 뽑은 즉시 DB 영구 저장
         if (typeof confetti === 'function') confetti({ particleCount: 70, spread: 60 });
     } else {
         availableSeats.forEach(s => s.student = null);
@@ -1054,6 +1132,7 @@ async function runSeatingArrangement() {
             renderSeatingDesks();
             await new Promise(r => setTimeout(r, 60));
         }
+        saveSeatingData(); // 🎯 뽑은 즉시 DB 영구 저장
         if (typeof confetti === 'function') confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     }
 }
@@ -1096,6 +1175,11 @@ if (typeof document !== 'undefined') {
             return;
         }
 
+        if (e.target.closest('#resetSeatingBtn')) {
+            e.preventDefault();
+            handleResetSeating();
+            return;
+        }
         if (e.target.closest('#openNewContactModalBtn')) {
             e.preventDefault();
             openContactEditMode(null);
@@ -1140,6 +1224,16 @@ if (typeof document !== 'undefined') {
         if (e.target.closest('#closeCleaningSelectModalBtn')) {
             e.preventDefault();
             document.getElementById('cleaningStudentSelectModal')?.classList.add('hidden');
+            return;
+        }
+        if (e.target.closest('#decreaseRowBtn')) {
+            e.preventDefault();
+            changeSeatingRows(-1);
+            return;
+        }
+        if (e.target.closest('#increaseRowBtn')) {
+            e.preventDefault();
+            changeSeatingRows(1);
             return;
         }
     });
