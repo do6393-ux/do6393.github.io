@@ -2,10 +2,8 @@ import { db, auth, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, qu
 
 let students = [];
 
-// 🎯 화면이 100% 준비된 직후에만 버튼 이벤트를 장착하도록 안전장치(DOMContentLoaded) 추가
 document.addEventListener('DOMContentLoaded', () => {
 
-    // 1. 전체 삭제 버튼 기능
     document.getElementById('deleteAllContactsBtn')?.addEventListener('click', async () => {
         if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
         if (students.length === 0) return alert("삭제할 연락처가 없습니다.");
@@ -15,7 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (answer === '삭제합니다') {
             try {
-                // 30명을 1초 만에 동시에 삭제하는 고속 병렬 처리
                 await Promise.all(students.map(st => deleteDoc(doc(db, "homeroom_contacts", st.id))));
                 alert("✅ 전체 삭제가 안전하게 완료되었습니다.");
             } catch (e) {
@@ -26,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 2. 다중 일괄 등록(붙여넣기) 모달 제어
     document.getElementById('openBulkPasteModalBtn')?.addEventListener('click', () => {
         document.getElementById('bulkPasteTextarea').value = '';
         document.getElementById('bulkPasteModal').classList.remove('hidden');
@@ -34,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('closeBulkPasteModalBtn')?.addEventListener('click', () => document.getElementById('bulkPasteModal').classList.add('hidden'));
     document.getElementById('cancelBulkPasteBtn')?.addEventListener('click', () => document.getElementById('bulkPasteModal').classList.add('hidden'));
 
-    // 3. 다중 일괄 등록 파싱 및 저장 알고리즘
     document.getElementById('saveBulkPasteBtn')?.addEventListener('click', async () => {
         if (!auth.currentUser) return alert("교사 로그인이 필요합니다.");
         const rawText = document.getElementById('bulkPasteTextarea').value;
@@ -42,7 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let parsedStudents = [];
 
-        // 웹 브라우저 표 복사 (엔터 줄바꿈 수직 파싱)
         if (!rawText.includes('\t')) {
             const lines = rawText.split('\n').map(l => l.trim()).filter(l => l !== '');
             let current = null;
@@ -60,9 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             if (current) parsedStudents.push(current);
-        } 
-        // 엑셀 탭(Tab) 파싱
-        else {
+        } else {
             const lines = rawText.split('\n');
             for (let line of lines) {
                 const rowData = line.trim().split(/\t+/);
@@ -104,7 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('bulkPasteModal').classList.add('hidden');
     });
 
-    // 4. 개별 연락처 추가/수정 모달 제어
     document.getElementById('openNewContactModalBtn')?.addEventListener('click', () => {
         document.getElementById('editContactId').value = '';
         document.getElementById('contactNumInput').value = '';
@@ -165,15 +156,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-
-// ==========================================
-// 파이어베이스 동기화 및 렌더링 영역
-// ==========================================
-
 export function initHomeroomTab(currentUser) {
     if (!currentUser) return;
 
-    // 파이어베이스에서 실시간으로 연락처 가져오기
     onSnapshot(query(collection(db, "homeroom_contacts"), orderBy("number", "asc")), (snapshot) => {
         students = [];
         snapshot.forEach(d => students.push({ id: d.id, ...d.data() }));
@@ -194,10 +179,11 @@ function renderContacts() {
 
     students.forEach(st => {
         const card = document.createElement('div');
-        card.className = "bg-white p-4 rounded-2xl shadow-sm border border-rose-100 hover:border-rose-300 hover:shadow-md cursor-pointer flex flex-col items-center text-center transition-all";
+        // 🎯 모바일 4열에 맞춰 카드의 상하좌우 패딩과 아이콘 크기를 아담하게 줄임
+        card.className = "bg-white py-3 px-1 rounded-xl shadow-sm border border-rose-100 hover:border-rose-300 hover:shadow-md cursor-pointer flex flex-col items-center text-center transition-all";
         card.innerHTML = `
-            <div class="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-xl font-bold mb-3 border border-rose-100">${st.number}</div>
-            <h4 class="font-bold text-slate-800 text-lg">${st.name}</h4>
+            <div class="w-9 h-9 sm:w-10 sm:h-10 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-sm sm:text-base font-bold mb-1.5 border border-rose-100 shadow-sm">${st.number}</div>
+            <h4 class="font-bold text-slate-800 text-[11px] sm:text-xs w-full truncate px-1" title="${st.name}">${st.name}</h4>
         `;
         
         card.onclick = () => openContactModal(st);
@@ -209,7 +195,7 @@ function openContactModal(st) {
     document.getElementById('contactModalNumber').textContent = String(st.number).padStart(2, '0');
     document.getElementById('contactModalName').textContent = st.name;
     
-    const p1 = st.parentPhone1 || st.parentPhone || ''; 
+    const p1 = st.parentPhone1 || ''; 
     const p2 = st.parentPhone2 || '';
 
     document.getElementById('editContactId').value = st.id;
@@ -224,7 +210,7 @@ function openContactModal(st) {
     if (st.studentPhone) {
         btnS.href = `tel:${st.studentPhone}`;
         btnS.className = "flex items-center justify-center gap-2 w-full bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-sky-200 shadow-sm";
-        txtS.textContent = `학생 연결 (${st.studentPhone})`;
+        txtS.textContent = `학생 본인 연결`;
     } else {
         btnS.removeAttribute('href');
         btnS.className = "flex items-center justify-center gap-2 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-sm border border-slate-200";
@@ -235,11 +221,11 @@ function openContactModal(st) {
     const txtP1 = document.getElementById('callParentText');
     if (p1) {
         btnP1.href = `tel:${p1}`;
-        btnP1.className = "flex items-center justify-center gap-1.5 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-emerald-200 shadow-sm";
+        btnP1.className = "flex items-center justify-center gap-1.5 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3.5 rounded-2xl transition-colors text-xs sm:text-sm border border-emerald-200 shadow-sm";
         txtP1.textContent = `학부모 1 연결`;
     } else {
         btnP1.removeAttribute('href');
-        btnP1.className = "flex items-center justify-center gap-1.5 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-sm border border-slate-200";
+        btnP1.className = "flex items-center justify-center gap-1.5 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-xs sm:text-sm border border-slate-200";
         txtP1.textContent = "학부모 1 없음";
     }
 
@@ -247,11 +233,11 @@ function openContactModal(st) {
     const txtP2 = document.getElementById('callParent2Text');
     if (p2 && p2 !== '없다') {
         btnP2.href = `tel:${p2}`;
-        btnP2.className = "flex items-center justify-center gap-1.5 w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-amber-200 shadow-sm";
+        btnP2.className = "flex items-center justify-center gap-1.5 w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-3.5 rounded-2xl transition-colors text-xs sm:text-sm border border-amber-200 shadow-sm";
         txtP2.textContent = `학부모 2 연결`;
     } else {
         btnP2.removeAttribute('href');
-        btnP2.className = "flex items-center justify-center gap-1.5 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-sm border border-slate-200";
+        btnP2.className = "flex items-center justify-center gap-1.5 w-full bg-slate-50 text-slate-400 font-bold py-3.5 rounded-2xl cursor-not-allowed text-xs sm:text-sm border border-slate-200";
         txtP2.textContent = "학부모 2 없음";
     }
 
