@@ -1,4 +1,4 @@
-import { db, collection, doc, getDoc, setDoc } from './firebase-config.js';
+import { db, doc, getDoc, setDoc } from './firebase-config.js';
 
 export const teacherList = [
     { name: "곽경애", short: "경애" }, { name: "권수영", short: "수영" }, { name: "김미래", short: "미래" },
@@ -18,18 +18,17 @@ export let officeState = {
     isNextWeek: false
 };
 
-const schoolCode = "72886";
-let scData = null;
-
 let currentTeacherBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
 let currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
 let activeBaseModalType = null; 
 
+// 이벤트(민트색) 과목 키워드
 const eventKeywords = ['자치', '동아', '봉사', '진로'];
 
 export function initOfficeTab(currentUser) {
     if (!currentUser) return;
     
+    // 교사 선택 모달
     document.getElementById('titleTeacherNameBtn')?.addEventListener('click', () => {
         const container = document.getElementById('modalTeacherList');
         container.innerHTML = '';
@@ -41,7 +40,7 @@ export function initOfficeTab(currentUser) {
                 officeState.selectedTeacher = t;
                 document.getElementById('titleTeacherNameBtn').textContent = t.name;
                 document.getElementById('teacherSelectModal').classList.add('hidden');
-                loadBaseTimetablesAndRender();
+                loadAllTimetables();
             };
             container.appendChild(btn);
         });
@@ -50,6 +49,7 @@ export function initOfficeTab(currentUser) {
     
     document.getElementById('closeTeacherSelectModalBtn')?.addEventListener('click', () => document.getElementById('teacherSelectModal').classList.add('hidden'));
 
+    // 학급 선택 모달
     document.getElementById('titleClassNameBtn')?.addEventListener('click', () => {
         const container = document.getElementById('modalClassList');
         container.innerHTML = '';
@@ -63,7 +63,7 @@ export function initOfficeTab(currentUser) {
                     officeState.selectedClassNum = c;
                     document.getElementById('titleClassNameBtn').textContent = `${g}-${c}`;
                     document.getElementById('classSelectModal').classList.add('hidden');
-                    loadBaseTimetablesAndRender();
+                    loadAllTimetables();
                 };
                 container.appendChild(btn);
             }
@@ -73,12 +73,13 @@ export function initOfficeTab(currentUser) {
     
     document.getElementById('closeClassSelectModalBtn')?.addEventListener('click', () => document.getElementById('classSelectModal').classList.add('hidden'));
 
+    // 기본 시간표 설정 모달 연결
     const baseModal = document.getElementById('baseTimetableModal');
     
     document.getElementById('openTeacherBaseBtn')?.addEventListener('click', () => {
         activeBaseModalType = 'teacher';
         document.getElementById('baseTimetableModalTitle').textContent = `${officeState.selectedTeacher.name} 교사 기본 시간표 설정`;
-        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 1-8";
+        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 108정보";
         renderBaseTimetableInputGrid(currentTeacherBaseTimetable);
         baseModal.classList.remove('hidden');
     });
@@ -112,13 +113,13 @@ export function initOfficeTab(currentUser) {
             }
             alert("✅ 기본 시간표가 저장되었습니다.");
             baseModal.classList.add('hidden');
-            renderTeacherTimetable();
-            renderClassTimetable();
+            loadAllTimetables();
         } catch (e) {
             alert("저장 중 오류가 발생했습니다.");
         }
     });
 
+    // 이번 주 / 다음 주 토글 버튼
     const btnThis = document.getElementById('weekToggleThisBtn');
     const btnNext = document.getElementById('weekToggleNextBtn');
     
@@ -126,18 +127,17 @@ export function initOfficeTab(currentUser) {
         officeState.isNextWeek = false;
         btnThis.className = "px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all";
         btnNext.className = "px-3 py-1 text-xs font-medium text-slate-600 rounded-lg transition-all";
-        renderTeacherTimetable();
-        renderClassTimetable();
+        loadAllTimetables();
     });
     
     btnNext?.addEventListener('click', () => {
         officeState.isNextWeek = true;
         btnNext.className = "px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all";
         btnThis.className = "px-3 py-1 text-xs font-medium text-slate-600 rounded-lg transition-all";
-        renderTeacherTimetable();
-        renderClassTimetable();
+        loadAllTimetables();
     });
 
+    // 급식 조회
     const mealDateInput = document.getElementById('mealDateInput');
     const fetchMealBtn = document.getElementById('fetchMealBtn');
     const today = new Date();
@@ -151,7 +151,7 @@ export function initOfficeTab(currentUser) {
     document.getElementById('titleTeacherNameBtn').textContent = officeState.selectedTeacher.name;
     document.getElementById('titleClassNameBtn').textContent = `${officeState.selectedGrade}-${officeState.selectedClassNum}`;
 
-    loadBaseTimetablesAndRender();
+    loadAllTimetables();
     fetchMeal();
 }
 
@@ -169,145 +169,98 @@ function renderBaseTimetableInputGrid(dataMatrix) {
     }
 }
 
-async function loadBaseTimetablesAndRender() {
+// 🎯 파이어베이스 timetable_schedules 컬렉션에서 데이터 로드
+async function loadAllTimetables() {
+    const weekKey = officeState.isNextWeek ? 'next' : 'this';
+
+    // 1. 기본 시간표 가져오기
     try {
         const tSnap = await getDoc(doc(db, "base_timetables", `teacher_${officeState.selectedTeacher.short}`));
-        if (tSnap.exists() && tSnap.data().matrix) currentTeacherBaseTimetable = tSnap.data().matrix;
-        else currentTeacherBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
+        currentTeacherBaseTimetable = tSnap.exists() && tSnap.data().matrix ? tSnap.data().matrix : Array(7).fill().map(() => Array(5).fill(""));
 
         const cSnap = await getDoc(doc(db, "base_timetables", `class_${officeState.selectedGrade}_${officeState.selectedClassNum}`));
-        if (cSnap.exists() && cSnap.data().matrix) currentClassBaseTimetable = cSnap.data().matrix;
-        else currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
+        currentClassBaseTimetable = cSnap.exists() && cSnap.data().matrix ? cSnap.data().matrix : Array(7).fill().map(() => Array(5).fill(""));
     } catch(e) {
         currentTeacherBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
         currentClassBaseTimetable = Array(7).fill().map(() => Array(5).fill(""));
     }
-    
-    // 파이어베이스 1일 1회 백엔드 캐시 로직 실행
-    await fetchComciDataWithDailyCache();
-    
-    renderTeacherTimetable();
-    renderClassTimetable();
-}
 
-// 🎯 핵심 로직: 파이어베이스 백엔드 1일 1회 캐싱
-async function fetchComciDataWithDailyCache() {
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    
-    // 1단계: 오늘 날짜로 이미 저장된 파이어베이스 캐시가 있는지 확인
-    try {
-        const cacheSnap = await getDoc(doc(db, "comci_daily_cache", todayStr));
-        if (cacheSnap.exists() && cacheSnap.data().payload) {
-            scData = cacheSnap.data().payload;
-            return; // 캐시가 있으면 외부 API를 절대 호출하지 않음!
-        }
-    } catch (err) {
-        console.warn("파이어베이스 캐시 확인 실패:", err);
+    // 2. 깃허브 액션이 저장해 둔 교사 시간표 가져오기
+    let teacherScheduleMap = null;
+    const teacherDocCandidates = [
+        officeState.selectedTeacher.name.substring(0, 2), // '신정'
+        officeState.selectedTeacher.short,                // '정훈'
+        officeState.selectedTeacher.name                  // '신정훈'
+    ];
+    if (officeState.selectedTeacher.short === '정훈' || officeState.selectedTeacher.name === '신정훈') {
+        teacherDocCandidates.push('32');
     }
 
-    // 2단계: 오늘 캐시가 없을 때만 아침 첫 접속자 1명이 1회 외부 조회 시도
-    try {
-        const res = await fetch(`https://comci.kro.kr/api/GET/${schoolCode}`);
-        if (!res.ok) throw new Error("네트워크 응답 오류");
-        const fetched = await res.json();
-        
-        if (fetched && fetched.성명) {
-            scData = fetched;
-            // 다음 접속자들을 위해 파이어베이스에 당일 데이터로 저장
-            await setDoc(doc(db, "comci_daily_cache", todayStr), {
-                payload: fetched,
-                cachedAt: new Date().toISOString()
-            });
-        }
-    } catch (e) {
-        console.warn("외부 컴시간 API 연결 불가 (안전 모드로 전환):", e);
-        scData = null; // 실패해도 플랫폼 다운 방지
+    for (const key of teacherDocCandidates) {
+        try {
+            const snap = await getDoc(doc(db, "timetable_schedules", `tt_teacher_${weekKey}_${key}`));
+            if (snap.exists() && snap.data().schedule) {
+                teacherScheduleMap = snap.data().schedule;
+                break;
+            }
+        } catch(e) {}
     }
+
+    // 3. 깃허브 액션이 저장해 둔 학급 시간표 가져오기
+    let classScheduleMap = null;
+    try {
+        const classDocKey = `tt_class_${weekKey}_${officeState.selectedGrade}-${officeState.selectedClassNum}`;
+        const snap = await getDoc(doc(db, "timetable_schedules", classDocKey));
+        if (snap.exists() && snap.data().schedule) {
+            classScheduleMap = snap.data().schedule;
+        }
+    } catch(e) {}
+
+    // 4. 화면 렌더링
+    renderTeacherGrid(teacherScheduleMap);
+    renderClassGrid(classScheduleMap);
 }
 
-function parseComciSubject(code) {
-    if(!scData) return "";
-    const strCode = String(code);
-    const teacherId = parseInt(strCode.slice(-2), 10);
-    const subjectId = parseInt(strCode.slice(0, -2), 10);
-    const sbjName = scData.지명[subjectId] || "";
-    const tName = scData.성명[teacherId] || "";
-    if(!sbjName && !tName) return "";
-    return `${sbjName}<br><span class="text-[10px] opacity-70 font-normal">${tName}</span>`;
-}
-
-function getPureSubjectText(code) {
-    if(!scData) return "";
-    const strCode = String(code);
-    const teacherId = parseInt(strCode.slice(-2), 10);
-    const subjectId = parseInt(strCode.slice(0, -2), 10);
-    const sbjName = scData.지명[subjectId] || "";
-    const tNumStr = String(teacherId).padStart(2, '0');
-    return `${sbjName}${tNumStr}`;
-}
-
-function renderTeacherTimetable() {
+// 교사 시간표 렌더링
+function renderTeacherGrid(scheduleMap) {
     const tbody = document.getElementById('teacherTimetableGridBody');
     if(!tbody) return;
     tbody.innerHTML = '';
-    
-    // 🎯 외부 서버 연결 실패 시: 등록된 기본 시간표를 대신 띄워 안전하게 방어
-    if(!scData) {
-        renderTeacherFallbackTimetable(tbody);
-        return;
-    }
-
-    const tIdx = scData.성명.indexOf(officeState.selectedTeacher.short);
-    if(tIdx === -1) {
-        renderTeacherFallbackTimetable(tbody);
-        return;
-    }
-
-    const wData = officeState.isNextWeek ? scData.자료481 : scData.자료481;
-    if(!wData) return;
 
     for (let period = 1; period <= 7; period++) {
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50 transition-colors";
         let html = `<td class="py-3 sm:py-4 border-r border-slate-200 font-bold bg-slate-50">${period}교시</td>`;
         
-        for (let day = 1; day <= 5; day++) {
-            let info = "";
-            let isChanged = false;
-            let isMintEvent = false;
+        for (let day = 0; day < 5; day++) {
+            const cellKey = `${period}_${day}`;
+            const item = scheduleMap ? scheduleMap[cellKey] : null;
             
-            for (let g = 1; g <= 3; g++) {
-                const cCount = scData.학급수[g];
-                for (let c = 1; c <= cCount; c++) {
-                    const code = wData[g][c][day][period];
-                    if (code > 0) {
-                        const tId = parseInt(String(code).slice(-2), 10);
-                        if (tId === tIdx) {
-                            const subjectName = scData.지명[parseInt(String(code).slice(0, -2), 10)] || "";
-                            
-                            if (eventKeywords.some(k => subjectName.includes(k))) {
-                                isMintEvent = true;
-                            }
-                            
-                            const baseText = currentTeacherBaseTimetable[period - 1][day - 1];
-                            const currentText = `${g}-${c}`;
-                            if (baseText && baseText !== currentText) {
-                                isChanged = true;
-                            }
+            let info = "";
+            let cellClass = "";
+            
+            if (item) {
+                const text = typeof item === 'object' ? (item.text || "") : String(item);
+                const isRed = typeof item === 'object' && item.type === 'red';
+                const baseText = currentTeacherBaseTimetable[period - 1][day];
+                
+                // 이벤트(민트색) 확인
+                const isMint = eventKeywords.some(k => text.includes(k));
+                // 변경(보라색) 확인: 기본 시간표와 다르거나 수집 로봇이 red로 판별한 경우
+                const isChanged = !isMint && ((baseText && baseText !== text) || isRed);
 
-                            let cellClass = '';
-                            if (isMintEvent) cellClass = 'bg-[#d1fae5] text-[#047857]'; 
-                            else if (isChanged) cellClass = 'bg-[#d8b4fe] text-white'; 
-                            
-                            info = `<div class="h-full flex flex-col items-center justify-center py-2 ${cellClass} rounded-sm">
-                                        <span>${currentText}</span>
-                                        <span class="text-[10px] font-normal opacity-80">${subjectName}</span>
-                                    </div>`;
-                        }
-                    }
-                }
+                if (isMint) cellClass = 'bg-[#d1fae5] text-[#047857]';
+                else if (isChanged) cellClass = 'bg-[#d8b4fe] text-white';
+
+                info = `<div class="h-full flex flex-col items-center justify-center py-2 ${cellClass} rounded-sm">
+                            <span>${text}</span>
+                        </div>`;
+            } else {
+                // 데이터가 없을 때 기본 시간표가 등록되어 있다면 표시
+                const fallbackText = currentTeacherBaseTimetable[period - 1][day];
+                if (fallbackText) info = `<span>${fallbackText}</span>`;
             }
+            
             html += `<td class="border-r border-slate-200 font-bold ${info ? 'text-indigo-700 p-0' : 'text-slate-300'}">${info || '-'}</td>`;
         }
         tr.innerHTML = html;
@@ -315,86 +268,47 @@ function renderTeacherTimetable() {
     }
 }
 
-function renderClassTimetable() {
+// 학급 시간표 렌더링
+function renderClassGrid(scheduleMap) {
     const tbody = document.getElementById('classTimetableGridBody');
     if(!tbody) return;
     tbody.innerHTML = '';
-    
-    // 🎯 외부 서버 연결 실패 시: 등록된 기본 시간표를 대신 띄워 안전하게 방어
-    if(!scData) {
-        renderClassFallbackTimetable(tbody);
-        return;
-    }
-
-    const g = officeState.selectedGrade;
-    const c = officeState.selectedClassNum;
-    const wData = officeState.isNextWeek ? scData.자료481 : scData.자료481;
-    if(!wData || !wData[g] || !wData[g][c]) {
-        renderClassFallbackTimetable(tbody);
-        return;
-    }
 
     for (let period = 1; period <= 7; period++) {
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50 transition-colors";
         let html = `<td class="py-3 sm:py-4 border-r border-slate-200 font-bold bg-slate-50">${period}교시</td>`;
         
-        for (let day = 1; day <= 5; day++) {
-            const code = wData[g][c][day][period];
-            if (code > 0) {
-                const pureText = getPureSubjectText(code); 
-                const subjectName = scData.지명[parseInt(String(code).slice(0, -2), 10)] || "";
+        for (let day = 0; day < 5; day++) {
+            const cellKey = `${period}_${day}`;
+            const item = scheduleMap ? scheduleMap[cellKey] : null;
+            
+            let info = "";
+            let cellClass = "";
+            
+            if (item) {
+                const text = typeof item === 'object' ? (item.text || "") : String(item);
+                const isRed = typeof item === 'object' && item.type === 'red';
+                const baseText = currentClassBaseTimetable[period - 1][day];
                 
-                let isChanged = false;
-                let isMintEvent = false;
-                
-                if (eventKeywords.some(k => subjectName.includes(k))) {
-                    isMintEvent = true;
-                }
+                // 이벤트(민트색) 확인
+                const isMint = eventKeywords.some(k => text.includes(k));
+                // 변경(보라색) 확인: 기본 시간표와 다르거나 수집 로봇이 red로 판별한 경우
+                const isChanged = !isMint && ((baseText && baseText !== text) || isRed);
 
-                const baseText = currentClassBaseTimetable[period - 1][day - 1];
-                if (baseText && pureText && pureText !== baseText) {
-                    isChanged = true;
-                }
+                if (isMint) cellClass = 'bg-[#d1fae5] text-[#047857]';
+                else if (isChanged) cellClass = 'bg-[#d8b4fe] text-white';
 
-                let cellClass = '';
-                if (isMintEvent) cellClass = 'bg-[#d1fae5] text-[#047857]'; 
-                else if (isChanged) cellClass = 'bg-[#d8b4fe] text-white'; 
-                
-                const displayHtml = parseComciSubject(code);
-                html += `<td class="border-r border-slate-200 font-bold text-sky-700 ${cellClass}">${displayHtml}</td>`;
+                info = `<div class="h-full flex flex-col items-center justify-center py-2 ${cellClass} rounded-sm">
+                            <span>${text}</span>
+                        </div>`;
             } else {
-                html += `<td class="border-r border-slate-200 font-bold text-slate-300">-</td>`;
+                // 데이터가 없을 때 기본 시간표가 등록되어 있다면 표시
+                const fallbackText = currentClassBaseTimetable[period - 1][day];
+                if (fallbackText) info = `<span>${fallbackText}</span>`;
             }
-        }
-        tr.innerHTML = html;
-        tbody.appendChild(tr);
-    }
-}
-
-// 🎯 외부 통신 에러 시 기본 시간표로 자연스럽게 채워주는 폴백 렌더러
-function renderTeacherFallbackTimetable(tbody) {
-    for (let period = 1; period <= 7; period++) {
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-50 transition-colors";
-        let html = `<td class="py-3 sm:py-4 border-r border-slate-200 font-bold bg-slate-50">${period}교시</td>`;
-        for (let day = 1; day <= 5; day++) {
-            const val = currentTeacherBaseTimetable[period - 1][day - 1] || '-';
-            html += `<td class="border-r border-slate-200 font-bold ${val !== '-' ? 'text-indigo-700' : 'text-slate-300'}">${val}</td>`;
-        }
-        tr.innerHTML = html;
-        tbody.appendChild(tr);
-    }
-}
-
-function renderClassFallbackTimetable(tbody) {
-    for (let period = 1; period <= 7; period++) {
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-50 transition-colors";
-        let html = `<td class="py-3 sm:py-4 border-r border-slate-200 font-bold bg-slate-50">${period}교시</td>`;
-        for (let day = 1; day <= 5; day++) {
-            const val = currentClassBaseTimetable[period - 1][day - 1] || '-';
-            html += `<td class="border-r border-slate-200 font-bold ${val !== '-' ? 'text-sky-700' : 'text-slate-300'}">${val}</td>`;
+            
+            html += `<td class="border-r border-slate-200 font-bold ${info ? 'text-sky-700 p-0' : 'text-slate-300'}">${info || '-'}</td>`;
         }
         tr.innerHTML = html;
         tbody.appendChild(tr);
