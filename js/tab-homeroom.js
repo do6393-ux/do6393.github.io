@@ -1,4 +1,4 @@
-import { db, doc, getDoc, setDoc, deleteDoc } from './firebase-config.js';
+import { db, doc, getDoc, setDoc } from './firebase-config.js';
 
 export let homeroomState = {
     userId: "default_teacher",
@@ -24,27 +24,58 @@ const cleaningAreas = [
 let seatingHwpxBlob = null;
 let cleaningHwpxBlob = null;
 
+// 🎯 1. 서브탭 전환 전역 함수 (어디서든 즉시 화면 전환)
+export function switchHomeroomSubTab(tabName) {
+    const tabContacts = document.getElementById('homeroomSubTabContacts');
+    const tabSeating = document.getElementById('homeroomSubTabSeating');
+    const tabCleaning = document.getElementById('homeroomSubTabCleaning');
+
+    const secContacts = document.getElementById('homeroomSectionContacts');
+    const secSeating = document.getElementById('homeroomSectionSeating');
+    const secCleaning = document.getElementById('homeroomSectionCleaning');
+
+    const inactiveClass = "px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all";
+    if (tabContacts) tabContacts.className = inactiveClass;
+    if (tabSeating) tabSeating.className = inactiveClass;
+    if (tabCleaning) tabCleaning.className = inactiveClass;
+
+    if (secContacts) secContacts.classList.add('hidden');
+    if (secSeating) secSeating.classList.add('hidden');
+    if (secCleaning) secCleaning.classList.add('hidden');
+
+    if (tabName === 'contacts') {
+        if (tabContacts) tabContacts.className = "px-4 py-2 text-sm font-bold bg-white text-rose-600 rounded-xl shadow-sm transition-all";
+        if (secContacts) secContacts.classList.remove('hidden');
+        renderContactGrid();
+    } else if (tabName === 'seating') {
+        if (tabSeating) tabSeating.className = "px-4 py-2 text-sm font-bold bg-white text-indigo-600 rounded-xl shadow-sm transition-all";
+        if (secSeating) secSeating.classList.remove('hidden');
+        initSeatingGrid();
+        renderExcludeStudentList();
+    } else if (tabName === 'cleaning') {
+        if (tabCleaning) tabCleaning.className = "px-4 py-2 text-sm font-bold bg-white text-emerald-600 rounded-xl shadow-sm transition-all";
+        if (secCleaning) secCleaning.classList.remove('hidden');
+        renderCleaningGrid();
+    }
+}
+
+// 🎯 2. 메인 초기화 함수
 export async function initHomeroomTab(currentUser) {
     if (currentUser) {
         homeroomState.userId = currentUser.uid || currentUser.email || "default_teacher";
     }
 
-    // NaN 방지 안전 숫자 파싱
     const savedG = parseInt(localStorage.getItem('office_grade'), 10);
     const savedC = parseInt(localStorage.getItem('office_class'), 10);
     homeroomState.grade = (!isNaN(savedG) && savedG > 0) ? savedG : 1;
     homeroomState.classNum = (!isNaN(savedC) && savedC > 0) ? savedC : 7;
 
     updateHomeroomHeaders();
-    setupSubTabs();
-    setupContactsModule();
-    setupSeatingModule();
-    setupCleaningModule();
-
+    setupAllModules();
     await loadHomeroomData();
 }
 
-// main.js 연동 함수 (NaN 완벽 방어)
+// 🎯 3. main.js 연동 함수 (NaN 완벽 방어 및 리스너 재보장)
 export function updateHomeroomClass(gradeOrObj, classNum) {
     let g, c;
     if (typeof gradeOrObj === 'object' && gradeOrObj !== null) {
@@ -68,6 +99,7 @@ export function updateHomeroomClass(gradeOrObj, classNum) {
     }
 
     updateHomeroomHeaders();
+    setupAllModules();
     loadHomeroomData();
 }
 
@@ -80,48 +112,29 @@ function updateHomeroomHeaders() {
     if (titleCleaning) titleCleaning.textContent = `${g}학년 ${c}반 청소 구역`;
 }
 
+// 🎯 4. 모든 모듈 이벤트 리스너 바인딩
+function setupAllModules() {
+    setupSubTabs();
+    setupContactsModule();
+    setupSeatingModule();
+    setupCleaningModule();
+}
+
 /* ==========================================================================
-   0. 서브탭 전환 로직 (비상연락망 / 자리 바꾸기 / 청소 구역)
+   서브탭 전환 직접 연결
    ========================================================================== */
 function setupSubTabs() {
     const tabContacts = document.getElementById('homeroomSubTabContacts');
     const tabSeating = document.getElementById('homeroomSubTabSeating');
     const tabCleaning = document.getElementById('homeroomSubTabCleaning');
 
-    const secContacts = document.getElementById('homeroomSectionContacts');
-    const secSeating = document.getElementById('homeroomSectionSeating');
-    const secCleaning = document.getElementById('homeroomSectionCleaning');
-
-    if (!tabContacts || !tabSeating || !tabCleaning) return;
-
-    const switchTab = (activeTab, activeSec, activeColor) => {
-        [tabContacts, tabSeating, tabCleaning].forEach(t => {
-            if (t) t.className = "px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all";
-        });
-        [secContacts, secSeating, secCleaning].forEach(s => s?.classList.add('hidden'));
-
-        if (activeTab) {
-            activeTab.className = `px-4 py-2 text-sm font-bold bg-white ${activeColor} rounded-xl shadow-sm transition-all`;
-        }
-        if (activeSec) {
-            activeSec.classList.remove('hidden');
-        }
-    };
-
-    tabContacts.onclick = () => switchTab(tabContacts, secContacts, 'text-rose-600');
-    tabSeating.onclick = () => {
-        switchTab(tabSeating, secSeating, 'text-indigo-600');
-        renderSeatingDesks();
-        renderExcludeStudentList();
-    };
-    tabCleaning.onclick = () => {
-        switchTab(tabCleaning, secCleaning, 'text-emerald-600');
-        renderCleaningGrid();
-    };
+    if (tabContacts) tabContacts.onclick = (e) => { e.preventDefault(); switchHomeroomSubTab('contacts'); };
+    if (tabSeating) tabSeating.onclick = (e) => { e.preventDefault(); switchHomeroomSubTab('seating'); };
+    if (tabCleaning) tabCleaning.onclick = (e) => { e.preventDefault(); switchHomeroomSubTab('cleaning'); };
 }
 
 /* ==========================================================================
-   1. 통합 데이터 로드 (Firestore + LocalStorage)
+   통합 데이터 로드 (Firestore + LocalStorage)
    ========================================================================== */
 async function loadHomeroomData() {
     const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
@@ -183,53 +196,58 @@ async function loadHomeroomData() {
 }
 
 /* ==========================================================================
-   2. 청소 구역 모듈 (학생 번호/이름 즉각 렌더링 + DB 영구 저장)
+   청소 구역 모듈 (학생 번호/이름 배지 즉시 표시)
    ========================================================================== */
 function setupCleaningModule() {
     const modal = document.getElementById('cleaningStudentSelectModal');
     const closeBtn = document.getElementById('closeCleaningSelectModalBtn');
 
-    closeBtn?.addEventListener('click', () => modal?.classList.add('hidden'));
+    if (closeBtn) closeBtn.onclick = () => modal?.classList.add('hidden');
 
-    // 위로 교대
-    document.getElementById('rotateCleaningUpBtn')?.addEventListener('click', () => {
-        const newGrid = Array(6).fill().map(() => Array(5).fill(null));
-        for (let r = 0; r < 6; r++) {
-            const prevR = (r - 1 + 6) % 6;
-            for (let c = 0; c < 5; c++) {
-                newGrid[prevR][c] = homeroomState.cleaningData[r][c];
+    const btnUp = document.getElementById('rotateCleaningUpBtn');
+    if (btnUp) {
+        btnUp.onclick = () => {
+            const newGrid = Array(6).fill().map(() => Array(5).fill(null));
+            for (let r = 0; r < 6; r++) {
+                const prevR = (r - 1 + 6) % 6;
+                for (let c = 0; c < 5; c++) {
+                    newGrid[prevR][c] = homeroomState.cleaningData[r][c];
+                }
             }
-        }
-        homeroomState.cleaningData = newGrid;
-        renderCleaningGrid();
-        saveCleaningData();
-    });
+            homeroomState.cleaningData = newGrid;
+            renderCleaningGrid();
+            saveCleaningData();
+        };
+    }
 
-    // 아래로 교대
-    document.getElementById('rotateCleaningDownBtn')?.addEventListener('click', () => {
-        const newGrid = Array(6).fill().map(() => Array(5).fill(null));
-        for (let r = 0; r < 6; r++) {
-            const nextR = (r + 1) % 6;
-            for (let c = 0; c < 5; c++) {
-                newGrid[nextR][c] = homeroomState.cleaningData[r][c];
+    const btnDown = document.getElementById('rotateCleaningDownBtn');
+    if (btnDown) {
+        btnDown.onclick = () => {
+            const newGrid = Array(6).fill().map(() => Array(5).fill(null));
+            for (let r = 0; r < 6; r++) {
+                const nextR = (r + 1) % 6;
+                for (let c = 0; c < 5; c++) {
+                    newGrid[nextR][c] = homeroomState.cleaningData[r][c];
+                }
             }
-        }
-        homeroomState.cleaningData = newGrid;
-        renderCleaningGrid();
-        saveCleaningData();
-    });
+            homeroomState.cleaningData = newGrid;
+            renderCleaningGrid();
+            saveCleaningData();
+        };
+    }
 
     const hwpxInput = document.getElementById('cleaningHwpxTemplateInput');
     const hwpxBtn = document.getElementById('downloadCleaningHwpxBtn');
-    hwpxInput?.addEventListener('change', () => {
-        if (hwpxInput.files.length > 0) {
-            cleaningHwpxBlob = hwpxInput.files[0];
-            hwpxBtn?.classList.remove('hidden');
-            alert("✅ 청소 구역 HWPX 양식이 등록되었습니다.");
-        }
-    });
-
-    hwpxBtn?.addEventListener('click', downloadCleaningHwpx);
+    if (hwpxInput) {
+        hwpxInput.onchange = () => {
+            if (hwpxInput.files.length > 0) {
+                cleaningHwpxBlob = hwpxInput.files[0];
+                hwpxBtn?.classList.remove('hidden');
+                alert("✅ 청소 구역 HWPX 양식이 등록되었습니다.");
+            }
+        };
+    }
+    if (hwpxBtn) hwpxBtn.onclick = downloadCleaningHwpx;
 }
 
 function renderCleaningGrid() {
@@ -254,7 +272,7 @@ function renderCleaningGrid() {
                                 <span class="bg-emerald-200 text-emerald-800 text-[11px] font-extrabold px-1.5 py-0.5 rounded">${student.num}번</span>
                                 <span class="text-xs truncate font-extrabold text-slate-800">${student.name}</span>
                             </div>
-                            <button type="button" class="text-slate-400 hover:text-rose-500 p-1 rounded-md transition-colors ml-1" title="배정 해제" onclick="window.clearCleaningSlot(${r}, ${c})">
+                            <button type="button" class="text-slate-400 hover:text-rose-500 p-1 rounded-md transition-colors ml-1" title="배정 해제" onclick="window.clearCleaningSlot(${r}, ${c}); event.stopPropagation();">
                                 <i class="fa-solid fa-xmark text-xs pointer-events-none"></i>
                             </button>
                         </div>
@@ -275,7 +293,6 @@ function renderCleaningGrid() {
     }
 }
 
-// 모달 열기 및 학생 배정 (클릭 즉시 화면 재렌더링)
 window.openCleaningSelectModal = function(row, col) {
     homeroomState.currentCleaningSlot = { row, col };
     const modal = document.getElementById('cleaningStudentSelectModal');
@@ -306,7 +323,7 @@ window.openCleaningSelectModal = function(row, col) {
         `;
         btn.onclick = () => {
             homeroomState.cleaningData[row][col] = { num: s.num, name: s.name };
-            renderCleaningGrid(); // 0초 만에 화면 즉시 반영 (탭 전환 불필요)
+            renderCleaningGrid();
             modal.classList.add('hidden');
             saveCleaningData();
         };
@@ -318,7 +335,7 @@ window.openCleaningSelectModal = function(row, col) {
 
 window.clearCleaningSlot = function(row, col) {
     homeroomState.cleaningData[row][col] = null;
-    renderCleaningGrid(); // 즉시 반영
+    renderCleaningGrid();
     saveCleaningData();
 };
 
@@ -379,193 +396,222 @@ async function downloadCleaningHwpx() {
 }
 
 /* ==========================================================================
-   3. 비상연락망 모듈
+   비상연락망 모듈
    ========================================================================== */
 function setupContactsModule() {
     const contactModal = document.getElementById('contactModal');
     const bulkModal = document.getElementById('bulkPasteModal');
 
-    document.getElementById('closeContactModalBtn')?.addEventListener('click', () => contactModal?.classList.add('hidden'));
-    document.getElementById('openNewContactModalBtn')?.addEventListener('click', () => openContactEditMode(null));
+    const closeContactBtn = document.getElementById('closeContactModalBtn');
+    if (closeContactBtn) closeContactBtn.onclick = () => contactModal?.classList.add('hidden');
 
-    document.getElementById('deleteAllContactsBtn')?.addEventListener('click', async () => {
-        if (!confirm("정말 모든 학생 연락처를 삭제하시겠습니까?")) return;
-        homeroomState.contacts = [];
-        renderContactGrid();
-        renderExcludeStudentList();
+    const openNewBtn = document.getElementById('openNewContactModalBtn');
+    if (openNewBtn) openNewBtn.onclick = () => openContactEditMode(null);
 
-        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-        const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
-        localStorage.removeItem(`contacts_${classKey}`);
-        localStorage.removeItem(`contacts_${userClassKey}`);
-        try {
-            await deleteDoc(doc(db, "homeroom_contacts", classKey));
-            if (homeroomState.userId) await deleteDoc(doc(db, "homeroom_contacts", userClassKey));
-        } catch (e) {}
-    });
+    const deleteTotalBtn = document.getElementById('deleteAllContactsBtn');
+    if (deleteTotalBtn) {
+        deleteTotalBtn.onclick = async () => {
+            if (!confirm("정말 모든 학생 연락처를 삭제하시겠습니까?")) return;
+            homeroomState.contacts = [];
+            renderContactGrid();
+            renderExcludeStudentList();
 
-    document.getElementById('openBulkPasteModalBtn')?.addEventListener('click', () => {
-        document.getElementById('bulkPasteTextarea').value = '';
-        bulkModal?.classList.remove('hidden');
-    });
-    document.getElementById('closeBulkPasteModalBtn')?.addEventListener('click', () => bulkModal?.classList.add('hidden'));
-    document.getElementById('cancelBulkPasteBtn')?.addEventListener('click', () => bulkModal?.classList.add('hidden'));
+            const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+            const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
+            localStorage.removeItem(`contacts_${classKey}`);
+            localStorage.removeItem(`contacts_${userClassKey}`);
+            try {
+                await setDoc(doc(db, "homeroom_contacts", classKey), { list: [] });
+                if (homeroomState.userId) await setDoc(doc(db, "homeroom_contacts", userClassKey), { list: [] });
+            } catch (e) {}
+        };
+    }
 
-    document.getElementById('saveBulkPasteBtn')?.addEventListener('click', async () => {
-        const text = document.getElementById('bulkPasteTextarea').value;
-        if (!text.trim()) return alert("데이터를 입력해주세요.");
+    const openBulkBtn = document.getElementById('openBulkPasteModalBtn');
+    if (openBulkBtn) {
+        openBulkBtn.onclick = () => {
+            const txt = document.getElementById('bulkPasteTextarea');
+            if (txt) txt.value = '';
+            bulkModal?.classList.remove('hidden');
+        };
+    }
 
-        const lines = text.split('\n');
-        const parsed = [];
+    const closeBulkBtn = document.getElementById('closeBulkPasteModalBtn');
+    if (closeBulkBtn) closeBulkBtn.onclick = () => bulkModal?.classList.add('hidden');
 
-        lines.forEach((line, idx) => {
-            const raw = line.trim();
-            if (!raw) return;
+    const cancelBulkBtn = document.getElementById('cancelBulkPasteBtn');
+    if (cancelBulkBtn) cancelBulkBtn.onclick = () => bulkModal?.classList.add('hidden');
 
-            const tokens = raw.split(/[\t\s]+/).filter(Boolean);
-            if (tokens.length < 2) return;
+    const saveBulkBtn = document.getElementById('saveBulkPasteBtn');
+    if (saveBulkBtn) {
+        saveBulkBtn.onclick = async () => {
+            const text = document.getElementById('bulkPasteTextarea')?.value || '';
+            if (!text.trim()) return alert("데이터를 입력해주세요.");
 
-            let num = parseInt(tokens[0], 10);
-            let name = tokens[1];
-            let studentPhone = "";
-            let parent1 = "";
-            let parent2 = "";
+            const lines = text.split('\n');
+            const parsed = [];
 
-            if (isNaN(num)) {
-                num = idx + 1;
-                name = tokens[0];
-            }
+            lines.forEach((line, idx) => {
+                const raw = line.trim();
+                if (!raw) return;
 
-            const phoneMatches = raw.match(/01[0-9]-?[0-9]{3,4}-?[0-9]{4}/g) || [];
-            if (phoneMatches.length >= 1) studentPhone = phoneMatches[0];
-            if (phoneMatches.length >= 2) parent1 = phoneMatches[1];
-            if (phoneMatches.length >= 3) parent2 = phoneMatches[2];
+                const tokens = raw.split(/[\t\s]+/).filter(Boolean);
+                if (tokens.length < 2) return;
 
-            parsed.push({
-                id: `st_${Date.now()}_${idx}`,
-                num: num,
-                name: name,
-                phone: studentPhone,
-                parentPhone: parent1,
-                parent2Phone: parent2
+                let num = parseInt(tokens[0], 10);
+                let name = tokens[1];
+                let studentPhone = "";
+                let parent1 = "";
+                let parent2 = "";
+
+                if (isNaN(num)) {
+                    num = idx + 1;
+                    name = tokens[0];
+                }
+
+                const phoneMatches = raw.match(/01[0-9]-?[0-9]{3,4}-?[0-9]{4}/g) || [];
+                if (phoneMatches.length >= 1) studentPhone = phoneMatches[0];
+                if (phoneMatches.length >= 2) parent1 = phoneMatches[1];
+                if (phoneMatches.length >= 3) parent2 = phoneMatches[2];
+
+                parsed.push({
+                    id: `st_${Date.now()}_${idx}`,
+                    num: num,
+                    name: name,
+                    phone: studentPhone,
+                    parentPhone: parent1,
+                    parent2Phone: parent2
+                });
             });
-        });
 
-        if (parsed.length === 0) return alert("유효한 학생 데이터를 찾지 못했습니다.");
+            if (parsed.length === 0) return alert("유효한 학생 데이터를 찾지 못했습니다.");
 
-        parsed.sort((a, b) => a.num - b.num);
-        homeroomState.contacts = parsed;
+            parsed.sort((a, b) => a.num - b.num);
+            homeroomState.contacts = parsed;
 
-        renderContactGrid();
-        renderExcludeStudentList();
-        bulkModal?.classList.add('hidden');
+            renderContactGrid();
+            renderExcludeStudentList();
+            bulkModal?.classList.add('hidden');
 
-        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-        const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
-        localStorage.setItem(`contacts_${classKey}`, JSON.stringify(parsed));
-        localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(parsed));
-        try {
-            await setDoc(doc(db, "homeroom_contacts", classKey), {
-                userId: homeroomState.userId,
-                grade: homeroomState.grade,
-                classNum: homeroomState.classNum,
-                list: parsed,
-                updatedAt: new Date().toISOString()
-            });
-            if (homeroomState.userId) {
-                await setDoc(doc(db, "homeroom_contacts", userClassKey), {
+            const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+            const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
+            localStorage.setItem(`contacts_${classKey}`, JSON.stringify(parsed));
+            localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(parsed));
+            try {
+                await setDoc(doc(db, "homeroom_contacts", classKey), {
                     userId: homeroomState.userId,
                     grade: homeroomState.grade,
                     classNum: homeroomState.classNum,
                     list: parsed,
                     updatedAt: new Date().toISOString()
                 });
+                if (homeroomState.userId) {
+                    await setDoc(doc(db, "homeroom_contacts", userClassKey), {
+                        userId: homeroomState.userId,
+                        grade: homeroomState.grade,
+                        classNum: homeroomState.classNum,
+                        list: parsed,
+                        updatedAt: new Date().toISOString()
+                    });
+                }
+            } catch (e) {}
+
+            alert(`✅ 총 ${parsed.length}명의 학생 연락처가 등록되었습니다.`);
+        };
+    }
+
+    const editModeBtn = document.getElementById('editContactModeBtn');
+    if (editModeBtn) {
+        editModeBtn.onclick = () => {
+            const id = document.getElementById('editContactId')?.value;
+            const target = homeroomState.contacts.find(c => c.id === id);
+            if (target) openContactEditMode(target);
+        };
+    }
+
+    const cancelEditBtn = document.getElementById('cancelContactEditBtn');
+    if (cancelEditBtn) {
+        cancelEditBtn.onclick = () => {
+            document.getElementById('contactEditMode')?.classList.add('hidden');
+            document.getElementById('contactViewMode')?.classList.remove('hidden');
+        };
+    }
+
+    const saveContactBtn = document.getElementById('saveContactBtn');
+    if (saveContactBtn) {
+        saveContactBtn.onclick = async () => {
+            const id = document.getElementById('editContactId')?.value;
+            const num = Number(document.getElementById('contactNumInput')?.value);
+            const name = document.getElementById('contactNameInput')?.value.trim();
+            const phone = document.getElementById('contactStudentPhone')?.value.trim() || "";
+            const p1 = document.getElementById('contactParentPhone')?.value.trim() || "";
+            const p2 = document.getElementById('contactParent2Phone')?.value.trim() || "";
+
+            if (!name) return alert("학생 이름을 입력해주세요.");
+
+            if (id) {
+                const idx = homeroomState.contacts.findIndex(c => c.id === id);
+                if (idx !== -1) {
+                    homeroomState.contacts[idx] = { id, num, name, phone, parentPhone: p1, parent2Phone: p2 };
+                }
+            } else {
+                homeroomState.contacts.push({
+                    id: `st_${Date.now()}`,
+                    num: num || homeroomState.contacts.length + 1,
+                    name,
+                    phone,
+                    parentPhone: p1,
+                    parent2Phone: p2
+                });
             }
-        } catch (e) {}
 
-        alert(`✅ 총 ${parsed.length}명의 학생 연락처가 등록되었습니다.`);
-    });
+            homeroomState.contacts.sort((a, b) => a.num - b.num);
+            renderContactGrid();
+            renderExcludeStudentList();
+            contactModal?.classList.add('hidden');
 
-    document.getElementById('editContactModeBtn')?.addEventListener('click', () => {
-        const id = document.getElementById('editContactId').value;
-        const target = homeroomState.contacts.find(c => c.id === id);
-        if (target) openContactEditMode(target);
-    });
+            const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+            const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
+            localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
+            localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(homeroomState.contacts));
+            try {
+                await setDoc(doc(db, "homeroom_contacts", classKey), {
+                    userId: homeroomState.userId,
+                    grade: homeroomState.grade,
+                    classNum: homeroomState.classNum,
+                    list: homeroomState.contacts,
+                    updatedAt: new Date().toISOString()
+                });
+            } catch (e) {}
+        };
+    }
 
-    document.getElementById('cancelContactEditBtn')?.addEventListener('click', () => {
-        document.getElementById('contactEditMode')?.classList.add('hidden');
-        document.getElementById('contactViewMode')?.classList.remove('hidden');
-    });
+    const deleteContactBtn = document.getElementById('deleteContactBtn');
+    if (deleteContactBtn) {
+        deleteContactBtn.onclick = async () => {
+            const id = document.getElementById('editContactId')?.value;
+            if (!confirm("이 연락처를 삭제하시겠습니까?")) return;
 
-    document.getElementById('saveContactBtn')?.addEventListener('click', async () => {
-        const id = document.getElementById('editContactId').value;
-        const num = Number(document.getElementById('contactNumInput').value);
-        const name = document.getElementById('contactNameInput').value.trim();
-        const phone = document.getElementById('contactStudentPhone').value.trim();
-        const p1 = document.getElementById('contactParentPhone')?.value.trim() || "";
-        const p2 = document.getElementById('contactParent2Phone')?.value.trim() || "";
+            homeroomState.contacts = homeroomState.contacts.filter(c => c.id !== id);
+            renderContactGrid();
+            renderExcludeStudentList();
+            contactModal?.classList.add('hidden');
 
-        if (!name) return alert("학생 이름을 입력해주세요.");
-
-        if (id) {
-            const idx = homeroomState.contacts.findIndex(c => c.id === id);
-            if (idx !== -1) {
-                homeroomState.contacts[idx] = { id, num, name, phone, parentPhone: p1, parent2Phone: p2 };
-            }
-        } else {
-            homeroomState.contacts.push({
-                id: `st_${Date.now()}`,
-                num: num || homeroomState.contacts.length + 1,
-                name,
-                phone,
-                parentPhone: p1,
-                parent2Phone: p2
-            });
-        }
-
-        homeroomState.contacts.sort((a, b) => a.num - b.num);
-        renderContactGrid();
-        renderExcludeStudentList();
-        contactModal?.classList.add('hidden');
-
-        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-        const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
-        localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
-        localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(homeroomState.contacts));
-        try {
-            await setDoc(doc(db, "homeroom_contacts", classKey), {
-                userId: homeroomState.userId,
-                grade: homeroomState.grade,
-                classNum: homeroomState.classNum,
-                list: homeroomState.contacts,
-                updatedAt: new Date().toISOString()
-            });
-        } catch (e) {}
-    });
-
-    document.getElementById('deleteContactBtn')?.addEventListener('click', async () => {
-        const id = document.getElementById('editContactId').value;
-        if (!confirm("이 연락처를 삭제하시겠습니까?")) return;
-
-        homeroomState.contacts = homeroomState.contacts.filter(c => c.id !== id);
-        renderContactGrid();
-        renderExcludeStudentList();
-        contactModal?.classList.add('hidden');
-
-        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-        const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
-        localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
-        localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(homeroomState.contacts));
-        try {
-            await setDoc(doc(db, "homeroom_contacts", classKey), {
-                userId: homeroomState.userId,
-                grade: homeroomState.grade,
-                classNum: homeroomState.classNum,
-                list: homeroomState.contacts,
-                updatedAt: new Date().toISOString()
-            });
-        } catch (e) {}
-    });
+            const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+            const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
+            localStorage.setItem(`contacts_${classKey}`, JSON.stringify(homeroomState.contacts));
+            localStorage.setItem(`contacts_${userClassKey}`, JSON.stringify(homeroomState.contacts));
+            try {
+                await setDoc(doc(db, "homeroom_contacts", classKey), {
+                    userId: homeroomState.userId,
+                    grade: homeroomState.grade,
+                    classNum: homeroomState.classNum,
+                    list: homeroomState.contacts,
+                    updatedAt: new Date().toISOString()
+                });
+            } catch (e) {}
+        };
+    }
 }
 
 function renderContactGrid() {
@@ -643,65 +689,72 @@ function openContactEditMode(contact) {
 }
 
 /* ==========================================================================
-   4. 자리 바꾸기 모듈 (기피조합, 애니메이션, HWPX)
+   자리 바꾸기 모듈
    ========================================================================== */
 function setupSeatingModule() {
-    document.getElementById('teacherDeskBtn')?.addEventListener('click', () => {
-        const modal = document.getElementById('antiPairModal');
-        const area = document.getElementById('antiPairTextarea');
-        if (area) {
-            area.value = homeroomState.antiPairs.map(p => `${p[0]}, ${p[1]}`).join('\n');
-        }
-        modal?.classList.remove('hidden');
-    });
-
-    document.getElementById('closeAntiPairModalBtn')?.addEventListener('click', () => {
-        document.getElementById('antiPairModal')?.classList.add('hidden');
-    });
-
-    document.getElementById('saveAntiPairBtn')?.addEventListener('click', async () => {
-        const text = document.getElementById('antiPairTextarea').value;
-        const lines = text.split('\n');
-        const pairs = [];
-
-        lines.forEach(line => {
-            const parts = line.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-            if (parts.length >= 2) {
-                pairs.push([parts[0], parts[1]]);
+    const deskBtn = document.getElementById('teacherDeskBtn');
+    if (deskBtn) {
+        deskBtn.onclick = () => {
+            const modal = document.getElementById('antiPairModal');
+            const area = document.getElementById('antiPairTextarea');
+            if (area) {
+                area.value = homeroomState.antiPairs.map(p => `${p[0]}, ${p[1]}`).join('\n');
             }
-        });
+            modal?.classList.remove('hidden');
+        };
+    }
 
-        homeroomState.antiPairs = pairs;
-        const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
-        const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
-        localStorage.setItem(`anti_pairs_${classKey}`, JSON.stringify(pairs));
-        localStorage.setItem(`anti_pairs_${userClassKey}`, JSON.stringify(pairs));
-        try {
-            await setDoc(doc(db, "homeroom_anti_pairs", classKey), {
-                userId: homeroomState.userId,
-                grade: homeroomState.grade,
-                classNum: homeroomState.classNum,
-                pairs: pairs
+    const closeAntiBtn = document.getElementById('closeAntiPairModalBtn');
+    if (closeAntiBtn) closeAntiBtn.onclick = () => document.getElementById('antiPairModal')?.classList.add('hidden');
+
+    const saveAntiBtn = document.getElementById('saveAntiPairBtn');
+    if (saveAntiBtn) {
+        saveAntiBtn.onclick = async () => {
+            const text = document.getElementById('antiPairTextarea')?.value || '';
+            const lines = text.split('\n');
+            const pairs = [];
+
+            lines.forEach(line => {
+                const parts = line.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+                if (parts.length >= 2) {
+                    pairs.push([parts[0], parts[1]]);
+                }
             });
-        } catch(e) {}
 
-        document.getElementById('antiPairModal')?.classList.add('hidden');
-        alert("🤫 기피 조합이 안전하게 비밀 저장되었습니다.");
-    });
+            homeroomState.antiPairs = pairs;
+            const classKey = `${homeroomState.grade}_${homeroomState.classNum}`;
+            const userClassKey = homeroomState.userId ? `${homeroomState.userId}_${classKey}` : classKey;
+            localStorage.setItem(`anti_pairs_${classKey}`, JSON.stringify(pairs));
+            localStorage.setItem(`anti_pairs_${userClassKey}`, JSON.stringify(pairs));
+            try {
+                await setDoc(doc(db, "homeroom_anti_pairs", classKey), {
+                    userId: homeroomState.userId,
+                    grade: homeroomState.grade,
+                    classNum: homeroomState.classNum,
+                    pairs: pairs
+                });
+            } catch(e) {}
 
-    document.getElementById('startSeatingBtn')?.addEventListener('click', runSeatingArrangement);
+            document.getElementById('antiPairModal')?.classList.add('hidden');
+            alert("🤫 기피 조합이 안전하게 비밀 저장되었습니다.");
+        };
+    }
+
+    const startBtn = document.getElementById('startSeatingBtn');
+    if (startBtn) startBtn.onclick = runSeatingArrangement;
 
     const hwpxInput = document.getElementById('hwpxTemplateInput');
     const hwpxBtn = document.getElementById('downloadHwpxBtn');
-    hwpxInput?.addEventListener('change', () => {
-        if (hwpxInput.files.length > 0) {
-            seatingHwpxBlob = hwpxInput.files[0];
-            hwpxBtn?.classList.remove('hidden');
-            alert("✅ 자리배치 HWPX 양식이 등록되었습니다.");
-        }
-    });
-
-    hwpxBtn?.addEventListener('click', downloadSeatingHwpx);
+    if (hwpxInput) {
+        hwpxInput.onchange = () => {
+            if (hwpxInput.files.length > 0) {
+                seatingHwpxBlob = hwpxInput.files[0];
+                hwpxBtn?.classList.remove('hidden');
+                alert("✅ 자리배치 HWPX 양식이 등록되었습니다.");
+            }
+        };
+    }
+    if (hwpxBtn) hwpxBtn.onclick = downloadSeatingHwpx;
 }
 
 function initSeatingGrid() {
@@ -874,5 +927,70 @@ async function downloadSeatingHwpx() {
         a.click();
     } catch(e) {
         alert("HWPX 다운로드 중 오류가 발생했습니다.");
+    }
+}
+
+/* ==========================================================================
+   🎯 5. 전역 이벤트 위임 (어떤 환경에서도 버튼이 무조건 반응하도록 보장)
+   ========================================================================== */
+if (typeof document !== 'undefined') {
+    document.addEventListener('click', (e) => {
+        const subTab = e.target.closest('#homeroomSubTabContacts, #homeroomSubTabSeating, #homeroomSubTabCleaning');
+        if (subTab) {
+            e.preventDefault();
+            if (subTab.id === 'homeroomSubTabContacts') switchHomeroomSubTab('contacts');
+            else if (subTab.id === 'homeroomSubTabSeating') switchHomeroomSubTab('seating');
+            else if (subTab.id === 'homeroomSubTabCleaning') switchHomeroomSubTab('cleaning');
+            return;
+        }
+
+        if (e.target.closest('#openNewContactModalBtn')) {
+            e.preventDefault();
+            openContactEditMode(null);
+            return;
+        }
+        if (e.target.closest('#openBulkPasteModalBtn')) {
+            e.preventDefault();
+            const bulk = document.getElementById('bulkPasteModal');
+            const txt = document.getElementById('bulkPasteTextarea');
+            if (txt) txt.value = '';
+            bulk?.classList.remove('hidden');
+            return;
+        }
+        if (e.target.closest('#closeBulkPasteModalBtn, #cancelBulkPasteBtn')) {
+            e.preventDefault();
+            document.getElementById('bulkPasteModal')?.classList.add('hidden');
+            return;
+        }
+        if (e.target.closest('#closeContactModalBtn')) {
+            e.preventDefault();
+            document.getElementById('contactModal')?.classList.add('hidden');
+            return;
+        }
+        if (e.target.closest('#teacherDeskBtn')) {
+            e.preventDefault();
+            const modal = document.getElementById('antiPairModal');
+            const area = document.getElementById('antiPairTextarea');
+            if (area) area.value = homeroomState.antiPairs.map(p => `${p[0]}, ${p[1]}`).join('\n');
+            modal?.classList.remove('hidden');
+            return;
+        }
+        if (e.target.closest('#closeAntiPairModalBtn')) {
+            e.preventDefault();
+            document.getElementById('antiPairModal')?.classList.add('hidden');
+            return;
+        }
+        if (e.target.closest('#closeCleaningSelectModalBtn')) {
+            e.preventDefault();
+            document.getElementById('cleaningStudentSelectModal')?.classList.add('hidden');
+            return;
+        }
+    });
+
+    // 스크립트 로드 시점 자동 리스너 연결
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupAllModules);
+    } else {
+        setupAllModules();
     }
 }
