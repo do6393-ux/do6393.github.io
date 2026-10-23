@@ -7,6 +7,9 @@ let antiPairs = [];
 let allocatedSeats = new Array(36).fill(null); 
 let hwpxFileBlob = null; 
 
+let currentClassStr = '1-7'; // 기본값
+let unsubscribeContacts = null; // 리스너 관리용
+
 document.addEventListener('DOMContentLoaded', () => {
 
     const tabContactBtn = document.getElementById('homeroomSubTabContacts');
@@ -36,7 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const answer = prompt(`⚠️ 등록된 ${students.length}명의 연락처를 모두 삭제하시겠습니까?\n진행하시려면 '삭제합니다' 라고 입력해주세요.`);
         if (answer === '삭제합니다') {
             try {
-                await Promise.all(students.map(st => deleteDoc(doc(db, "homeroom_contacts", st.id))));
+                const colName = `homeroom_contacts_${currentClassStr}`;
+                await Promise.all(students.map(st => deleteDoc(doc(db, colName, st.id))));
                 alert("✅ 전체 삭제가 안전하게 완료되었습니다.");
             } catch (e) { alert("삭제 처리 중 오류가 발생했습니다."); }
         } else if (answer !== null) { alert("입력 문구가 일치하지 않아 취소되었습니다."); }
@@ -77,12 +81,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (parsedStudents.length === 0) return alert("파싱할 수 있는 데이터가 없습니다.");
         let importCount = 0;
+        const colName = `homeroom_contacts_${currentClassStr}`;
         for (let st of parsedStudents) {
             const payload = { number: st.number, name: st.name, studentPhone: st.phones[0] || "", parentPhone1: st.phones[1] || "", parentPhone2: st.phones[2] || "" };
             const existing = students.find(s => s.number === st.number);
             try {
-                if (existing) await updateDoc(doc(db, "homeroom_contacts", existing.id), payload);
-                else await addDoc(collection(db, "homeroom_contacts"), payload);
+                if (existing) await updateDoc(doc(db, colName, existing.id), payload);
+                else await addDoc(collection(db, colName), payload);
                 importCount++;
             } catch (err) {}
         }
@@ -104,17 +109,21 @@ document.addEventListener('DOMContentLoaded', () => {
         else document.getElementById('contactModal').classList.add('hidden');
     });
     document.getElementById('editContactModeBtn')?.addEventListener('click', () => { document.getElementById('contactViewMode').classList.add('hidden'); document.getElementById('contactEditMode').classList.remove('hidden'); });
+    
     document.getElementById('deleteContactBtn')?.addEventListener('click', async () => {
         const id = document.getElementById('editContactId').value;
-        if (id && confirm("개별 삭제할까요?")) { await deleteDoc(doc(db, "homeroom_contacts", id)); document.getElementById('contactModal').classList.add('hidden'); }
+        const colName = `homeroom_contacts_${currentClassStr}`;
+        if (id && confirm("개별 삭제할까요?")) { await deleteDoc(doc(db, colName, id)); document.getElementById('contactModal').classList.add('hidden'); }
     });
+
     document.getElementById('saveContactBtn')?.addEventListener('click', async () => {
         if (!auth.currentUser) return alert("로그인 필요");
         const num = Number(document.getElementById('contactNumInput').value); const name = document.getElementById('contactNameInput').value.trim();
         if (!num || !name) return alert("번호와 이름 입력 필수");
         const payload = { number: num, name, studentPhone: document.getElementById('contactStudentPhone').value.trim(), parentPhone1: document.getElementById('contactParentPhone').value.trim(), parentPhone2: document.getElementById('contactParent2Phone').value.trim() };
         const editId = document.getElementById('editContactId').value;
-        try { if (editId) await updateDoc(doc(db, "homeroom_contacts", editId), payload); else await addDoc(collection(db, "homeroom_contacts"), payload);
+        const colName = `homeroom_contacts_${currentClassStr}`;
+        try { if (editId) await updateDoc(doc(db, colName, editId), payload); else await addDoc(collection(db, colName), payload);
         document.getElementById('contactModal').classList.add('hidden'); } catch (e) { alert("저장 실패"); }
     });
 
@@ -258,7 +267,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             for (let i = 0; i < 36; i++) {
                 const st = allocatedSeats[i];
-                // 🎯 띄어쓰기 제거: `${st.number}.${st.name}` 적용 완료
                 const replaceText = st ? `${st.number}.${st.name}` : ""; 
                 const hwpxIndex = 36 - i; 
                 const regex = new RegExp(`\\{\\{자리${hwpxIndex}\\}\\}`, 'g');
@@ -271,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = window.URL.createObjectURL(newBlob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = "1-7반_자리배치결과.hwpx";
+            a.download = `${currentClassStr}반_자리배치결과.hwpx`; // 파일명 동적 반영
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -284,9 +292,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-export function initHomeroomTab(currentUser) {
-    if (!currentUser) return;
-    onSnapshot(query(collection(db, "homeroom_contacts"), orderBy("number", "asc")), (snapshot) => {
+// 🎯 학급 정보가 변경될 때마다 DB 경로를 다시 물려주는 핵심 함수
+export function updateHomeroomClass(classStr) {
+    if (!auth.currentUser) return;
+    currentClassStr = classStr;
+    
+    // 이전 학급의 실시간 데이터 수신 종료
+    if (unsubscribeContacts) unsubscribeContacts();
+    
+    students = [];
+    renderContacts();
+    renderExcludeList();
+    
+    // 바뀐 학급명으로 새 데이터베이스 경로 감지
+    const colName = `homeroom_contacts_${currentClassStr}`;
+    unsubscribeContacts = onSnapshot(query(collection(db, colName), orderBy("number", "asc")), (snapshot) => {
         students = [];
         snapshot.forEach(d => students.push({ id: d.id, ...d.data() }));
         renderContacts();
