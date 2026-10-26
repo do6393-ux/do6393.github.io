@@ -120,7 +120,6 @@ export async function addSharedPresetToDB(categoryKey, { categoryName, situation
     await setDoc(docRef, { presets: currentDBPresets, updatedAt: new Date().toISOString() });
 }
 
-// 🎯 기존 DB 항목 수정
 export async function updateSharedPresetInDB(categoryKey, type, oldText, newText) {
     if (!categoryKey || !type || !oldText || !newText) return;
     const docRef = doc(db, "shared_records_presets", "global_presets");
@@ -138,7 +137,6 @@ export async function updateSharedPresetInDB(categoryKey, type, oldText, newText
     }
 }
 
-// 🎯 기존 DB 항목 삭제
 export async function deleteSharedPresetFromDB(categoryKey, type, targetText) {
     if (!categoryKey || !type || !targetText) return;
     const docRef = doc(db, "shared_records_presets", "global_presets");
@@ -217,7 +215,6 @@ export function setupRecordsModule() {
     document.getElementById('cancelPresetModalBtn')?.addEventListener('click', closePresetModal);
     document.getElementById('savePresetBtn')?.addEventListener('click', saveCustomPreset);
     
-    // 🎯 모달 내 메인 탭 전환 (추가 / 관리)
     document.getElementById('presetModalTabAddBtn')?.addEventListener('click', (e) => {
         e.target.classList.replace('text-slate-400', 'text-purple-600');
         e.target.classList.replace('border-transparent', 'border-purple-600');
@@ -238,10 +235,9 @@ export function setupRecordsModule() {
         
         document.getElementById('presetAddView').classList.add('hidden');
         document.getElementById('presetManageView').classList.remove('hidden');
-        renderManageList(); // 관리 목록 즉시 렌더링
+        renderManageList(); 
     });
 
-    // 🎯 모달 추가창 하위 탭 전환 (상황/행동/카테고리)
     const typeBtns = document.querySelectorAll('.preset-type-btn');
     typeBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -272,11 +268,9 @@ export function setupRecordsModule() {
         });
     });
 
-    // 관리창 드롭다운 변경 시 리스트 다시 그리기
     document.getElementById('manageCategorySelect')?.addEventListener('change', renderManageList);
     document.getElementById('manageTypeSelect')?.addEventListener('change', renderManageList);
 
-    // 메인 화면 탭 전환
     document.getElementById('recordInnerTabEngineBtn')?.addEventListener('click', () => switchRecordInnerTab('engine'));
     document.getElementById('recordInnerTabArchiveBtn')?.addEventListener('click', () => switchRecordInnerTab('archive'));
 
@@ -291,12 +285,27 @@ export function setupRecordsModule() {
         else countEl.classList.replace('text-rose-500', 'text-slate-500');
     });
 
-    document.getElementById('archiveSaveBtn')?.addEventListener('click', saveAccumulatedRecords);
+    document.getElementById('archiveSaveBtn')?.addEventListener('click', () => {
+        if (currentArchiveStudentName) {
+            const textarea = document.getElementById('archiveTextarea');
+            if (textarea && !textarea.disabled) {
+                homeroomState.accumulatedRecords[currentArchiveStudentName] = textarea.value;
+            }
+        }
+        persistAccumulatedRecords(true);
+        renderRecordStudentList('archive');
+    });
+    
     document.getElementById('archiveClearBtn')?.addEventListener('click', () => {
         if(!confirm("해당 학생의 누적 기록을 비우시겠습니까?")) return;
         if(archiveTextarea) archiveTextarea.value = '';
-        saveAccumulatedRecords();
+        if(currentArchiveStudentName) {
+            homeroomState.accumulatedRecords[currentArchiveStudentName] = "";
+        }
+        persistAccumulatedRecords(false);
+        renderRecordStudentList('archive');
     });
+
     document.getElementById('archiveCopyBtn')?.addEventListener('click', () => {
         if(!archiveTextarea || !archiveTextarea.value) return;
         navigator.clipboard.writeText(archiveTextarea.value).then(() => alert('✅ 전체 내용이 복사되었습니다.'));
@@ -367,11 +376,18 @@ export async function loadRecordsData() {
     const uid = homeroomState.userId;
     const g = homeroomState.grade;
     const c = homeroomState.classNum;
-    const localData = localStorage.getItem(`records_${uid}_${g}_${c}`);
-    if (localData) {
-        homeroomState.accumulatedRecords = JSON.parse(localData);
-    } else {
-        homeroomState.accumulatedRecords = {};
+    
+    try {
+        const snap = await getDoc(doc(db, "homeroom_records", `${uid}_${g}_${c}`));
+        if (snap.exists() && snap.data().records) {
+            homeroomState.accumulatedRecords = snap.data().records;
+        } else {
+            const localData = localStorage.getItem(`records_${uid}_${g}_${c}`);
+            homeroomState.accumulatedRecords = localData ? JSON.parse(localData) : {};
+        }
+    } catch (e) {
+        const localData = localStorage.getItem(`records_${uid}_${g}_${c}`);
+        homeroomState.accumulatedRecords = localData ? JSON.parse(localData) : {};
     }
 
     renderRecordStudentList('engine');
@@ -503,7 +519,8 @@ function handleGenerateRecord() {
             <p class="text-[13px] text-slate-800 leading-relaxed font-medium tracking-tight break-keep pt-1 select-none pointer-events-none">${sentence}</p>
         `;
 
-        div.onclick = () => {
+        // 🎯 클릭 시 강제 탭 전환 코드를 삭제하고 조용히 저장만 합니다.
+        div.onclick = async () => {
             if (!name) return alert('왼쪽 명단에서 학생을 먼저 선택해주세요.');
             
             let current = homeroomState.accumulatedRecords[name] || "";
@@ -511,8 +528,25 @@ function handleGenerateRecord() {
             current += res.sentence;
             homeroomState.accumulatedRecords[name] = current;
             
-            saveAccumulatedRecords(false);
-            switchRecordInnerTab('archive'); // 🎯 자동 탭 전환
+            if (currentArchiveStudentName === name) {
+                const textarea = document.getElementById('archiveTextarea');
+                if (textarea) textarea.value = current;
+            }
+
+            await persistAccumulatedRecords(false);
+            
+            const toast = document.createElement('div');
+            toast.className = "absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg opacity-0 transition-opacity z-10 whitespace-nowrap";
+            toast.innerHTML = `<i class="fa-solid fa-check"></i> '${name}' 누적 기록에 추가됨`;
+            div.appendChild(toast);
+            
+            setTimeout(() => toast.classList.add('opacity-100'), 10);
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                setTimeout(() => toast.remove(), 300);
+            }, 1200);
+            
+            renderRecordStudentList('engine'); 
         };
         container.appendChild(div);
     });
@@ -547,14 +581,7 @@ function loadArchiveTextarea() {
     }
 }
 
-async function saveAccumulatedRecords(showAlert = true) {
-    if (currentArchiveStudentName) {
-        const textarea = document.getElementById('archiveTextarea');
-        if (textarea && !textarea.disabled) {
-            homeroomState.accumulatedRecords[currentArchiveStudentName] = textarea.value;
-        }
-    }
-
+async function persistAccumulatedRecords(showAlert = false) {
     const uid = homeroomState.userId;
     const g = homeroomState.grade;
     const c = homeroomState.classNum;
@@ -570,16 +597,11 @@ async function saveAccumulatedRecords(showAlert = true) {
             updatedAt: new Date().toISOString()
         });
         if(showAlert) alert('✅ 누적 기록이 안전하게 저장되었습니다.');
-        renderRecordStudentList(document.getElementById('recordInnerTabArchiveBtn')?.classList.contains('text-purple-600') ? 'archive' : 'engine');
     } catch (e) {
         console.error("누적 기록 DB 저장 에러:", e);
         if(showAlert) alert('저장 중 네트워크 오류가 발생했으나, 이 브라우저에는 임시 저장되었습니다.');
     }
 }
-
-// ==========================================
-// 🎯 모달 및 문구 DB 관리 (수정/삭제 포함)
-// ==========================================
 
 function openPresetModal() {
     const modal = document.getElementById('customPresetModal');
@@ -611,7 +633,6 @@ function openPresetModal() {
     document.getElementById('presetNewCategoryInput').value = '';
     document.getElementById('presetTextInput').value = '';
     
-    // 항상 '문구 추가' 탭으로 초기화
     document.getElementById('presetModalTabAddBtn').click();
     modal.classList.remove('hidden');
 }
@@ -657,10 +678,9 @@ async function saveCustomPreset() {
     }
 }
 
-// 🎯 기존 DB 항목 리스트업 및 수정/삭제 랜더링
 function renderManageList() {
     const catKey = document.getElementById('manageCategorySelect').value;
-    const type = document.getElementById('manageTypeSelect').value; // 'situations' or 'actions'
+    const type = document.getElementById('manageTypeSelect').value;
     const listContainer = document.getElementById('manageItemList');
     
     listContainer.innerHTML = '';
@@ -687,8 +707,8 @@ function renderManageList() {
             if(!input.value.trim() || input.value === itemText) return;
             editBtn.textContent = "저장중";
             await updateSharedPresetInDB(catKey, type, itemText, input.value.trim());
-            await loadRecordsData(); // 메인 UI 재렌더링
-            renderManageList(); // 관리 UI 재렌더링
+            await loadRecordsData(); 
+            renderManageList(); 
             alert("✅ 정상적으로 수정되었습니다.");
         };
 
