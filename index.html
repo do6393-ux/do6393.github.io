@@ -1,691 +1,743 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>부원여중 정보 플랫폼</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script>
-        tailwind.config = { theme: { extend: { colors: { primary: '#0284c7', secondary: '#0d9488', mint: '#14b8a6', lightbg: '#f8fafc' }, fontFamily: { sans: ['Noto Sans KR', 'sans-serif'] } } } }
-    </script>
-    <link rel="stylesheet" href="css/styles.css">
-    <script>
-        const initParams = new URLSearchParams(window.location.search);
-        if (initParams.has('lesson')) {
-            document.write('<style>#mainDashboardApp { display: none !important; } #standaloneViewer { display: block !important; }</style>');
-        } else if (initParams.has('task')) {
-            document.write('<style>#mainDashboardApp { display: none !important; } #standaloneTaskViewer { display: block !important; }</style>');
+import { db, doc, getDoc, setDoc } from '../firebase-config.js';
+import { homeroomState } from './state.js';
+import { DEFAULT_BEHAVIOR_PRESETS, DEFAULT_STYLES } from './default-presets.js'; 
+
+// ==========================================
+// 1. 데이터 엔진 및 DB 로직부
+// ==========================================
+
+export const NEIS_RULES = {
+    calculateBytes(text) {
+        if (!text) return 0;
+        let bytes = 0;
+        for (let i = 0; i < text.length; i++) {
+            const char = text.charAt(i);
+            const code = text.charCodeAt(i);
+            if (char === '\n') bytes += 2;
+            else if (code <= 0x007f) bytes += 1;
+            else bytes += 3;
         }
-    </script>
-</head>
-<body class="text-slate-800 antialiased min-h-screen flex flex-col relative">
+        return bytes;
+    },
+    forbiddenWords: [
+        '토익', '토플', '텝스', '토셀', '한자시험', '한국어능력시험',
+        '올림피아드', '경시대회', '대회', '수상', '입상', '상장',
+        '자격증', '인증', '영재교육원', '영재학급', '논문', '학회지',
+        '도서출판', '사설', '학원', '과외', '인강', '어학연수',
+        '부모', '아버지', '어머니', '교수', '의사', '대표'
+    ],
+    checkForbiddenWords(text) {
+        if (!text) return [];
+        return this.forbiddenWords.filter(word => text.includes(word));
+    }
+};
 
-    <!-- 단독 수업 뷰어 -->
-    <div id="standaloneViewer" class="hidden min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
-        <div class="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-12 shadow-sm border border-slate-200 space-y-6">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div class="flex items-center gap-2">
-                    <span id="viewerUnitBadge" class="text-xs font-bold px-3 py-1 rounded-full bg-sky-100 text-sky-700"></span>
-                    <span id="viewerLessonNum" class="text-xs text-slate-400"></span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button id="viewerEditBtn" class="hidden text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shadow-sm"><i class="fa-solid fa-pen"></i> 수정</button>
-                    <button id="viewerSaveBtn" class="hidden text-xs font-bold px-4 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white transition-all shadow-sm"><i class="fa-solid fa-check"></i> 저장</button>
-                    <button id="viewerCancelBtn" class="hidden text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all">취소</button>
-                </div>
-            </div>
-            <div id="viewerDisplaySection" class="space-y-5">
-                <div id="viewerCoverContainer" class="hidden w-full h-64 rounded-2xl overflow-hidden shadow-inner">
-                    <img id="viewerCoverImg" src="" class="w-full h-full object-cover">
-                </div>
-                <h1 id="viewerTitle" class="text-2xl sm:text-4xl font-extrabold text-slate-800 leading-tight"></h1>
-                <p id="viewerSummary" class="text-sm sm:text-base text-slate-500 italic bg-slate-50 p-4 rounded-xl border border-slate-100"></p>
-                <div id="viewerMarkdownBody" class="notion-content pt-4 border-t border-slate-100"></div>
-            </div>
-            <div id="viewerEditFormSection" class="hidden space-y-4">
-                <div class="grid grid-cols-2 gap-3">
-                    <select id="viewerEditUnit" class="text-xs p-2.5 rounded-xl border border-slate-200">
-                        <option value="unit1">1단원</option>
-                        <option value="unit2">2단원</option>
-                        <option value="unit3">3단원</option>
-                        <option value="unit4">4단원</option>
-                        <option value="unit5">5단원</option>
-                    </select>
-                    <input type="text" id="viewerEditLessonNum" class="text-xs p-2.5 rounded-xl border border-slate-200">
-                </div>
-                <input type="text" id="viewerEditTitle" class="w-full text-sm p-2.5 rounded-xl border border-slate-200 font-bold">
-                <input type="text" id="viewerEditSummary" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                <input type="url" id="viewerEditCover" placeholder="커버 이미지 URL" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                <textarea id="viewerEditContent" rows="12" class="w-full text-xs p-3.5 rounded-2xl border border-slate-200 font-mono"></textarea>
-            </div>
-        </div>
-    </div>
+export const KoreanGrammar = {
+    attachSituationJosa(situationText) {
+        if (!situationText) return "";
+        const clean = situationText.trim();
+        if (clean.endsWith('에') || clean.endsWith('에서') || clean.endsWith('시') || clean.endsWith('때') || clean.endsWith('로서') || clean.endsWith('로')) return clean;
+        if (clean.endsWith('도우미') || clean.endsWith('지킴이') || clean.endsWith('담당자') || clean.endsWith('회장') || clean.endsWith('부회장') || clean.endsWith('부원')) return `${clean}로서`;
+        if (clean.endsWith('시간')) return `${clean}에`;
+        if (clean.endsWith('활동') || clean.endsWith('수업') || clean.endsWith('회의') || clean.endsWith('과정')) return `${clean}에서`;
+        if (clean.endsWith('상황') || clean.endsWith('경우')) return `${clean}에서`;
+        return `${clean} 시,`;
+    },
+    formatActionConnective(actionText) {
+        if (!actionText) return "";
+        let text = actionText.trim().replace(/\.+$/, '');
+        const verbMap = [
+            { from: /자원함$/, to: '자원하여 솔선하고' },
+            { from: /도와줌$/, to: '따뜻하게 도와주며' },
+            { from: /챙김$/, to: '세심하게 챙길 줄 알며' },
+            { from: /동행함$/, to: '기꺼이 동행해 주며' },
+            { from: /경청함$/, to: '성심껏 경청하고' },
+            { from: /청소함$/, to: '야무지고 깔끔하게 청소하며' },
+            { from: /관리함$/, to: '철저히 관리하여' },
+            { from: /수거함$/, to: '책임감 있게 수거하여' },
+            { from: /단속함$/, to: '철저히 확인하여' },
+            { from: /완수함$/, to: '묵묵히 끝까지 마무리하고' },
+            { from: /노력함$/, to: '개선하고자 부단히 노력하며' },
+            { from: /소통함$/, to: '원활하게 소통하며' },
+            { from: /필기함$/, to: '정자로 또박또박 필기하며' },
+            { from: /참여함$/, to: '적극적으로 참여하며' },
+            { from: /해결함$/, to: '합리적으로 해결해 내며' },
+            { from: /실천함$/, to: '꾸준히 실천하여' },
+            { from: /배움$/, to: '배우게 되었으며' },
+            { from: /비워냄$/, to: '적절한 시기에 비워내며' },
+            { from: /안내함$/, to: '친절하게 안내하고' },
+            { from: /세척함$/, to: '깨끗이 세척하며' },
+            { from: /점검함$/, to: '꼼꼼하게 점검하고' },
+            { from: /지원함$/, to: '원활하게 지원하며' },
+            { from: /정돈함$/, to: '항상 제자리에 정돈하고' }
+        ];
+        for (const item of verbMap) {
+            if (item.from.test(text)) return text.replace(item.from, item.to);
+        }
+        if (text.endsWith('함')) return text.replace(/함$/, '하고');
+        if (text.endsWith('음') || text.endsWith('슴')) return text.replace(/[음슴]$/, '으며');
+        if (!text.endsWith('고') && !text.endsWith('며') && !text.endsWith('하여')) return `${text}하며`;
+        return text;
+    }
+};
 
-    <!-- 단독 업무 뷰어 -->
-    <div id="standaloneTaskViewer" class="hidden min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
-        <div class="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-10 shadow-sm border border-slate-200 space-y-6">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-                <div class="flex items-center gap-2">
-                    <span id="taskViewerCatBadge" class="text-xs font-bold px-3 py-1 rounded-full"></span>
-                    <span id="taskViewerStatusBadge" class="text-xs font-bold px-3 py-1 rounded-full"></span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button id="taskViewerEditBtn" class="hidden text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shadow-sm"><i class="fa-solid fa-pen"></i> 수정</button>
-                    <button id="taskViewerSaveBtn" class="hidden text-xs font-bold px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-sm"><i class="fa-solid fa-check"></i> 저장</button>
-                    <button id="taskViewerCancelBtn" class="hidden text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all">취소</button>
-                </div>
-            </div>
-            <div id="taskViewDisplaySection" class="space-y-5">
-                <h1 id="taskViewerTitle" class="text-2xl sm:text-3xl font-extrabold text-slate-800 leading-tight"></h1>
-                <p id="taskViewerSummary" class="text-sm sm:text-base text-slate-600 bg-slate-50 p-4 rounded-2xl border border-slate-100 leading-relaxed"></p>
-                <div id="taskViewerMarkdownBody" class="notion-content pt-4 border-t border-slate-100"></div>
-            </div>
-            <div id="taskEditFormSection" class="hidden space-y-4">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <select id="taskViewerEditCat" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
-                        <option value="devices">💻 계정 및 기기</option>
-                        <option value="network">🌐 네트워크/서버</option>
-                        <option value="privacy">🛡️ 보안점검</option>
-                        <option value="software">🔑 SW관리자</option>
-                        <option value="disposal">📊 행정/공시</option>
-                    </select>
-                    <select id="taskViewerEditStatus" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-bold">
-                        <option value="todo">⏳ 대기중</option>
-                        <option value="doing">🚀 진행중</option>
-                        <option value="done">✅ 완료됨</option>
-                    </select>
-                </div>
-                <input type="text" id="taskViewerEditTitle" class="w-full text-sm p-2.5 rounded-xl border border-slate-200 font-bold">
-                <input type="text" id="taskViewerEditSummary" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                <textarea id="taskViewerEditContent" rows="12" class="w-full text-xs p-3.5 rounded-2xl border border-slate-200 font-mono"></textarea>
-            </div>
-        </div>
-    </div>
+let activePresets = {};
+homeroomState.accumulatedRecords = {};
 
-    <!-- 메인 대시보드 애플리케이션 -->
-    <div id="mainDashboardApp">
-        <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-                <div class="flex items-center gap-4">
-                    <div class="flex items-center gap-2.5">
-                        <div class="bg-gradient-to-r from-sky-500 to-teal-500 text-white p-2.5 rounded-xl shadow-md"><i class="fa-solid fa-laptop-code text-xl"></i></div>
-                        <div>
-                            <h1 class="text-lg font-bold text-slate-800 leading-tight">부원여중 정보 플랫폼</h1>
-                            <p class="text-xs text-slate-500">정보 교육 및 교무 포털</p>
-                        </div>
-                    </div>
-                    <nav class="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 ml-4">
-                        <button id="navTabClass" class="nav-tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white text-sky-700 shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-graduation-cap"></i> 정보 수업</button>
-                        <button id="navTabHomeroom" class="hidden nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5"><i class="fa-solid fa-users"></i> <span id="navTabHomeroomText">🔒 내 학급</span></button>
-                        <button id="navTabWork" class="hidden nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5"><i class="fa-solid fa-briefcase"></i> 🔒 정보업무</button>
-                        <button id="navTabOffice" class="hidden nav-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 flex items-center gap-1.5"><i class="fa-solid fa-calendar-days"></i> 🍱 교무실</button>
-                    </nav>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button id="openLoginModalBtn" class="bg-sky-600 hover:bg-sky-700 text-white text-xs px-3 py-2 rounded-xl font-medium shadow-sm"><i class="fa-solid fa-user-lock"></i> 교사 로그인</button>
-                    <button id="openProfileSettingsBtn" class="hidden text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 text-xs px-2.5 py-2 rounded-xl transition-colors" title="내 계정 설정"><i class="fa-solid fa-gear"></i></button>
-                    <button id="logoutBtn" class="hidden bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs px-3 py-2 rounded-xl font-medium">로그아웃</button>
-                </div>
-            </div>
-            <div class="flex md:hidden border-t border-slate-100 bg-slate-50 p-1.5 gap-1 justify-center">
-                <button id="mobileNavTabClass" class="flex-1 py-1.5 text-center text-xs font-bold bg-white text-sky-700 rounded-lg shadow-sm">💻 수업</button>
-                <button id="mobileNavTabHomeroom" class="hidden flex-1 py-1.5 text-center text-xs font-medium text-slate-600"><span id="mobileNavTabHomeroomText">🔒 학급</span></button>
-                <button id="mobileNavTabWork" class="hidden flex-1 py-1.5 text-center text-xs font-medium text-slate-600">🔒 업무</button>
-                <button id="mobileNavTabOffice" class="hidden flex-1 py-1.5 text-center text-xs font-medium text-slate-600">🍱 교무실</button>
-            </div>
-        </header>
+export async function loadSharedPresetsFromDB() {
+    try {
+        const docRef = doc(db, "shared_records_presets", "global_presets");
+        const snap = await getDoc(docRef);
 
-        <!-- 1. 정보 수업 탭 -->
-        <div id="tabContentClass" class="tab-view-content">
-            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
-                <section class="bg-gradient-to-r from-sky-600 to-teal-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-                    <div class="relative z-10 flex flex-col md:flex-row items-center gap-6">
-                        <div class="relative">
-                            <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white/20 backdrop-blur-md p-1 border-2 border-white/40 shadow-inner flex items-center justify-center">
-                                <img src="https://api.dicebear.com/7.x/notionists/svg?seed=Teacher&backgroundColor=0284c7" class="w-full h-full rounded-full bg-slate-100 object-cover">
-                            </div>
-                            <span class="absolute bottom-1 right-1 bg-emerald-400 w-5 h-5 rounded-full border-2 border-white"></span>
-                        </div>
-                        <div class="text-center md:text-left flex-1">
-                            <div class="flex items-center justify-center md:justify-start gap-2 mb-1">
-                                <span class="bg-white/20 text-xs px-2.5 py-0.5 rounded-full font-medium backdrop-blur-sm">부원여중 정보교실</span>
-                                <span class="text-sky-100 text-xs">💻 컴퓨팅 사고력 증진</span>
-                            </div>
-                            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">즐거운 정보 수업 공간입니다 👋</h2>
-                            <p class="text-sky-100 text-sm sm:text-base max-w-2xl leading-relaxed">단원별 학습 자료, 실습 플랫폼 바로가기, 수행평가 과제 제출을 한곳에서 확인하세요!</p>
-                        </div>
-                    </div>
-                </section>
-                <section class="bg-white rounded-2xl border border-sky-100 shadow-sm overflow-hidden transition-all">
-                    <div class="p-5 bg-sky-50/50 flex items-center justify-between border-b border-sky-100">
-                        <div class="flex items-center gap-3">
-                            <span class="bg-sky-500 text-white text-xs font-bold px-2.5 py-1 rounded-md animate-pulse">주요 공지</span>
-                            <h3 class="font-bold text-slate-800 text-base sm:text-lg">오늘의 수업 및 수행평가 안내</h3>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button id="teacherEditNoticeBtn" class="hidden text-xs bg-amber-500 text-white font-medium px-2.5 py-1 rounded-lg transition-colors">공지 관리</button>
-                            <button id="toggleNoticeBtn" class="text-slate-500 focus:outline-none p-1 hover:text-slate-700"><i class="fa-solid fa-chevron-up" id="noticeIcon"></i></button>
-                        </div>
-                    </div>
-                    <div id="noticeEditControls" class="hidden bg-amber-50 border-b border-amber-200 p-4 space-y-3">
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <select id="newNoticeType" class="text-xs p-2 rounded-lg border border-amber-300">
-                                <option value="sky">일반 안내</option>
-                                <option value="amber">주의 사항</option>
-                                <option value="rose">긴급 공지</option>
-                            </select>
-                            <input type="text" id="newNoticeTitle" placeholder="공지 제목 입력" class="text-xs p-2 rounded-lg border border-amber-300 sm:col-span-2">
-                        </div>
-                        <textarea id="newNoticeBody" placeholder="공지 세부 내용 입력..." class="w-full text-xs p-2 rounded-lg border border-amber-300 h-16"></textarea>
-                        <div class="flex justify-end">
-                            <button id="addNoticeFirebaseBtn" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-lg">새 공지 등록</button>
-                        </div>
-                    </div>
-                    <div id="noticeContent" class="p-5 text-sm text-slate-600">
-                        <div id="noticeListContainer" class="space-y-3"></div>
-                    </div>
-                </section>
-                <section class="space-y-4">
-                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-rocket text-sky-500"></i> 실습 및 교보재 바로가기</h3>
-                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                        <a href="https://playentry.org" target="_blank" class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center"><div class="w-10 h-10 bg-amber-100 text-amber-600 flex items-center justify-center text-xl rounded-xl mb-1.5"><i class="fa-solid fa-shapes"></i></div><span class="font-bold text-xs">엔트리</span></a>
-                        <a href="https://www.menti.com" target="_blank" class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center"><div class="w-10 h-10 bg-rose-100 text-rose-600 flex items-center justify-center text-xl rounded-xl mb-1.5"><i class="fa-solid fa-chart-simple"></i></div><span class="font-bold text-xs">멘티미터</span></a>
-                        <a href="https://www.icedu.kr" target="_blank" class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center"><div class="w-10 h-10 bg-cyan-100 text-cyan-600 flex items-center justify-center text-xl rounded-xl mb-1.5"><i class="fa-solid fa-school"></i></div><span class="font-bold text-xs">ICEDU</span></a>
-                        <a href="https://letsgoteacher.kr/seat-arrangement.html" target="_blank" class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center"><div class="w-10 h-10 bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl rounded-xl mb-1.5"><i class="fa-solid fa-chair"></i></div><span class="font-bold text-xs">자리바꾸기</span></a>
-                        <a href="https://lazygyu.github.io/roulette/" target="_blank" class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center"><div class="w-10 h-10 bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl rounded-xl mb-1.5"><i class="fa-solid fa-life-ring"></i></div><span class="font-bold text-xs">룰렛돌리기</span></a>
-                    </div>
-                </section>
-                <section class="space-y-4">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-folder-open text-teal-500"></i> 단원별 수업 자료실</h3>
-                        <button id="openNewLessonModalBtn" class="hidden text-xs bg-teal-600 hover:bg-teal-700 text-white font-semibold px-3 py-1.5 rounded-xl shadow-sm flex items-center gap-1.5"><i class="fa-solid fa-plus"></i> 새 자료 작성</button>
-                    </div>
-                    <div class="flex flex-wrap gap-1.5" id="categoryFilter">
-                        <button class="lesson-filter-btn active text-xs font-medium px-3 py-1.5 rounded-full bg-sky-500 text-white shadow-sm" data-category="all">전체 보기</button>
-                        <button class="lesson-filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600" data-category="unit1">1단원</button>
-                        <button class="lesson-filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600" data-category="unit2">2단원</button>
-                        <button class="lesson-filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600" data-category="unit3">3단원</button>
-                        <button class="lesson-filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600" data-category="unit4">4단원</button>
-                        <button class="lesson-filter-btn text-xs font-medium px-3 py-1.5 rounded-full bg-slate-200 text-slate-600" data-category="unit5">5단원</button>
-                    </div>
-                    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5" id="resourceContainer"></div>
-                </section>
-                <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
-                        <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-paper-plane text-sky-500 mr-2"></i>과제 제출</h3>
-                        <form id="assignmentForm" class="space-y-4">
-                            <div class="grid grid-cols-2 gap-3">
-                                <input type="text" id="studentNum" placeholder="학번 (10101)" required class="text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                                <input type="text" id="studentName" placeholder="이름" required class="text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                            </div>
-                            <textarea id="assignmentText" rows="3" placeholder="과제 내용..." required class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200"></textarea>
-                            <button type="submit" class="w-full bg-gradient-to-r from-sky-500 to-teal-500 text-white font-bold py-2.5 rounded-xl shadow-md text-sm">제출하기</button>
-                        </form>
-                    </div>
-                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4 flex flex-col">
-                        <h3 class="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3"><i class="fa-solid fa-list-check text-teal-600 mr-2"></i>제출된 과제 목록</h3>
-                        <div id="assignmentList" class="space-y-3 flex-grow max-h-[300px] overflow-y-auto pr-1"></div>
-                    </div>
-                </section>
-            </main>
-        </div>
+        if (snap.exists() && snap.data().presets) {
+            activePresets = snap.data().presets;
+        } else {
+            activePresets = JSON.parse(JSON.stringify(DEFAULT_BEHAVIOR_PRESETS));
+        }
+    } catch (e) {
+        console.warn("DB 로드 에러(기본값 사용):", e);
+        activePresets = JSON.parse(JSON.stringify(DEFAULT_BEHAVIOR_PRESETS));
+    }
+    return activePresets;
+}
 
-        <!-- 2. 내 학급 탭 -->
-        <div id="tabContentHomeroom" class="tab-view-content hidden">
-            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
-                
-                <div class="flex flex-wrap gap-2 mb-2 bg-slate-100 p-1 rounded-2xl w-fit">
-                    <button id="homeroomSubTabContacts" class="px-4 py-2 text-sm font-bold bg-white text-rose-600 rounded-xl shadow-sm transition-all"><i class="fa-solid fa-address-book mr-1"></i> 비상연락망</button>
-                    <button id="homeroomSubTabSeating" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all"><i class="fa-solid fa-chair mr-1"></i> 자리 바꾸기</button>
-                    <button id="homeroomSubTabCleaning" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all"><i class="fa-solid fa-broom mr-1"></i> 청소 구역</button>
-                    <button id="homeroomSubTabRecords" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all"><i class="fa-solid fa-pen-nib mr-1"></i> 행발/세특 기록</button>
-                </div>
+export async function addSharedPresetToDB(categoryKey, { categoryName, situation, action }) {
+    if (!categoryKey) return;
+    const docRef = doc(db, "shared_records_presets", "global_presets");
+    const snap = await getDoc(docRef);
+    let currentDBPresets = snap.exists() && snap.data().presets ? snap.data().presets : {};
 
-                <!-- 2-1. 비상연락망 섹션 -->
-                <div id="homeroomSectionContacts">
-                    <section class="bg-gradient-to-r from-rose-500 to-orange-400 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center flex-wrap gap-4 mb-6">
-                        <div>
-                            <span class="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-bold">🔒 담임 전용</span>
-                            <h2 id="homeroomTitleContacts" class="text-2xl font-extrabold mt-2">내 학급 비상연락망</h2>
-                            <p class="text-sm mt-1 text-rose-100">엑셀/한글 등의 표 전체를 복사해서 바로 붙여넣어 보세요.</p>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <button id="deleteAllContactsBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors"><i class="fa-solid fa-trash-can"></i> 전체 삭제</button>
-                            <button id="openBulkPasteModalBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors"><i class="fa-solid fa-paste"></i> 여러 명 붙여넣기</button>
-                            <button id="openNewContactModalBtn" class="bg-white text-rose-600 hover:bg-rose-50 font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg transition-colors"><i class="fa-solid fa-user-plus"></i> 직접 추가</button>
-                        </div>
-                    </section>
-                    <div id="contactGridContainer" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 sm:gap-3"></div>
-                </div>
+    if (!currentDBPresets[categoryKey]) {
+        currentDBPresets[categoryKey] = { category: categoryName || categoryKey, situations: [], actions: [], outcomes: [] };
+    }
+    if (situation && !currentDBPresets[categoryKey].situations.includes(situation.trim())) {
+        currentDBPresets[categoryKey].situations.push(situation.trim());
+    }
+    if (action && !currentDBPresets[categoryKey].actions.includes(action.trim())) {
+        currentDBPresets[categoryKey].actions.push(action.trim());
+    }
+    
+    await setDoc(docRef, { presets: currentDBPresets, updatedAt: new Date().toISOString() });
+}
 
-                <!-- 2-2. 자리 바꾸기 섹션 -->
-                <div id="homeroomSectionSeating" class="hidden space-y-6">
-                    <section class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div>
-                            <span class="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-bold">🪑 자리 배치 자동화</span>
-                            <h2 class="text-2xl font-extrabold mt-2">랜덤 자리 뽑기</h2>
-                            <p class="text-sm mt-1 text-indigo-100">회색으로 비활성화된 자리는 제외하고 무작위 배치합니다.</p>
-                        </div>
-                        <div class="flex flex-col gap-2 w-full md:w-auto">
-                            <div class="flex gap-2 items-center bg-white/10 p-2 rounded-xl">
-                                <label class="text-xs font-bold whitespace-nowrap">결석/제외자 선택:</label>
-                                <div id="excludeStudentList" class="flex gap-1 overflow-x-auto max-w-[200px] sm:max-w-xs custom-scrollbar pb-1"></div>
-                            </div>
-                            <div class="flex gap-2">
-                                <label class="flex-1 bg-white/20 hover:bg-white/30 cursor-pointer text-white font-bold text-xs px-3.5 py-2.5 rounded-xl text-center transition-colors flex items-center justify-center gap-1.5">
-                                    <input type="checkbox" id="skipAnimationCheckbox" class="w-3.5 h-3.5 rounded"> 애니메이션 끄기
-                                </label>
-                                <button id="resetSeatingBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-1"><i class="fa-solid fa-rotate-left"></i> 자리 초기화</button>
-                                <button id="startSeatingBtn" class="flex-1 bg-white text-indigo-600 hover:bg-indigo-50 font-extrabold text-sm px-5 py-2.5 rounded-xl shadow-lg transition-colors"><i class="fa-solid fa-play"></i> 자리 뽑기</button>
-                            </div>
-                        </div>
-                    </section>
+export async function updateSharedPresetInDB(categoryKey, type, oldText, newText) {
+    if (!categoryKey || !type || !oldText || !newText) return;
+    const docRef = doc(db, "shared_records_presets", "global_presets");
+    const snap = await getDoc(docRef);
+    if (!snap.exists() || !snap.data().presets) return;
 
-                    <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-                        <!-- 컨트롤 헤더 -->
-                        <div class="flex flex-wrap justify-between items-center mb-6 gap-3">
-                            <p class="text-xs text-slate-500 font-bold"><i class="fa-solid fa-hand-pointer"></i> 안 쓰는 빈자리는 클릭해서 <span class="bg-slate-200 px-1 rounded text-slate-400">회색</span>으로 만들어 제외하세요.</p>
-                            
-                            <div class="flex items-center gap-2.5">
-                                <div class="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2 py-1 rounded-xl">
-                                    <button id="decreaseRowBtn" type="button" class="w-6 h-6 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center border border-slate-200 shadow-sm transition-colors" title="줄 삭제">-</button>
-                                    <span id="seatingDimensionText" class="text-xs font-bold text-indigo-700 px-1">6줄 (36석)</span>
-                                    <button id="increaseRowBtn" type="button" class="w-6 h-6 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center border border-slate-200 shadow-sm transition-colors" title="줄 추가">+</button>
-                                </div>
+    let data = snap.data().presets;
+    if (!data[categoryKey] || !data[categoryKey][type]) return;
 
-                                <label for="hwpxTemplateInput" id="seatingHwpxLabel" class="cursor-pointer text-[11px] font-bold bg-slate-100 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-200 border border-slate-200 transition-colors">
-                                    <i class="fa-solid fa-file-arrow-up"></i> 양식 등록(.hwpx)
-                                </label>
-                                <input type="file" id="hwpxTemplateInput" accept=".hwpx" class="hidden">
-                                <button id="downloadHwpxBtn" class="hidden text-[11px] font-bold bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm">
-                                    <i class="fa-solid fa-download"></i> HWPX로 저장
-                                </button>
-                            </div>
-                        </div>
+    const arr = data[categoryKey][type];
+    const idx = arr.indexOf(oldText);
+    if (idx > -1) {
+        arr[idx] = newText.trim();
+        await setDoc(docRef, { presets: data, updatedAt: new Date().toISOString() });
+    }
+}
 
-                        <!-- 교실 배치 -->
-                        <div class="flex items-stretch gap-2 sm:gap-4 max-w-4xl mx-auto mb-8">
-                            <div class="w-8 sm:w-10 bg-slate-100 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-500 font-bold text-xs py-4 select-none shrink-0 shadow-inner">
-                                <i class="fa-solid fa-door-open mb-2 text-slate-400 text-sm"></i>
-                                <span class="my-0.5">복</span>
-                                <span class="my-0.5">도</span>
-                            </div>
+export async function deleteSharedPresetFromDB(categoryKey, type, targetText) {
+    if (!categoryKey || !type || !targetText) return;
+    const docRef = doc(db, "shared_records_presets", "global_presets");
+    const snap = await getDoc(docRef);
+    if (!snap.exists() || !snap.data().presets) return;
 
-                            <div id="seatingGrid" class="grid grid-cols-6 gap-2 sm:gap-3 flex-1"></div>
+    let data = snap.data().presets;
+    if (!data[categoryKey] || !data[categoryKey][type]) return;
 
-                            <div class="w-8 sm:w-10 bg-slate-100 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-500 font-bold text-xs py-4 select-none shrink-0 shadow-inner">
-                                <i class="fa-solid fa-sun mb-2 text-amber-500 text-sm"></i>
-                                <span class="my-0.5">운</span>
-                                <span class="my-0.5">동</span>
-                                <span class="my-0.5">장</span>
-                            </div>
-                        </div>
+    data[categoryKey][type] = data[categoryKey][type].filter(t => t !== targetText);
+    await setDoc(docRef, { presets: data, updatedAt: new Date().toISOString() });
+}
 
-                        <!-- 하단 교탁 -->
-                        <div class="flex justify-center border-t-2 border-dashed border-slate-200 pt-6">
-                            <button id="teacherDeskBtn" class="bg-amber-100 border-2 border-amber-300 text-amber-800 font-extrabold text-lg px-20 py-4 rounded-xl shadow-sm hover:bg-amber-200 transition-colors cursor-pointer select-none">교 탁 (칠판)</button>
-                        </div>
-                    </div>
-                </div>
+export function getActivePresets() {
+    return activePresets;
+}
 
-                <!-- 2-3. 청소 구역 섹션 -->
-                <div id="homeroomSectionCleaning" class="hidden space-y-6">
-                    <section class="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div>
-                            <span class="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-bold">🧹 청소 구역 관리</span>
-                            <h2 id="homeroomTitleCleaning" class="text-2xl font-extrabold mt-2">내 학급 청소 구역</h2>
-                            <p class="text-sm mt-1 text-emerald-100">조별 배치를 완료한 후 위아래 교대 버튼을 눌러 통째로 회전시키세요.</p>
-                        </div>
-                        <div class="flex gap-2 w-full md:w-auto">
-                            <button id="rotateCleaningUpBtn" class="flex-1 bg-white text-emerald-600 hover:bg-emerald-50 font-bold text-sm px-4 py-2.5 rounded-xl shadow-lg transition-colors"><i class="fa-solid fa-arrow-up"></i> 위로 교대</button>
-                            <button id="rotateCleaningDownBtn" class="flex-1 bg-white text-emerald-600 hover:bg-emerald-50 font-bold text-sm px-4 py-2.5 rounded-xl shadow-lg transition-colors"><i class="fa-solid fa-arrow-down"></i> 아래로 교대</button>
-                        </div>
-                    </section>
-
-                    <div class="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 shadow-sm overflow-x-auto">
-                        <div class="flex justify-between items-center mb-4 min-w-[600px]">
-                            <p class="text-xs text-slate-500 font-bold"><i class="fa-solid fa-hand-pointer"></i> 빈칸을 클릭하여 학생을 배정하세요. 배정이 끝나면 우측 상단 교대 버튼으로 한 줄씩 내릴 수 있습니다.</p>
-                            <div class="flex items-center gap-2">
-                                <label for="cleaningHwpxTemplateInput" id="cleaningHwpxLabel" class="cursor-pointer text-[11px] font-bold bg-slate-100 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-200 border border-slate-200 transition-colors">
-                                    <i class="fa-solid fa-file-arrow-up"></i> 양식 등록(.hwpx)
-                                </label>
-                                <input type="file" id="cleaningHwpxTemplateInput" accept=".hwpx" class="hidden">
-                                <button id="downloadCleaningHwpxBtn" class="hidden text-[11px] font-bold bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">
-                                    <i class="fa-solid fa-download"></i> HWPX로 저장
-                                </button>
-                            </div>
-                        </div>
-
-                        <table class="w-full text-center border-collapse border border-slate-200 text-sm min-w-[600px]">
-                            <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                                <tr>
-                                    <th class="py-3 px-2 border-r border-slate-200 w-1/6">구역</th>
-                                    <th class="py-3 px-2 border-r border-slate-200">1조</th>
-                                    <th class="py-3 px-2 border-r border-slate-200">2조</th>
-                                    <th class="py-3 px-2 border-r border-slate-200">3조</th>
-                                    <th class="py-3 px-2 border-r border-slate-200">4조</th>
-                                    <th class="py-3 px-2">5조</th>
-                                </tr>
-                            </thead>
-                            <tbody id="cleaningGridBody" class="divide-y divide-slate-200 text-slate-800"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- 🎯 2-4. 행발/세특 기록 섹션 -->
-                <div id="homeroomSectionRecords" class="hidden space-y-4">
-                    <section class="bg-gradient-to-r from-purple-600 to-indigo-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div>
-                            <span class="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-bold">🪄 0초 AI 프리 조립기</span>
-                            <h2 class="text-2xl font-extrabold mt-2">행발/세특 조립 엔진</h2>
-                            <p class="text-sm mt-1 text-purple-100">거친 교무수첩 메모를 나이스 표준 행정 문체로 즉시 조립합니다. 공용 DB를 통해 문구를 확장해 보세요.</p>
-                        </div>
-                        <div class="flex gap-2">
-                            <button id="openCustomPresetModalBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-lg transition-colors flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up"></i> 공용 문구 관리</button>
-                        </div>
-                    </section>
-
-                    <!-- 내부 탭 버튼 -->
-                    <div class="flex gap-2 bg-slate-100 p-1 rounded-xl w-fit">
-                        <button id="recordInnerTabEngineBtn" class="px-4 py-2 text-sm font-bold bg-white text-purple-600 rounded-lg shadow-sm transition-all">1. 조립 엔진</button>
-                        <button id="recordInnerTabArchiveBtn" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-lg transition-all">2. 개인별 누적 기록</button>
-                    </div>
-                    
-                    <!-- 탭 1: 조립 엔진 컨테이너 -->
-                    <div id="recordEngineContainer" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-                        <!-- 1. 학생 명단 패널 (좌측) -->
-                        <div class="lg:col-span-3 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-[650px]">
-                            <div class="border-b border-slate-100 pb-3 mb-3 flex items-center justify-between">
-                                <h3 class="font-bold text-slate-800"><i class="fa-solid fa-users text-rose-500 mr-1"></i> 학급 명단</h3>
-                                <span id="recordStudentCount" class="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold">0명</span>
-                            </div>
-                            <div id="recordStudentListWrapper" class="flex-1 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
-                                <!-- Javascript generates items here -->
-                            </div>
-                        </div>
-                        
-                        <!-- 2. 조립 메모 옵션 패널 (중앙) -->
-                        <div class="lg:col-span-4 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-[650px]">
-                            <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
-                                <h3 class="font-bold text-slate-800"><i class="fa-solid fa-keyboard text-purple-600 mr-1"></i> 조립 메모 선택</h3>
-                                <span id="recordSelectedStudentBadge" class="text-[11px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">선택 안됨</span>
-                            </div>
-                            
-                            <div class="space-y-4 overflow-y-auto custom-scrollbar pr-1 flex-1">
-                                <div>
-                                    <label class="text-[11px] font-bold text-slate-500 ml-1">상황 / 역할 카테고리</label>
-                                    <select id="recordCategorySelect" class="w-full text-xs p-2.5 mt-1 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-slate-50 font-bold text-purple-700"></select>
-                                </div>
-                                <div>
-                                    <label class="text-[11px] font-bold text-slate-500 ml-1">세부 상황</label>
-                                    <select id="recordSituationSelect" class="w-full text-xs p-2.5 mt-1 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-white text-slate-700"></select>
-                                </div>
-                                <div>
-                                    <label class="text-[11px] font-bold text-slate-500 ml-1">구체적 행동 / 변화</label>
-                                    <select id="recordActionSelect" class="w-full text-xs p-2.5 mt-1 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-white text-slate-700"></select>
-                                </div>
-                                <div>
-                                    <label class="text-[11px] font-bold text-slate-500 ml-1">맺음말 스타일 (역량/태도)</label>
-                                    <select id="recordStyleSelect" class="w-full text-xs p-2.5 mt-1 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-white font-bold text-slate-700">
-                                        <!-- 자바스크립트에서 렌더링 -->
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="text-[11px] font-bold text-slate-500 ml-1">선생님의 추가 메모 (선택사항)</label>
-                                    <textarea id="recordMemoInput" rows="2" placeholder="일화나 평소 관찰 내용을 자유롭게 적어주세요. 문장 맨 앞에 자연스럽게 붙습니다." class="w-full text-xs p-2.5 mt-1 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-white text-slate-700"></textarea>
-                                </div>
-                            </div>
-                            
-                            <div class="pt-4 border-t border-slate-100 mt-2">
-                                <button id="generateRecordBtn" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-3 rounded-xl text-sm shadow-md transition-all"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> 나이스 규격 조립하기</button>
-                            </div>
-                        </div>
-                        
-                        <!-- 3. 출력 결과 패널 (우측) -->
-                        <!-- 🎯 수정: 더 이상 결과를 클릭해서 넘어가지 않는다고 안내 -->
-                        <div class="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-inner flex flex-col h-[650px]">
-                            <h3 class="font-bold text-slate-800 border-b border-slate-200 pb-3 mb-4 flex items-center justify-between">
-                                <span><i class="fa-solid fa-list-check text-purple-600 mr-1"></i> 단일 조립 결과 (검증 완료)</span>
-                                <span class="text-[10px] font-normal text-slate-500">결과 창 하단의 버튼을 눌러 추가하세요.</span>
-                            </h3>
-                            <div id="recordResultsContainer" class="flex-1 space-y-3 overflow-y-auto pr-2 custom-scrollbar">
-                                <div class="flex flex-col items-center justify-center h-full text-slate-400 text-sm font-medium border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center space-y-2">
-                                    <i class="fa-solid fa-arrow-pointer text-2xl text-slate-300"></i>
-                                    <span>왼쪽에서 옵션을 선택하고<br>조립 버튼을 눌러주세요.</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 탭 2: 개인별 누적 기록 컨테이너 -->
-                    <div id="recordArchiveContainer" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-                        <!-- 좌측 명단 -->
-                        <div class="lg:col-span-3 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-[600px]">
-                            <div class="border-b border-slate-100 pb-3 mb-3 flex items-center justify-between">
-                                <h3 class="font-bold text-slate-800"><i class="fa-solid fa-users text-rose-500 mr-1"></i> 학급 명단</h3>
-                            </div>
-                            <div id="archiveStudentListWrapper" class="flex-1 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
-                                <!-- Javascript generates items here -->
-                            </div>
-                        </div>
-
-                        <!-- 우측 텍스트 에디터 -->
-                        <div class="lg:col-span-9 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col h-[600px]">
-                            <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
-                                <h3 class="font-bold text-slate-800 text-lg"><i class="fa-solid fa-file-lines text-indigo-500 mr-2"></i> <span id="archiveSelectedStudentTitle" class="text-indigo-700">학생을 선택하세요</span></h3>
-                                <div class="flex gap-2">
-                                    <button id="archiveClearBtn" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">내용 비우기</button>
-                                    <button id="archiveCopyBtn" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition-colors"><i class="fa-solid fa-copy"></i> 전체 복사</button>
-                                </div>
-                            </div>
-                            
-                            <textarea id="archiveTextarea" class="w-full flex-1 p-4 bg-slate-50 border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm leading-relaxed text-slate-800 placeholder-slate-400" placeholder="조립 엔진에서 만들어진 문장이 이곳에 누적됩니다. 직접 타이핑하여 수정할 수도 있습니다."></textarea>
-                            
-                            <div class="mt-4 flex justify-between items-center">
-                                <span id="archiveByteCount" class="text-xs font-bold text-slate-500">0 / 1500 Byte</span>
-                                <button id="archiveSaveBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow-md transition-all">저장하기</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </main>
-        </div>
-
-        <!-- 3. 정보업무 탭 -->
-        <div id="tabContentWork" class="tab-view-content hidden">
-            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
-                <!-- 생략 없이 기존 코드 유지 -->
-                <section class="bg-gradient-to-r from-slate-800 via-slate-900 to-indigo-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center">
-                    <div>
-                        <span class="bg-indigo-500/30 text-indigo-200 text-xs px-3 py-1 rounded-full font-bold">🔒 교사 전용 보안구역</span>
-                        <h2 class="text-2xl font-extrabold mt-2">정보기획 업무 관제탑</h2>
-                    </div>
-                    <button id="openNewTaskModalBtn" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-3 rounded-2xl shadow-lg"><i class="fa-solid fa-plus"></i> 새 업무 추가</button>
-                </section>
-                <div class="space-y-6">
-                    <div class="flex flex-wrap gap-2 items-center" id="taskCategoryFilter">
-                        <button class="task-filter-btn active text-xs font-semibold px-3.5 py-2 rounded-xl bg-slate-800 text-white shadow-sm" data-category="all">전체 업무</button>
-                        <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-category="devices">💻 계정 및 기기</button>
-                        <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-category="network">🌐 네트워크/서버</button>
-                        <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-category="privacy">🛡️ 보안점검</button>
-                        <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-category="software">🔑 SW관리자</button>
-                        <button class="task-filter-btn text-xs font-medium px-3.5 py-2 rounded-xl bg-white text-slate-600 border border-slate-200" data-category="disposal">📊 행정/공시</button>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="taskContainer"></div>
-                </div>
-            </main>
-        </div>
+export class BehaviorRecordEngine {
+    static assemble({ studentName = "학생", situation = "", action = "", customPrepend = "", styleKey = "model" }) {
+        const sitWithJosa = KoreanGrammar.attachSituationJosa(situation);
+        const actConnective = KoreanGrammar.formatActionConnective(action);
         
-        <!-- 4. 교무실 탭 -->
-        <div id="tabContentOffice" class="tab-view-content hidden">
-            <!-- 생략 없이 기존 코드 유지 -->
-            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
-                <section class="bg-gradient-to-r from-teal-700 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center flex-wrap gap-4">
-                    <div>
-                        <span class="bg-white/20 text-teal-100 text-xs px-3 py-1 rounded-full font-bold">🍱 컴시간 알리미 자동 연동</span>
-                        <h2 class="text-2xl font-extrabold mt-2">부원여중 실시간 교무실</h2>
-                        <p class="text-sm mt-1 text-teal-100">이름을 클릭하여 조회할 교사를 변경하거나 기본 시간표를 자유롭게 등록하세요.</p>
-                    </div>
-                    <button class="bg-white/20 text-white text-xs px-3 py-2 rounded-xl" onclick="window.open('http://comci.net:4082/st', '_blank')"><i class="fa-solid fa-link"></i> 컴시간</button>
-                </section>
-                <div class="space-y-8">
-                    <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
-                        <div class="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 gap-2">
-                            <div class="flex items-center gap-2">
-                                <span class="w-2.5 h-6 bg-indigo-600 rounded-full"></span>
-                                <h3 class="font-bold text-lg text-slate-800"><span id="titleTeacherNameBtn" class="cursor-pointer underline decoration-dotted decoration-indigo-500 hover:text-indigo-600">신정훈</span> 교사 시간표</h3>
-                                <div class="bg-slate-100 p-1 rounded-xl ml-2 flex gap-1">
-                                    <button id="weekToggleThisBtn" class="px-3 py-1 text-xs font-bold bg-white text-indigo-700 shadow-sm rounded-lg transition-all">이번주</button>
-                                    <button id="weekToggleNextBtn" class="px-3 py-1 text-xs font-medium text-slate-600 rounded-lg transition-all">다음주</button>
-                                </div>
-                            </div>
-                            <div class="flex items-center gap-3 text-[11px] font-semibold">
-                                <button id="openTeacherBaseBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg border border-slate-200 transition-colors"><i class="fa-solid fa-gear"></i> 기본 시간표 설정</button>
-                                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background-color:#d8b4fe;"></span> 변경</span>
-                                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded" style="background-color:#6ee7b7;"></span> 자치/동아/봉사/진로</span>
-                            </div>
-                        </div>
-                        <div class="overflow-x-auto border border-slate-200 rounded-2xl mt-4">
-                            <table class="w-full text-center border-collapse text-xs sm:text-sm min-w-[500px]">
-                                <thead class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
-                                    <tr><th class="py-2.5 border-r w-16">교시</th><th class="border-r">월</th><th class="border-r">화</th><th class="border-r">수</th><th class="border-r">목</th><th>금</th></tr>
-                                </thead>
-                                <tbody id="teacherTimetableGridBody" class="divide-y divide-slate-200 text-slate-800"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                        <div class="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
-                            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                                <div class="flex items-center gap-2">
-                                    <span class="w-2.5 h-6 bg-sky-500 rounded-full"></span>
-                                    <h3 class="font-bold text-lg text-slate-800"><span id="titleClassNameBtn" class="cursor-pointer underline decoration-dotted decoration-sky-500 text-sky-700">1-7</span> 학급 시간표</h3>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <button id="openClassBaseBtn" class="text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded-lg border border-slate-200 transition-colors"><i class="fa-solid fa-gear"></i> 기본 시간표 설정</button>
-                                </div>
-                            </div>
-                            <div class="overflow-x-auto border border-slate-200 rounded-2xl mt-4">
-                                <table class="w-full text-center border-collapse text-xs sm:text-sm min-w-[500px]">
-                                    <thead class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold">
-                                        <tr><th class="py-2.5 border-r w-16">교시</th><th class="border-r">월</th><th class="border-r">화</th><th class="border-r">수</th><th class="border-r">목</th><th>금</th></tr>
-                                    </thead>
-                                    <tbody id="classTimetableGridBody" class="divide-y divide-slate-200 text-slate-800"></tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
-                            <h3 class="font-bold text-lg text-slate-800 border-b border-slate-100 pb-3"><i class="fa-solid fa-bowl-rice text-amber-500"></i> 오늘의 급식</h3>
-                            <div class="flex items-center gap-2 mt-4 mb-3">
-                                <input type="date" id="mealDateInput" class="text-xs p-1.5 rounded-xl border border-slate-200 bg-slate-50 flex-1">
-                                <button id="fetchMealBtn" class="bg-amber-500 text-white text-xs px-3.5 py-1.5 rounded-xl font-bold shadow-sm">조회</button>
-                            </div>
-                            <div class="bg-amber-50/50 border border-amber-100 rounded-2xl p-4 text-xs space-y-2">
-                                <div class="flex justify-between font-bold border-b border-amber-200/50 pb-1.5 text-amber-900"><span>중식 식단</span></div>
-                                <div id="mealDishList" class="text-slate-700 text-sm font-medium pt-1 whitespace-pre-line">데이터 조회 중...</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </main>
-        </div>
-    </div>
+        let actTerminal = action.trim().replace(/\.+$/, '');
+        if (!actTerminal.endsWith('함') && !actTerminal.endsWith('음') && !actTerminal.endsWith('됨') && !actTerminal.endsWith('임')) {
+            actTerminal += '함.';
+        } else {
+            actTerminal += '.';
+        }
 
-    <!-- 공용 문구 등록/관리 커스텀 모달 (그대로 유지) -->
-    <div id="customPresetModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <!-- ... (나머지 생략) ... -->
-        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative space-y-5">
-            <button id="closePresetModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
-            <div class="border-b border-slate-100 pb-3 flex justify-between items-end">
-                <div>
-                    <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-cloud-arrow-up text-purple-500"></i> 공용 문구 관리</h3>
-                    <p class="text-[11px] text-slate-500 mt-1">등록된 문구는 모든 교사가 함께 사용할 수 있습니다.</p>
-                </div>
-            </div>
+        const prefix = sitWithJosa ? `${sitWithJosa} ` : "";
+        let finalSentence = "";
+        
+        if (!action) return []; 
 
-            <div class="flex gap-2 mb-2">
-                <button id="presetModalTabAddBtn" class="flex-1 text-sm font-bold text-purple-600 border-b-2 border-purple-600 pb-2">새 문구 추가</button>
-                <button id="presetModalTabManageBtn" class="flex-1 text-sm font-bold text-slate-400 hover:text-slate-600 border-b-2 border-transparent pb-2 transition-colors">기존 문구 관리</button>
-            </div>
+        const targetStyle = DEFAULT_STYLES.find(s => s.id === styleKey) || DEFAULT_STYLES.find(s => s.id === 'model');
+
+        if (targetStyle.id === "none") {
+            finalSentence = `${prefix}${actTerminal}`;
+            finalSentence = finalSentence.replace(/함함\./g, '함.').replace(/음함\./g, '음.');
+        } else {
+            finalSentence = `${prefix}${actConnective}, ${targetStyle.text}`;
+        }
+
+        if (customPrepend && customPrepend.trim()) {
+            const prep = customPrepend.trim().replace(/\.+$/, '') + '.';
+            finalSentence = `${prep} ${finalSentence}`;
+        }
+
+        const bytes = NEIS_RULES.calculateBytes(finalSentence);
+        const forbidden = NEIS_RULES.checkForbiddenWords(finalSentence);
+
+        return [{
+            style: targetStyle.name,
+            sentence: finalSentence,
+            bytes: bytes,
+            byteLimit: 1500,
+            forbiddenWords: forbidden,
+            isValid: forbidden.length === 0 && bytes <= 1500
+        }];
+    }
+}
+
+// ==========================================
+// 6. 화면 UI 연결 로직
+// ==========================================
+
+let currentSelectedStudentName = "";
+let currentArchiveStudentName = "";
+
+export function setupRecordsModule() {
+    document.getElementById('generateRecordBtn')?.addEventListener('click', handleGenerateRecord);
+    
+    document.getElementById('openCustomPresetModalBtn')?.addEventListener('click', openPresetModal);
+    document.getElementById('closePresetModalBtn')?.addEventListener('click', closePresetModal);
+    document.getElementById('cancelPresetModalBtn')?.addEventListener('click', closePresetModal);
+    document.getElementById('savePresetBtn')?.addEventListener('click', saveCustomPreset);
+    
+    document.getElementById('presetModalTabAddBtn')?.addEventListener('click', (e) => {
+        e.target.classList.replace('text-slate-400', 'text-purple-600');
+        e.target.classList.replace('border-transparent', 'border-purple-600');
+        const manageBtn = document.getElementById('presetModalTabManageBtn');
+        manageBtn.classList.replace('text-purple-600', 'text-slate-400');
+        manageBtn.classList.replace('border-purple-600', 'border-transparent');
+        
+        document.getElementById('presetAddView').classList.remove('hidden');
+        document.getElementById('presetManageView').classList.add('hidden');
+    });
+
+    document.getElementById('presetModalTabManageBtn')?.addEventListener('click', (e) => {
+        e.target.classList.replace('text-slate-400', 'text-purple-600');
+        e.target.classList.replace('border-transparent', 'border-purple-600');
+        const addBtn = document.getElementById('presetModalTabAddBtn');
+        addBtn.classList.replace('text-purple-600', 'text-slate-400');
+        addBtn.classList.replace('border-purple-600', 'border-transparent');
+        
+        document.getElementById('presetAddView').classList.add('hidden');
+        document.getElementById('presetManageView').classList.remove('hidden');
+        renderManageList(); 
+    });
+
+    const typeBtns = document.querySelectorAll('.preset-type-btn');
+    typeBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            typeBtns.forEach(b => {
+                b.classList.remove('active', 'bg-purple-50', 'border-purple-200', 'text-purple-700');
+                b.classList.add('bg-slate-50', 'border-slate-200', 'text-slate-600');
+            });
+            e.target.classList.remove('bg-slate-50', 'border-slate-200', 'text-slate-600');
+            e.target.classList.add('active', 'bg-purple-50', 'border-purple-200', 'text-purple-700');
             
-            <div id="presetAddView" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-2">추가할 항목 선택</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button type="button" class="preset-type-btn active bg-purple-50 border border-purple-200 text-purple-700 font-bold text-xs py-2 rounded-xl" data-type="situation">세부 상황</button>
-                        <button type="button" class="preset-type-btn bg-slate-50 border border-slate-200 text-slate-600 font-bold text-xs py-2 rounded-xl" data-type="action">행동/변화</button>
-                        <button type="button" class="preset-type-btn bg-slate-50 border border-slate-200 text-slate-600 font-bold text-xs py-2 rounded-xl" data-type="category">새 카테고리</button>
-                    </div>
-                </div>
+            const type = e.target.dataset.type;
+            const catWrapper = document.getElementById('presetCategoryWrapper');
+            const newCatWrapper = document.getElementById('presetNewCategoryWrapper');
+            const label = document.getElementById('presetInputLabel');
+            const input = document.getElementById('presetTextInput');
 
-                <div id="presetCategoryWrapper">
-                    <label class="block text-xs font-bold text-slate-700 mb-1">대상 카테고리</label>
-                    <select id="presetTargetCategory" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-400"></select>
-                </div>
-                
-                <div id="presetNewCategoryWrapper" class="hidden">
-                    <label class="block text-xs font-bold text-slate-700 mb-1">새 카테고리 이름</label>
-                    <input type="text" id="presetNewCategoryInput" placeholder="예: 진로 특강 참여도" class="w-full text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-400">
-                </div>
+            if (type === 'category') {
+                catWrapper.classList.add('hidden');
+                newCatWrapper.classList.remove('hidden');
+                label.textContent = "대표 상황 문구 입력";
+                input.placeholder = "예: 진로 특강 시간에 자신의 적성을 탐색할 때";
+            } else {
+                catWrapper.classList.remove('hidden');
+                newCatWrapper.classList.add('hidden');
+                label.textContent = type === 'situation' ? "세부 상황 문구 입력" : "구체적 행동 문구 입력";
+                input.placeholder = type === 'situation' ? "예: 학급 자치 회의를 진행하는 상황에서" : "예: 친구들의 의견을 경청하고 조율함";
+            }
+        });
+    });
 
-                <div>
-                    <label id="presetInputLabel" class="block text-xs font-bold text-slate-700 mb-1">상황 문구 입력</label>
-                    <textarea id="presetTextInput" rows="3" placeholder="예: 진로 특강 시간에 자신의 적성을 탐색할 때" class="w-full text-sm p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-400"></textarea>
-                </div>
-                
-                <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                    <button id="cancelPresetModalBtn" class="px-4 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">취소</button>
-                    <button id="savePresetBtn" class="px-5 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-md transition-colors"><i class="fa-solid fa-check"></i> DB에 추가</button>
-                </div>
-            </div>
+    document.getElementById('manageCategorySelect')?.addEventListener('change', renderManageList);
+    document.getElementById('manageTypeSelect')?.addEventListener('change', renderManageList);
 
-            <div id="presetManageView" class="hidden space-y-4">
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">카테고리 선택</label>
-                        <select id="manageCategorySelect" class="w-full text-xs p-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-400"></select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">관리할 항목</label>
-                        <select id="manageTypeSelect" class="w-full text-xs p-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-400">
-                            <option value="situations">세부 상황 목록</option>
-                            <option value="actions">구체적 행동/변화 목록</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="manageItemList" class="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar"></div>
-            </div>
-        </div>
-    </div>
+    document.getElementById('recordInnerTabEngineBtn')?.addEventListener('click', () => switchRecordInnerTab('engine'));
+    document.getElementById('recordInnerTabArchiveBtn')?.addEventListener('click', () => switchRecordInnerTab('archive'));
 
-    <!-- 비상연락망 모달 등 생략 없이 유지 -->
-    <div id="contactModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <!-- ... -->
-        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl relative space-y-6">
-            <button id="closeContactModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
-            <div class="text-center border-b border-slate-100 pb-4">
-                <span id="contactModalNumber" class="text-rose-500 font-bold text-lg mr-1"></span>
-                <span id="contactModalName" class="text-2xl font-extrabold text-slate-800"></span>
-            </div>
-            <!-- 내부 생략 -->
-        </div>
-    </div>
+    const archiveTextarea = document.getElementById('archiveTextarea');
+    archiveTextarea?.addEventListener('input', () => {
+        const text = archiveTextarea.value;
+        const bytes = NEIS_RULES.calculateBytes(text);
+        const countEl = document.getElementById('archiveByteCount');
+        if (countEl) countEl.textContent = `${bytes} / 1500 Byte`;
+        if (bytes > 1500) countEl.classList.replace('text-slate-500', 'text-rose-500');
+        else countEl.classList.replace('text-rose-500', 'text-slate-500');
+    });
+
+    // 누적 기록 탭에 있는 저장하기 버튼 (수동 타이핑 저장 시)
+    document.getElementById('archiveSaveBtn')?.addEventListener('click', () => {
+        if (currentArchiveStudentName) {
+            const textarea = document.getElementById('archiveTextarea');
+            if (textarea && !textarea.disabled) {
+                homeroomState.accumulatedRecords[currentArchiveStudentName] = textarea.value;
+            }
+        }
+        persistAccumulatedRecords(true);
+        renderRecordStudentList('archive');
+    });
     
-    <div id="profileSettingsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-5 relative">
-            <button id="closeProfileSettingsBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
-            <div class="text-center">
-                <h3 class="text-lg font-bold">내 계정 기본 설정</h3>
-            </div>
-        </div>
-    </div>
+    document.getElementById('archiveClearBtn')?.addEventListener('click', () => {
+        if(!confirm("해당 학생의 누적 기록을 비우시겠습니까?")) return;
+        if(archiveTextarea) archiveTextarea.value = '';
+        if(currentArchiveStudentName) {
+            homeroomState.accumulatedRecords[currentArchiveStudentName] = "";
+        }
+        persistAccumulatedRecords(false);
+        renderRecordStudentList('archive');
+    });
+
+    document.getElementById('archiveCopyBtn')?.addEventListener('click', () => {
+        if(!archiveTextarea || !archiveTextarea.value) return;
+        navigator.clipboard.writeText(archiveTextarea.value).then(() => alert('✅ 전체 내용이 복사되었습니다.'));
+    });
+}
+
+export function switchRecordInnerTab(tabName) {
+    const btnEngine = document.getElementById('recordInnerTabEngineBtn');
+    const btnArchive = document.getElementById('recordInnerTabArchiveBtn');
+    const viewEngine = document.getElementById('recordEngineContainer');
+    const viewArchive = document.getElementById('recordArchiveContainer');
+
+    const activeClass = "px-4 py-2 text-sm font-bold bg-white text-purple-600 rounded-lg shadow-sm transition-all";
+    const inactiveClass = "px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-lg transition-all";
+
+    if (tabName === 'engine') {
+        if (btnEngine) btnEngine.className = activeClass;
+        if (btnArchive) btnArchive.className = inactiveClass;
+        if (viewEngine) viewEngine.classList.remove('hidden');
+        if (viewArchive) viewArchive.classList.add('hidden');
+        renderRecordStudentList('engine');
+    } else {
+        if (btnArchive) btnArchive.className = activeClass;
+        if (btnEngine) btnEngine.className = inactiveClass;
+        if (viewArchive) viewArchive.classList.remove('hidden');
+        if (viewEngine) viewEngine.classList.add('hidden');
+        renderRecordStudentList('archive');
+        loadArchiveTextarea();
+    }
+}
+
+export async function loadRecordsData() {
+    await loadSharedPresetsFromDB();
+    const presets = getActivePresets();
+
+    const catSelect = document.getElementById('recordCategorySelect');
+    if (catSelect) {
+        const currentCat = catSelect.value;
+        catSelect.innerHTML = '';
+        Object.keys(presets).forEach(key => {
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = presets[key].category;
+            catSelect.appendChild(opt);
+        });
+        catSelect.onchange = () => updateRecordDropdowns(presets[catSelect.value]);
+        if (currentCat && presets[currentCat]) {
+            catSelect.value = currentCat;
+            updateRecordDropdowns(presets[currentCat]);
+        } else if (Object.keys(presets).length > 0) {
+            updateRecordDropdowns(presets[Object.keys(presets)[0]]);
+        }
+    }
+
+    const styleSelect = document.getElementById('recordStyleSelect');
+    if (styleSelect) {
+        styleSelect.innerHTML = '';
+        DEFAULT_STYLES.forEach((style, index) => {
+            const opt = document.createElement('option');
+            opt.value = style.id;
+            opt.textContent = style.name;
+            if (style.id === 'none') opt.className = 'text-rose-500';
+            if (index === 1) opt.selected = true; 
+            styleSelect.appendChild(opt);
+        });
+    }
+
+    const uid = homeroomState.userId;
+    const g = homeroomState.grade;
+    const c = homeroomState.classNum;
     
-    <script type="module" src="js/main.js"></script>
-</body>
-</html>
+    try {
+        const snap = await getDoc(doc(db, "homeroom_records", `${uid}_${g}_${c}`));
+        if (snap.exists() && snap.data().records) {
+            homeroomState.accumulatedRecords = snap.data().records;
+        } else {
+            const localData = localStorage.getItem(`records_${uid}_${g}_${c}`);
+            homeroomState.accumulatedRecords = localData ? JSON.parse(localData) : {};
+        }
+    } catch (e) {
+        const localData = localStorage.getItem(`records_${uid}_${g}_${c}`);
+        homeroomState.accumulatedRecords = localData ? JSON.parse(localData) : {};
+    }
+
+    renderRecordStudentList('engine');
+}
+
+function renderRecordStudentList(mode = 'engine') {
+    const listWrapper = document.getElementById(mode === 'engine' ? 'recordStudentListWrapper' : 'archiveStudentListWrapper');
+    const countEl = document.getElementById('recordStudentCount');
+    if (!listWrapper) return;
+
+    listWrapper.innerHTML = '';
+    const contacts = homeroomState.contacts || [];
+    if (countEl && mode === 'engine') countEl.textContent = `${contacts.length}명`;
+
+    if (contacts.length === 0) {
+        listWrapper.innerHTML = `<div class="text-xs text-slate-400 text-center py-6">비상연락망에 명단을 추가하세요.</div>`;
+        return;
+    }
+
+    contacts.forEach(s => {
+        const btn = document.createElement('button');
+        btn.className = "w-full text-left p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-purple-50 hover:border-purple-200 transition-colors flex items-center justify-between group focus:outline-none";
+        
+        const targetSelected = mode === 'engine' ? currentSelectedStudentName : currentArchiveStudentName;
+        
+        if (targetSelected === s.name) {
+            btn.classList.replace('bg-slate-50', 'bg-purple-100');
+            btn.classList.replace('border-slate-200', 'border-purple-400');
+        }
+        
+        const hasRecord = homeroomState.accumulatedRecords[s.name] && homeroomState.accumulatedRecords[s.name].trim().length > 0;
+        const checkIcon = hasRecord ? `<i class="fa-solid fa-check text-emerald-500 text-xs"></i>` : '';
+
+        btn.innerHTML = `
+            <div class="flex items-center gap-3">
+                <span class="text-[11px] font-extrabold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 group-hover:text-purple-600 group-hover:border-purple-200">${s.num}번</span>
+                <span class="text-sm font-bold text-slate-700 group-hover:text-purple-800">${s.name}</span>
+            </div>
+            ${checkIcon}
+        `;
+        
+        btn.onclick = () => {
+            if (mode === 'engine') {
+                currentSelectedStudentName = s.name;
+                currentArchiveStudentName = s.name;
+                const badge = document.getElementById('recordSelectedStudentBadge');
+                if(badge) {
+                    badge.textContent = `${s.num}번 ${s.name} 선택됨`;
+                    badge.classList.replace('text-slate-400', 'text-purple-600');
+                    badge.classList.replace('bg-slate-50', 'bg-purple-100');
+                }
+                renderRecordStudentList('engine');
+                const act = document.getElementById('recordActionSelect')?.value;
+                if (act) handleGenerateRecord();
+                
+            } else {
+                currentArchiveStudentName = s.name;
+                currentSelectedStudentName = s.name;
+                renderRecordStudentList('archive');
+                loadArchiveTextarea();
+            }
+        };
+        listWrapper.appendChild(btn);
+    });
+}
+
+function updateRecordDropdowns(preset) {
+    const sitSelect = document.getElementById('recordSituationSelect');
+    const actSelect = document.getElementById('recordActionSelect');
+    if (!sitSelect || !actSelect) return;
+    
+    sitSelect.innerHTML = '<option value="">(세부 상황 생략)</option>';
+    actSelect.innerHTML = '';
+
+    preset.situations.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        sitSelect.appendChild(opt);
+    });
+    preset.actions.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a;
+        opt.textContent = a;
+        actSelect.appendChild(opt);
+    });
+}
+
+function handleGenerateRecord() {
+    const name = currentSelectedStudentName;
+    const sit = document.getElementById('recordSituationSelect')?.value || ""; 
+    const act = document.getElementById('recordActionSelect')?.value || "";
+    const prep = document.getElementById('recordMemoInput')?.value || "";
+    const style = document.getElementById('recordStyleSelect')?.value || "model"; 
+
+    if (!act) {
+        alert("구체적 행동/변화를 반드시 선택하거나 추가해주세요.");
+        return;
+    }
+
+    const results = BehaviorRecordEngine.assemble({
+        studentName: name,
+        situation: sit,
+        action: act,
+        customPrepend: prep,
+        styleKey: style
+    });
+
+    const container = document.getElementById('recordResultsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    results.forEach(res => {
+        const div = document.createElement('div');
+        div.className = "p-4 bg-white border border-slate-200 rounded-2xl shadow-sm relative transition-colors";
+        
+        let sentence = res.sentence;
+        if (name) {
+            sentence = `<span class="font-extrabold text-purple-700 bg-purple-50 px-1 rounded">${name}</span> 학생은 ` + sentence;
+        } else {
+            sentence = `<span class="font-extrabold text-slate-400 bg-slate-100 px-1 rounded">(이름)</span> 학생은 ` + sentence;
+        }
+
+        // 🎯 수정사항: 조립 결과 밑에 '누적 기록에 추가' 버튼을 명시적으로 만들고, 클릭 이벤트를 버튼에만 할당
+        div.innerHTML = `
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-extrabold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-100">${res.style}</span>
+                <span class="text-[11px] ${res.isValid ? 'text-emerald-500' : 'text-rose-500'} font-bold bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">${res.bytes} / 1500 Byte</span>
+            </div>
+            <p class="text-[13px] text-slate-800 leading-relaxed font-medium tracking-tight break-keep pt-1 mb-4 select-none pointer-events-none">${sentence}</p>
+            <div class="border-t border-slate-100 pt-3 flex justify-end">
+                <button class="add-to-archive-btn bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-4 py-2 rounded-xl text-xs transition-colors shadow-sm">
+                    <i class="fa-solid fa-plus mr-1"></i> 누적 기록에 추가
+                </button>
+            </div>
+        `;
+
+        const addBtn = div.querySelector('.add-to-archive-btn');
+        addBtn.onclick = async (e) => {
+            e.stopPropagation(); 
+            
+            if (!name) return alert('왼쪽 명단에서 학생을 먼저 선택해주세요.');
+            
+            // 데이터 무소음 누적 이어붙이기 로직
+            let current = homeroomState.accumulatedRecords[name] || "";
+            if (current) current += " "; 
+            current += res.sentence;
+            homeroomState.accumulatedRecords[name] = current;
+            
+            // 만약 2번 탭에 텍스트박스가 켜져있다면 그것도 조용히 최신화
+            if (currentArchiveStudentName === name) {
+                const textarea = document.getElementById('archiveTextarea');
+                if (textarea) textarea.value = current;
+            }
+
+            await persistAccumulatedRecords(false); // 화면 탭 전환 없음
+            
+            // 저장 완료 피드백 애니메이션
+            const originalText = addBtn.innerHTML;
+            addBtn.innerHTML = `<i class="fa-solid fa-check mr-1"></i> 추가 완료!`;
+            addBtn.classList.replace('bg-indigo-50', 'bg-emerald-50');
+            addBtn.classList.replace('text-indigo-700', 'text-emerald-700');
+            addBtn.classList.replace('hover:bg-indigo-100', 'hover:bg-emerald-100');
+            
+            setTimeout(() => {
+                addBtn.innerHTML = originalText;
+                addBtn.classList.replace('bg-emerald-50', 'bg-indigo-50');
+                addBtn.classList.replace('text-emerald-700', 'text-indigo-700');
+                addBtn.classList.replace('hover:bg-emerald-100', 'hover:bg-indigo-100');
+            }, 1500);
+            
+            renderRecordStudentList('engine'); 
+        };
+        container.appendChild(div);
+    });
+}
+
+function loadArchiveTextarea() {
+    const titleEl = document.getElementById('archiveSelectedStudentTitle');
+    const textarea = document.getElementById('archiveTextarea');
+    const countEl = document.getElementById('archiveByteCount');
+
+    if (!currentArchiveStudentName) {
+        titleEl.textContent = "학생을 선택하세요";
+        titleEl.classList.replace('text-indigo-700', 'text-slate-400');
+        textarea.value = "";
+        textarea.disabled = true;
+        if(countEl) countEl.textContent = "0 / 1500 Byte";
+        return;
+    }
+
+    titleEl.textContent = `${currentArchiveStudentName} 학생의 누적 기록`;
+    titleEl.classList.replace('text-slate-400', 'text-indigo-700');
+    textarea.disabled = false;
+    
+    const text = homeroomState.accumulatedRecords[currentArchiveStudentName] || "";
+    textarea.value = text;
+    
+    const bytes = NEIS_RULES.calculateBytes(text);
+    if(countEl) {
+        countEl.textContent = `${bytes} / 1500 Byte`;
+        if (bytes > 1500) countEl.classList.replace('text-slate-500', 'text-rose-500');
+        else countEl.classList.replace('text-rose-500', 'text-slate-500');
+    }
+}
+
+async function persistAccumulatedRecords(showAlert = false) {
+    const uid = homeroomState.userId;
+    const g = homeroomState.grade;
+    const c = homeroomState.classNum;
+    
+    localStorage.setItem(`records_${uid}_${g}_${c}`, JSON.stringify(homeroomState.accumulatedRecords));
+    
+    try {
+        await setDoc(doc(db, "homeroom_records", `${uid}_${g}_${c}`), {
+            userId: uid,
+            grade: g,
+            classNum: c,
+            records: homeroomState.accumulatedRecords,
+            updatedAt: new Date().toISOString()
+        });
+        if(showAlert) alert('✅ 누적 기록이 안전하게 저장되었습니다.');
+    } catch (e) {
+        console.error("누적 기록 DB 저장 에러:", e);
+        if(showAlert) alert('저장 중 네트워크 오류가 발생했으나, 이 브라우저에는 임시 저장되었습니다.');
+    }
+}
+
+function openPresetModal() {
+    const modal = document.getElementById('customPresetModal');
+    const catAddSelect = document.getElementById('presetTargetCategory');
+    const catManageSelect = document.getElementById('manageCategorySelect');
+    const presets = getActivePresets();
+    
+    catAddSelect.innerHTML = '';
+    catManageSelect.innerHTML = '';
+
+    Object.keys(presets).forEach(key => {
+        const optAdd = document.createElement('option');
+        optAdd.value = key;
+        optAdd.textContent = presets[key].category;
+        catAddSelect.appendChild(optAdd);
+        
+        const optMan = document.createElement('option');
+        optMan.value = key;
+        optMan.textContent = presets[key].category;
+        catManageSelect.appendChild(optMan);
+    });
+
+    const activeMainCat = document.getElementById('recordCategorySelect')?.value;
+    if (activeMainCat && presets[activeMainCat]) {
+        catAddSelect.value = activeMainCat;
+        catManageSelect.value = activeMainCat;
+    }
+
+    document.getElementById('presetNewCategoryInput').value = '';
+    document.getElementById('presetTextInput').value = '';
+    
+    document.getElementById('presetModalTabAddBtn').click();
+    modal.classList.remove('hidden');
+}
+
+function closePresetModal() {
+    document.getElementById('customPresetModal').classList.add('hidden');
+}
+
+async function saveCustomPreset() {
+    const activeTypeBtn = document.querySelector('.preset-type-btn.active');
+    if (!activeTypeBtn) return;
+    const type = activeTypeBtn.dataset.type;
+    
+    const textInput = document.getElementById('presetTextInput').value.trim();
+    if (!textInput) return alert("추가할 내용을 입력해주세요.");
+
+    const btn = document.getElementById('savePresetBtn');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 저장중...';
+    btn.disabled = true;
+
+    try {
+        if (type === 'category') {
+            const newCatName = document.getElementById('presetNewCategoryInput').value.trim();
+            if (!newCatName) throw new Error("새 카테고리 이름을 입력하세요.");
+            const newKey = `custom_${Date.now()}`;
+            await addSharedPresetToDB(newKey, { categoryName: newCatName, situation: textInput });
+        } else if (type === 'situation') {
+            const catKey = document.getElementById('presetTargetCategory').value;
+            await addSharedPresetToDB(catKey, { situation: textInput });
+        } else if (type === 'action') {
+            const catKey = document.getElementById('presetTargetCategory').value;
+            await addSharedPresetToDB(catKey, { action: textInput });
+        }
+
+        closePresetModal();
+        await loadRecordsData(); 
+        alert("✅ 공용 데이터베이스에 추가되어 즉시 사용할 수 있습니다.");
+    } catch (e) {
+        if (e.message) alert(e.message);
+    } finally {
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> DB에 추가';
+        btn.disabled = false;
+    }
+}
+
+function renderManageList() {
+    const catKey = document.getElementById('manageCategorySelect').value;
+    const type = document.getElementById('manageTypeSelect').value;
+    const listContainer = document.getElementById('manageItemList');
+    
+    listContainer.innerHTML = '';
+    const presets = getActivePresets();
+    
+    if (!presets[catKey] || !presets[catKey][type] || presets[catKey][type].length === 0) {
+        listContainer.innerHTML = `<div class="text-xs text-slate-400 text-center py-6 border border-dashed rounded-xl">등록된 문구가 없습니다.</div>`;
+        return;
+    }
+
+    presets[catKey][type].forEach((itemText) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = "flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 group hover:border-purple-300 transition-colors";
+        
+        const input = document.createElement('input');
+        input.type = "text";
+        input.value = itemText;
+        input.className = "flex-1 text-xs p-2 bg-white rounded border border-slate-200 outline-none focus:ring-1 focus:ring-purple-400";
+        
+        const editBtn = document.createElement('button');
+        editBtn.className = "text-[11px] font-bold bg-slate-200 hover:bg-purple-100 hover:text-purple-700 text-slate-600 px-3 py-2 rounded-lg transition-colors";
+        editBtn.textContent = "수정";
+        editBtn.onclick = async () => {
+            if(!input.value.trim() || input.value === itemText) return;
+            editBtn.textContent = "저장중";
+            await updateSharedPresetInDB(catKey, type, itemText, input.value.trim());
+            await loadRecordsData(); 
+            renderManageList(); 
+            alert("✅ 정상적으로 수정되었습니다.");
+        };
+
+        const delBtn = document.createElement('button');
+        delBtn.className = "text-[11px] font-bold bg-rose-50 hover:bg-rose-500 hover:text-white text-rose-500 px-3 py-2 rounded-lg transition-colors";
+        delBtn.textContent = "삭제";
+        delBtn.onclick = async () => {
+            if(!confirm("이 문구를 정말 삭제하시겠습니까?\n(공용 DB에서 즉시 삭제됩니다)")) return;
+            delBtn.textContent = "삭제중";
+            await deleteSharedPresetFromDB(catKey, type, itemText);
+            await loadRecordsData();
+            renderManageList();
+        };
+
+        wrapper.appendChild(input);
+        wrapper.appendChild(editBtn);
+        wrapper.appendChild(delBtn);
+        listContainer.appendChild(wrapper);
+    });
+}
