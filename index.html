@@ -387,7 +387,7 @@
                             <p class="text-sm mt-1 text-purple-100">거친 교무수첩 메모를 나이스 표준 행정 문체로 즉시 조립합니다. 공용 DB를 통해 문구를 확장해 보세요.</p>
                         </div>
                         <div class="flex gap-2">
-                            <button id="openCustomPresetModalBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-lg transition-colors flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up"></i> 공용 문구 등록</button>
+                            <button id="openCustomPresetModalBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-lg transition-colors flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up"></i> 공용 문구 관리</button>
                         </div>
                     </section>
 
@@ -430,23 +430,10 @@
                                     <label class="text-[11px] font-bold text-slate-500 ml-1">구체적 행동 / 변화</label>
                                     <select id="recordActionSelect" class="w-full text-xs p-2.5 mt-1 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-white text-slate-700"></select>
                                 </div>
-                                <!-- 🎯 12가지 맺음말 스타일 선택 드롭다운 -->
                                 <div>
                                     <label class="text-[11px] font-bold text-slate-500 ml-1">맺음말 스타일 (역량/태도)</label>
                                     <select id="recordStyleSelect" class="w-full text-xs p-2.5 mt-1 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-white font-bold text-slate-700">
-                                        <option value="none" class="text-rose-500">(맺음말 생략 - 상황과 행동만 조립)</option>
-                                        <option value="model" selected>1. 관찰·모범형 (매사 진지하고 성실한 태도로...)</option>
-                                        <option value="care">2. 교우 배려형 (편안함을 선사하고 타인을 배려하는...)</option>
-                                        <option value="potential">3. 성장 잠재력형 (바른 인성과 책임감을 바탕으로...)</option>
-                                        <option value="effort">4. 개선 노력형 (부족함을 보완하려는 태도를 보여...)</option>
-                                        <option value="leadership">5. 리더십·주도형 (뛰어난 리더십과 소통 능력으로...)</option>
-                                        <option value="cooperation">6. 협동·조화형 (원만한 대인관계와 협동심을 바탕으로...)</option>
-                                        <option value="sincerity">7. 묵묵한 성실형 (보이지 않는 곳에서도 묵묵히...)</option>
-                                        <option value="creative">8. 창의·문제해결형 (창의적인 시각과 뛰어난 문제해결력...)</option>
-                                        <option value="passion">9. 열정·도전형 (새로운 과제에 주저 없이 도전하는...)</option>
-                                        <option value="rules">10. 규칙·준법형 (공동체의 약속과 학급 규칙을 철저히...)</option>
-                                        <option value="growth">11. 자기주도 성장형 (스스로 목표를 세우고 꾸준히...)</option>
-                                        <option value="empathy">12. 공감·소통형 (타인의 감정을 깊이 헤아리고 배려하는...)</option>
+                                        <!-- 자바스크립트에서 렌더링 -->
                                     </select>
                                 </div>
                                 <div>
@@ -464,7 +451,7 @@
                         <div class="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-inner flex flex-col h-[650px]">
                             <h3 class="font-bold text-slate-800 border-b border-slate-200 pb-3 mb-4 flex items-center justify-between">
                                 <span><i class="fa-solid fa-list-check text-purple-600 mr-1"></i> 단일 조립 결과 (검증 완료)</span>
-                                <span class="text-[10px] font-normal text-slate-500">결과를 클릭하면 '개인별 누적 기록'에 추가됩니다.</span>
+                                <span class="text-[10px] font-normal text-slate-500">결과를 클릭하면 '개인별 누적 기록' 탭으로 즉시 넘어갑니다.</span>
                             </h3>
                             <div id="recordResultsContainer" class="flex-1 space-y-3 overflow-y-auto pr-2 custom-scrollbar">
                                 <div class="flex flex-col items-center justify-center h-full text-slate-400 text-sm font-medium border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center space-y-2">
@@ -612,16 +599,25 @@
         </div>
     </div>
 
-    <!-- 신규: 공용 문구 등록 커스텀 모달 -->
+    <!-- 🎯 신규: 공용 문구 등록/관리 커스텀 모달 (탭 구조) -->
     <div id="customPresetModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative space-y-5">
             <button id="closePresetModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
-            <div class="border-b border-slate-100 pb-3">
-                <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-cloud-arrow-up text-purple-500"></i> 공용 문구 등록</h3>
-                <p class="text-[11px] text-slate-500 mt-1">추가된 문구는 DB에 저장되어 언제든 다시 사용할 수 있습니다.</p>
+            <div class="border-b border-slate-100 pb-3 flex justify-between items-end">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-cloud-arrow-up text-purple-500"></i> 공용 문구 관리</h3>
+                    <p class="text-[11px] text-slate-500 mt-1">등록된 문구는 모든 교사가 함께 사용할 수 있습니다.</p>
+                </div>
+            </div>
+
+            <!-- 모달 내부 탭 -->
+            <div class="flex gap-2 mb-2">
+                <button id="presetModalTabAddBtn" class="flex-1 text-sm font-bold text-purple-600 border-b-2 border-purple-600 pb-2">새 문구 추가</button>
+                <button id="presetModalTabManageBtn" class="flex-1 text-sm font-bold text-slate-400 hover:text-slate-600 border-b-2 border-transparent pb-2 transition-colors">기존 문구 관리</button>
             </div>
             
-            <div class="space-y-4">
+            <!-- 추가 화면 -->
+            <div id="presetAddView" class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-2">추가할 항목 선택</label>
                     <div class="grid grid-cols-3 gap-2">
@@ -645,11 +641,31 @@
                     <label id="presetInputLabel" class="block text-xs font-bold text-slate-700 mb-1">상황 문구 입력</label>
                     <textarea id="presetTextInput" rows="3" placeholder="예: 진로 특강 시간에 자신의 적성을 탐색할 때" class="w-full text-sm p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-400"></textarea>
                 </div>
+                
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button id="cancelPresetModalBtn" class="px-4 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">취소</button>
+                    <button id="savePresetBtn" class="px-5 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-md transition-colors"><i class="fa-solid fa-check"></i> DB에 추가</button>
+                </div>
             </div>
 
-            <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button id="cancelPresetModalBtn" class="px-4 py-2.5 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">취소</button>
-                <button id="savePresetBtn" class="px-5 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-md transition-colors"><i class="fa-solid fa-check"></i> DB에 저장</button>
+            <!-- 관리 화면 (신규) -->
+            <div id="presetManageView" class="hidden space-y-4">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">카테고리 선택</label>
+                        <select id="manageCategorySelect" class="w-full text-xs p-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-400"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">관리할 항목</label>
+                        <select id="manageTypeSelect" class="w-full text-xs p-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-purple-400">
+                            <option value="situations">세부 상황 목록</option>
+                            <option value="actions">구체적 행동/변화 목록</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="manageItemList" class="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                    <!-- 리스트 동적 렌더링 -->
+                </div>
             </div>
         </div>
     </div>
@@ -703,8 +719,9 @@
         </div>
     </div>
 
-    <!-- 내 계정 기본 설정 모달 -->
+    <!-- 내 계정 기본 설정 모달 등 이하 기존 모달 생략(유지) -->
     <div id="profileSettingsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <!-- ... (나머지 모달들은 기존과 완벽히 동일) ... -->
         <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-5 relative">
             <button id="closeProfileSettingsBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
             <div class="text-center">
@@ -712,8 +729,6 @@
             </div>
         </div>
     </div>
-
-    <!-- 기피 조합 모달, 청소 선택 모달, 수업/업무 모달, 로그인 등 기본 모달류 유지 -->
     
     <script type="module" src="js/main.js"></script>
 </body>
