@@ -1,4 +1,4 @@
-import { db, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from './firebase-config.js';
+import { db, collection, addDoc, updateDoc, deleteDoc, doc, getDoc, onSnapshot, query, orderBy, serverTimestamp } from './firebase-config.js';
 
 export const unitMeta = {
     'unit1': { name: '1단원. 컴퓨팅 시스템', badgeClass: 'bg-sky-50 text-sky-600 border-sky-200' },
@@ -12,14 +12,25 @@ let allLessonDocs = [];
 let currentSelectedCategory = 'all';
 
 export function initClassTab(currentUser) {
+    // 🎯 새 탭 단독 수업 뷰어 초기화
+    const urlParams = new URLSearchParams(window.location.search);
+    const standaloneLessonId = urlParams.get('lesson');
+    if (standaloneLessonId) {
+        initStandaloneLessonViewer(standaloneLessonId, currentUser);
+        return;
+    }
+
+    // 1. 수업 목록 실시간 동기화
     onSnapshot(query(collection(db, "lessons"), orderBy("createdAt", "desc")), (snapshot) => {
-        allLessonDocs = []; snapshot.forEach(d => allLessonDocs.push({ id: d.id, ...d.data() }));
+        allLessonDocs = [];
+        snapshot.forEach(d => allLessonDocs.push({ id: d.id, ...d.data() }));
         renderLessons(currentUser);
     });
 
+    // 2. 과제 목록 실시간 동기화
     onSnapshot(query(collection(db, "assignments"), orderBy("createdAt", "desc")), (snapshot) => {
         const container = document.getElementById('assignmentList');
-        if(!container) return;
+        if (!container) return;
         container.innerHTML = '';
         snapshot.forEach(d => {
             const data = d.data();
@@ -27,11 +38,31 @@ export function initClassTab(currentUser) {
         });
     });
 
-    // 🎯 공지사항 실시간 렌더링 및 기능 복구
+    // 3. 과제 제출 폼 등록
+    const assignmentForm = document.getElementById('assignmentForm');
+    if (assignmentForm) {
+        assignmentForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const sNum = document.getElementById('studentNum').value;
+            const sName = document.getElementById('studentName').value;
+            const text = document.getElementById('assignmentText').value;
+            if (sNum && sName && text) {
+                const now = new Date();
+                const timeStr = `${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+                await addDoc(collection(db, "assignments"), {
+                    studentNum: sNum, studentName: sName, text: text, timeStr: timeStr, createdAt: serverTimestamp()
+                });
+                document.getElementById('assignmentText').value = '';
+                alert('과제가 성공적으로 제출되었습니다!');
+            }
+        };
+    }
+
+    // 4. 공지사항 실시간 렌더링
     const noticesRef = collection(db, "notices");
     onSnapshot(query(noticesRef, orderBy("createdAt", "desc")), (snapshot) => {
         const container = document.getElementById('noticeListContainer');
-        if(!container) return;
+        if (!container) return;
         container.innerHTML = '';
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
@@ -47,8 +78,8 @@ export function initClassTab(currentUser) {
 
         document.querySelectorAll('.delete-notice-btn').forEach(btn => {
             btn.onclick = async (e) => {
-                if(confirm('공지를 삭제하시겠습니까?')) await deleteDoc(doc(db, 'notices', e.currentTarget.getAttribute('data-id')));
-            }
+                if (confirm('공지를 삭제하시겠습니까?')) await deleteDoc(doc(db, 'notices', e.currentTarget.getAttribute('data-id')));
+            };
         });
     });
 
@@ -63,15 +94,16 @@ export function initClassTab(currentUser) {
         addNoticeBtn.onclick = async () => {
             const t = document.getElementById('newNoticeTitle').value;
             const b = document.getElementById('newNoticeBody').value;
-            if(t && b) {
+            if (t && b) {
                 await addDoc(noticesRef, { title: t, body: b, type: document.getElementById('newNoticeType').value, createdAt: serverTimestamp() });
-                document.getElementById('newNoticeTitle').value='';
-                document.getElementById('newNoticeBody').value='';
+                document.getElementById('newNoticeTitle').value = '';
+                document.getElementById('newNoticeBody').value = '';
                 document.getElementById('noticeEditControls').classList.add('hidden');
             }
         };
     }
 
+    // 5. 단원 필터 버튼
     document.querySelectorAll('.lesson-filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.lesson-filter-btn').forEach(b => { b.classList.remove('bg-sky-500', 'text-white', 'shadow-sm', 'active'); b.classList.add('bg-slate-200', 'text-slate-600'); });
@@ -80,6 +112,65 @@ export function initClassTab(currentUser) {
             renderLessons(currentUser);
         });
     });
+
+    // 🎯 6. 수업 자료 모달 열기/닫기/저장 로직 복원
+    const openBtn = document.getElementById('openNewLessonModalBtn');
+    const modal = document.getElementById('lessonModal') || document.getElementById('newLessonModal');
+    const closeBtn = document.getElementById('closeLessonModalBtn') || document.getElementById('closeNewLessonModalBtn');
+    const saveBtn = document.getElementById('saveLessonFirebaseBtn');
+
+    if (openBtn && modal) {
+        openBtn.onclick = () => {
+            document.getElementById('editLessonId').value = '';
+            document.getElementById('lessonTitleInput').value = '';
+            document.getElementById('lessonNumInput').value = '';
+            document.getElementById('lessonSummaryInput').value = '';
+            document.getElementById('lessonCoverInput').value = '';
+            document.getElementById('lessonContentInput').value = '';
+            if (document.getElementById('lessonVisibilityCheckbox')) document.getElementById('lessonVisibilityCheckbox').checked = true;
+            document.getElementById('lessonModalTitle').textContent = '새 수업 자료 등록';
+            modal.classList.remove('hidden');
+        };
+    }
+
+    if (closeBtn && modal) {
+        closeBtn.onclick = () => modal.classList.add('hidden');
+    }
+
+    if (saveBtn && modal) {
+        saveBtn.onclick = async () => {
+            const id = document.getElementById('editLessonId').value;
+            const unit = document.getElementById('lessonUnitSelect').value;
+            const lessonNum = document.getElementById('lessonNumInput').value.trim();
+            const title = document.getElementById('lessonTitleInput').value.trim();
+            const summary = document.getElementById('lessonSummaryInput').value.trim();
+            const coverImage = document.getElementById('lessonCoverInput').value.trim();
+            const content = document.getElementById('lessonContentInput').value.trim();
+            const isVisible = document.getElementById('lessonVisibilityCheckbox') ? document.getElementById('lessonVisibilityCheckbox').checked : true;
+
+            if (!title) return alert('수업 제목을 입력하세요.');
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = '저장중...';
+
+            try {
+                const payload = { unit, lessonNum, title, summary, coverImage, content, isVisible };
+                if (id) {
+                    await updateDoc(doc(db, "lessons", id), payload);
+                } else {
+                    payload.createdAt = serverTimestamp();
+                    await addDoc(collection(db, "lessons"), payload);
+                }
+                modal.classList.add('hidden');
+            } catch (err) {
+                console.error("수업 저장 에러:", err);
+                alert('저장 중 오류가 발생했습니다.');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = '저장하기';
+            }
+        };
+    }
 }
 
 function renderLessons(currentUser) {
@@ -132,8 +223,12 @@ function renderLessons(currentUser) {
             document.getElementById('lessonSummaryInput').value = lesson.summary || '';
             document.getElementById('lessonCoverInput').value = lesson.coverImage || '';
             document.getElementById('lessonContentInput').value = lesson.content || '';
-            document.getElementById('lessonVisibilityCheckbox').checked = lesson.isVisible !== false;
-            document.getElementById('lessonModal').classList.remove('hidden');
+            if (document.getElementById('lessonVisibilityCheckbox')) {
+                document.getElementById('lessonVisibilityCheckbox').checked = lesson.isVisible !== false;
+            }
+            document.getElementById('lessonModalTitle').textContent = '수업 자료 수정';
+            const modal = document.getElementById('lessonModal') || document.getElementById('newLessonModal');
+            modal?.classList.remove('hidden');
         });
     });
 
@@ -142,4 +237,78 @@ function renderLessons(currentUser) {
             if (confirm("삭제하시겠습니까?")) await deleteDoc(doc(db, "lessons", e.currentTarget.getAttribute('data-id')));
         });
     });
+}
+
+// 🎯 새 탭 단독 수업 뷰어 초기화 및 수정/저장 기능 복원
+async function initStandaloneLessonViewer(lessonId, currentUser) {
+    try {
+        const snap = await getDoc(doc(db, "lessons", lessonId));
+        if (!snap.exists()) return alert('해당 수업 자료를 찾을 수 없습니다.');
+        const lesson = { id: snap.id, ...snap.data() };
+
+        const meta = unitMeta[lesson.unit] || { name: '수업 자료' };
+        document.getElementById('viewerUnitBadge').textContent = meta.name;
+        document.getElementById('viewerLessonNum').textContent = lesson.lessonNum || '';
+        document.getElementById('viewerTitle').textContent = lesson.title;
+        document.getElementById('viewerSummary').textContent = lesson.summary || '';
+        
+        if (lesson.coverImage) {
+            document.getElementById('viewerCoverImg').src = lesson.coverImage;
+            document.getElementById('viewerCoverContainer').classList.remove('hidden');
+        }
+
+        const mdBody = document.getElementById('viewerMarkdownBody');
+        mdBody.innerHTML = window.marked ? window.marked.parse(lesson.content || '') : (lesson.content || '');
+
+        const editBtn = document.getElementById('viewerEditBtn');
+        const saveBtn = document.getElementById('viewerSaveBtn');
+        const cancelBtn = document.getElementById('viewerCancelBtn');
+        const displaySec = document.getElementById('viewerDisplaySection');
+        const formSec = document.getElementById('viewerEditFormSection');
+
+        if (currentUser && editBtn) {
+            editBtn.classList.remove('hidden');
+
+            editBtn.onclick = () => {
+                document.getElementById('viewerEditUnit').value = lesson.unit;
+                document.getElementById('viewerEditLessonNum').value = lesson.lessonNum || '';
+                document.getElementById('viewerEditTitle').value = lesson.title;
+                document.getElementById('viewerEditSummary').value = lesson.summary || '';
+                document.getElementById('viewerEditCover').value = lesson.coverImage || '';
+                document.getElementById('viewerEditContent').value = lesson.content || '';
+
+                displaySec.classList.add('hidden');
+                formSec.classList.remove('hidden');
+                editBtn.classList.add('hidden');
+                saveBtn.classList.remove('hidden');
+                cancelBtn.classList.remove('hidden');
+            };
+
+            cancelBtn.onclick = () => {
+                formSec.classList.add('hidden');
+                displaySec.classList.remove('hidden');
+                editBtn.classList.remove('hidden');
+                saveBtn.classList.add('hidden');
+                cancelBtn.classList.add('hidden');
+            };
+
+            saveBtn.onclick = async () => {
+                const updated = {
+                    unit: document.getElementById('viewerEditUnit').value,
+                    lessonNum: document.getElementById('viewerEditLessonNum').value.trim(),
+                    title: document.getElementById('viewerEditTitle').value.trim(),
+                    summary: document.getElementById('viewerEditSummary').value.trim(),
+                    coverImage: document.getElementById('viewerEditCover').value.trim(),
+                    content: document.getElementById('viewerEditContent').value.trim()
+                };
+
+                saveBtn.disabled = true;
+                saveBtn.textContent = '저장중...';
+                await updateDoc(doc(db, "lessons", lesson.id), updated);
+                window.location.reload();
+            };
+        }
+    } catch (e) {
+        console.error("단독 수업 로드 실패:", e);
+    }
 }
