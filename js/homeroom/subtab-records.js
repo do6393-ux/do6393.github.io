@@ -89,6 +89,7 @@ export const KoreanGrammar = {
 };
 
 let activePresets = {};
+homeroomState.accumulatedRecords = {}; // 학생별 누적 데이터 저장소
 
 export async function loadSharedPresetsFromDB() {
     try {
@@ -98,11 +99,11 @@ export async function loadSharedPresetsFromDB() {
         if (snap.exists() && snap.data().presets) {
             activePresets = snap.data().presets;
         } else {
-            console.warn("DB에 데이터가 없습니다. default-presets.js를 사용하여 DB에 최초 업로드하세요.");
+            console.warn("DB에 데이터가 없습니다.");
             activePresets = {};
         }
     } catch (e) {
-        console.warn("DB 로드 에러(오프라인 시 기본값 없음):", e);
+        console.warn("DB 로드 에러:", e);
     }
     return activePresets;
 }
@@ -129,9 +130,6 @@ export async function addSharedPresetToDB(categoryKey, { categoryName, situation
         }
         if (action && !currentDBPresets[categoryKey].actions.includes(action.trim())) {
             currentDBPresets[categoryKey].actions.push(action.trim());
-        }
-        if (outcome && !currentDBPresets[categoryKey].outcomes.includes(outcome.trim())) {
-            currentDBPresets[categoryKey].outcomes.push(outcome.trim());
         }
         
         await setDoc(docRef, { presets: currentDBPresets, updatedAt: new Date().toISOString() });
@@ -191,21 +189,20 @@ export class BehaviorRecordEngine {
 }
 
 // ==========================================
-// 6. 화면 UI 연결 로직 (3단 패널 및 커스텀 모달)
+// 6. 화면 UI 연결 로직
 // ==========================================
 
 let currentSelectedStudentName = "";
+let currentArchiveStudentName = "";
 
 export function setupRecordsModule() {
     document.getElementById('generateRecordBtn')?.addEventListener('click', handleGenerateRecord);
     
-    // 모달 관련 이벤트 바인딩
     document.getElementById('openCustomPresetModalBtn')?.addEventListener('click', openPresetModal);
     document.getElementById('closePresetModalBtn')?.addEventListener('click', closePresetModal);
     document.getElementById('cancelPresetModalBtn')?.addEventListener('click', closePresetModal);
     document.getElementById('savePresetBtn')?.addEventListener('click', saveCustomPreset);
     
-    // 모달 내 버튼 탭 전환 (세부상황 / 행동 / 새 카테고리)
     const typeBtns = document.querySelectorAll('.preset-type-btn');
     typeBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -235,13 +232,63 @@ export function setupRecordsModule() {
             }
         });
     });
+
+    // 🎯 내부 탭 전환 이벤트
+    document.getElementById('recordInnerTabEngineBtn')?.addEventListener('click', () => switchRecordInnerTab('engine'));
+    document.getElementById('recordInnerTabArchiveBtn')?.addEventListener('click', () => switchRecordInnerTab('archive'));
+
+    // 누적 기록 에디터 이벤트
+    const archiveTextarea = document.getElementById('archiveTextarea');
+    archiveTextarea?.addEventListener('input', () => {
+        const text = archiveTextarea.value;
+        const bytes = NEIS_RULES.calculateBytes(text);
+        const countEl = document.getElementById('archiveByteCount');
+        if (countEl) countEl.textContent = `${bytes} / 1500 Byte`;
+        if (bytes > 1500) countEl.classList.replace('text-slate-500', 'text-rose-500');
+        else countEl.classList.replace('text-rose-500', 'text-slate-500');
+    });
+
+    document.getElementById('archiveSaveBtn')?.addEventListener('click', saveAccumulatedRecords);
+    document.getElementById('archiveClearBtn')?.addEventListener('click', () => {
+        if(!confirm("해당 학생의 누적 기록을 비우시겠습니까?")) return;
+        if(archiveTextarea) archiveTextarea.value = '';
+        saveAccumulatedRecords();
+    });
+    document.getElementById('archiveCopyBtn')?.addEventListener('click', () => {
+        if(!archiveTextarea || !archiveTextarea.value) return;
+        navigator.clipboard.writeText(archiveTextarea.value).then(() => alert('✅ 전체 내용이 복사되었습니다.'));
+    });
+}
+
+function switchRecordInnerTab(tabName) {
+    const btnEngine = document.getElementById('recordInnerTabEngineBtn');
+    const btnArchive = document.getElementById('recordInnerTabArchiveBtn');
+    const viewEngine = document.getElementById('recordEngineContainer');
+    const viewArchive = document.getElementById('recordArchiveContainer');
+
+    const activeClass = "px-4 py-2 text-sm font-bold bg-white text-purple-600 rounded-lg shadow-sm transition-all";
+    const inactiveClass = "px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-lg transition-all";
+
+    if (tabName === 'engine') {
+        btnEngine.className = activeClass;
+        btnArchive.className = inactiveClass;
+        viewEngine.classList.remove('hidden');
+        viewArchive.classList.add('hidden');
+        renderRecordStudentList('engine');
+    } else {
+        btnArchive.className = activeClass;
+        btnEngine.className = inactiveClass;
+        viewArchive.classList.remove('hidden');
+        viewEngine.classList.add('hidden');
+        renderRecordStudentList('archive');
+        loadArchiveTextarea();
+    }
 }
 
 export async function loadRecordsData() {
     await loadSharedPresetsFromDB();
     const presets = getActivePresets();
 
-    // 카테고리 셀렉트 렌더링
     const catSelect = document.getElementById('recordCategorySelect');
     if (catSelect) {
         const currentCat = catSelect.value;
@@ -263,18 +310,29 @@ export async function loadRecordsData() {
         }
     }
 
-    // 좌측 1단: 학생 명단 렌더링
-    renderRecordStudentList();
+    // 초기 누적 데이터 로컬스토리지(또는 DB)에서 불러오기
+    const uid = homeroomState.userId;
+    const g = homeroomState.grade;
+    const c = homeroomState.classNum;
+    const localData = localStorage.getItem(`records_${uid}_${g}_${c}`);
+    if (localData) {
+        homeroomState.accumulatedRecords = JSON.parse(localData);
+    } else {
+        homeroomState.accumulatedRecords = {};
+    }
+
+    renderRecordStudentList('engine');
 }
 
-function renderRecordStudentList() {
-    const listWrapper = document.getElementById('recordStudentListWrapper');
-    const countEl = document.getElementById('recordStudentCount');
-    if (!listWrapper || !countEl) return;
+// 🎯 학생 명단 렌더링 (엔진 탭 / 아카이브 탭 공용 대응)
+function renderRecordStudentList(mode = 'engine') {
+    const listWrapper = document.getElementById(mode === 'engine' ? 'recordStudentListWrapper' : 'archiveStudentListWrapper');
+    const countEl = document.getElementById('recordStudentCount'); // engine용
+    if (!listWrapper) return;
 
     listWrapper.innerHTML = '';
     const contacts = homeroomState.contacts || [];
-    countEl.textContent = `${contacts.length}명`;
+    if (countEl && mode === 'engine') countEl.textContent = `${contacts.length}명`;
 
     if (contacts.length === 0) {
         listWrapper.innerHTML = `<div class="text-xs text-slate-400 text-center py-6">비상연락망에 명단을 추가하세요.</div>`;
@@ -283,26 +341,45 @@ function renderRecordStudentList() {
 
     contacts.forEach(s => {
         const btn = document.createElement('button');
-        btn.className = "w-full text-left p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-purple-50 hover:border-purple-200 transition-colors flex items-center gap-3 group focus:outline-none";
-        if (currentSelectedStudentName === s.name) {
+        btn.className = "w-full text-left p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-purple-50 hover:border-purple-200 transition-colors flex items-center justify-between group focus:outline-none";
+        
+        const targetSelected = mode === 'engine' ? currentSelectedStudentName : currentArchiveStudentName;
+        
+        if (targetSelected === s.name) {
             btn.classList.replace('bg-slate-50', 'bg-purple-100');
             btn.classList.replace('border-slate-200', 'border-purple-400');
         }
         
+        // 누적 기록이 있는지 표시
+        const hasRecord = homeroomState.accumulatedRecords[s.name] && homeroomState.accumulatedRecords[s.name].trim().length > 0;
+        const checkIcon = hasRecord ? `<i class="fa-solid fa-check text-emerald-500 text-xs"></i>` : '';
+
         btn.innerHTML = `
-            <span class="text-[11px] font-extrabold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 group-hover:text-purple-600 group-hover:border-purple-200">${s.num}번</span>
-            <span class="text-sm font-bold text-slate-700 group-hover:text-purple-800">${s.name}</span>
+            <div class="flex items-center gap-3">
+                <span class="text-[11px] font-extrabold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 group-hover:text-purple-600 group-hover:border-purple-200">${s.num}번</span>
+                <span class="text-sm font-bold text-slate-700 group-hover:text-purple-800">${s.name}</span>
+            </div>
+            ${checkIcon}
         `;
         
         btn.onclick = () => {
-            currentSelectedStudentName = s.name;
-            document.getElementById('recordSelectedStudentBadge').textContent = `${s.num}번 ${s.name} 선택됨`;
-            document.getElementById('recordSelectedStudentBadge').classList.replace('text-slate-400', 'text-purple-600');
-            document.getElementById('recordSelectedStudentBadge').classList.replace('bg-slate-50', 'bg-purple-100');
-            
-            // 학생을 고르면 즉시 조립 결과 갱신
-            renderRecordStudentList(); // 하이라이트 갱신
-            handleGenerateRecord();
+            if (mode === 'engine') {
+                currentSelectedStudentName = s.name;
+                currentArchiveStudentName = s.name; // 동기화
+                const badge = document.getElementById('recordSelectedStudentBadge');
+                if(badge) {
+                    badge.textContent = `${s.num}번 ${s.name} 선택됨`;
+                    badge.classList.replace('text-slate-400', 'text-purple-600');
+                    badge.classList.replace('bg-slate-50', 'bg-purple-100');
+                }
+                renderRecordStudentList('engine');
+                handleGenerateRecord();
+            } else {
+                currentArchiveStudentName = s.name;
+                currentSelectedStudentName = s.name; // 동기화
+                renderRecordStudentList('archive');
+                loadArchiveTextarea();
+            }
         };
         listWrapper.appendChild(btn);
     });
@@ -366,26 +443,95 @@ function handleGenerateRecord() {
                 <span class="text-[11px] ${res.isValid ? 'text-emerald-500' : 'text-rose-500'} font-bold bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">${res.bytes} / 1500 Byte</span>
             </div>
             <p class="text-[13px] text-slate-800 leading-relaxed font-medium tracking-tight break-keep pt-1 select-none pointer-events-none">${sentence}</p>
-            ${res.forbiddenWords.length > 0 ? `<p class="text-[11px] text-rose-500 mt-2 font-bold bg-rose-50 p-1 rounded"><i class="fa-solid fa-triangle-exclamation"></i> 금지어: ${res.forbiddenWords.join(', ')}</p>` : ''}
         `;
 
-        const textToCopy = name ? `${name} 학생은 ${res.sentence}` : res.sentence;
-        
+        // 🎯 클릭 시 개인별 누적 기록에 저장 (클립보드 복사 대체)
         div.onclick = () => {
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                const toast = document.createElement('div');
-                toast.className = "absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-lg opacity-0 transition-opacity";
-                toast.textContent = "복사되었습니다!";
-                div.appendChild(toast);
-                setTimeout(() => toast.classList.add('opacity-100'), 10);
-                setTimeout(() => {
-                    toast.classList.remove('opacity-100');
-                    setTimeout(() => toast.remove(), 300);
-                }, 1000);
-            });
+            if (!name) return alert('왼쪽 명단에서 학생을 먼저 선택해주세요.');
+            
+            let current = homeroomState.accumulatedRecords[name] || "";
+            if (current) current += " ";
+            current += res.sentence; // '이름 학생은' 빼고 순수 문장만 합침
+            homeroomState.accumulatedRecords[name] = current;
+            
+            saveAccumulatedRecords(false);
+            
+            const toast = document.createElement('div');
+            toast.className = "absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg opacity-0 transition-opacity z-10 whitespace-nowrap";
+            toast.innerHTML = `<i class="fa-solid fa-check"></i> '${name}' 누적 기록에 저장됨`;
+            div.appendChild(toast);
+            setTimeout(() => toast.classList.add('opacity-100'), 10);
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                setTimeout(() => toast.remove(), 300);
+            }, 1200);
+            
+            // 학생 명단 V표시 갱신
+            renderRecordStudentList('engine');
         };
         container.appendChild(div);
     });
+}
+
+function loadArchiveTextarea() {
+    const titleEl = document.getElementById('archiveSelectedStudentTitle');
+    const textarea = document.getElementById('archiveTextarea');
+    const countEl = document.getElementById('archiveByteCount');
+
+    if (!currentArchiveStudentName) {
+        titleEl.textContent = "학생을 선택하세요";
+        titleEl.classList.replace('text-indigo-700', 'text-slate-400');
+        textarea.value = "";
+        textarea.disabled = true;
+        if(countEl) countEl.textContent = "0 / 1500 Byte";
+        return;
+    }
+
+    titleEl.textContent = `${currentArchiveStudentName} 학생의 누적 기록`;
+    titleEl.classList.replace('text-slate-400', 'text-indigo-700');
+    textarea.disabled = false;
+    
+    const text = homeroomState.accumulatedRecords[currentArchiveStudentName] || "";
+    textarea.value = text;
+    
+    const bytes = NEIS_RULES.calculateBytes(text);
+    if(countEl) {
+        countEl.textContent = `${bytes} / 1500 Byte`;
+        if (bytes > 1500) countEl.classList.replace('text-slate-500', 'text-rose-500');
+        else countEl.classList.replace('text-rose-500', 'text-slate-500');
+    }
+}
+
+async function saveAccumulatedRecords(showAlert = true) {
+    if (currentArchiveStudentName) {
+        const textarea = document.getElementById('archiveTextarea');
+        if (textarea && !textarea.disabled) {
+            homeroomState.accumulatedRecords[currentArchiveStudentName] = textarea.value;
+        }
+    }
+
+    const uid = homeroomState.userId;
+    const g = homeroomState.grade;
+    const c = homeroomState.classNum;
+    
+    // 로컬 저장
+    localStorage.setItem(`records_${uid}_${g}_${c}`, JSON.stringify(homeroomState.accumulatedRecords));
+    
+    // DB 저장
+    try {
+        await setDoc(doc(db, "homeroom_records", `${uid}_${g}_${c}`), {
+            userId: uid,
+            grade: g,
+            classNum: c,
+            records: homeroomState.accumulatedRecords,
+            updatedAt: new Date().toISOString()
+        });
+        if(showAlert) alert('✅ 누적 기록이 안전하게 저장되었습니다.');
+        renderRecordStudentList('archive');
+    } catch (e) {
+        console.error("누적 기록 DB 저장 에러:", e);
+        if(showAlert) alert('저장 중 네트워크 오류가 발생했으나, 이 브라우저에는 저장되었습니다.');
+    }
 }
 
 // 🎯 커스텀 모달 열기 및 세팅
@@ -416,7 +562,6 @@ function closePresetModal() {
     document.getElementById('customPresetModal').classList.add('hidden');
 }
 
-// 🎯 커스텀 모달 저장 처리
 async function saveCustomPreset() {
     const activeTypeBtn = document.querySelector('.preset-type-btn.active');
     if (!activeTypeBtn) return;
@@ -444,7 +589,7 @@ async function saveCustomPreset() {
         }
 
         closePresetModal();
-        await loadRecordsData(); // 화면 즉시 갱신
+        await loadRecordsData(); 
         alert("✅ 공용 데이터베이스에 추가되어 즉시 사용할 수 있습니다.");
     } catch (e) {
         if (e.message) alert(e.message);
