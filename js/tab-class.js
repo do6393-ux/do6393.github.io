@@ -23,6 +23,7 @@ const editorToolbar = [
     ['view', ['codeview', 'fullscreen']]
 ];
 
+// 새 탭 단독 수업 뷰어 감지 시 최우선 실행
 const urlParams = new URLSearchParams(window.location.search);
 const standaloneLessonId = urlParams.get('lesson');
 if (standaloneLessonId) {
@@ -32,7 +33,7 @@ if (standaloneLessonId) {
 export function initClassTab(currentUser) {
     if (standaloneLessonId) return;
 
-    // 🎯 모달 수업 에디터 초기화
+    // 모달 수업 에디터 사전 초기화
     if (window.$ && $('#lessonContentInput').length && !$('#lessonContentInput').next('.note-editor').length) {
         $('#lessonContentInput').summernote({
             placeholder: '수업 자료를 작성하세요. 사진이나 표를 자유롭게 넣고 크기를 조절할 수 있습니다...',
@@ -143,14 +144,26 @@ export function initClassTab(currentUser) {
             document.getElementById('lessonNumInput').value = '';
             document.getElementById('lessonSummaryInput').value = '';
             document.getElementById('lessonCoverInput').value = '';
-            if (window.$ && $('#lessonContentInput').next('.note-editor').length) {
+            
+            modal.classList.remove('hidden');
+
+            if (window.$ && $('#lessonContentInput').length) {
+                if (!$('#lessonContentInput').next('.note-editor').length) {
+                    $('#lessonContentInput').summernote({
+                        placeholder: '수업 자료를 작성하세요...',
+                        tabsize: 2,
+                        height: 250,
+                        lang: 'ko-KR',
+                        toolbar: editorToolbar
+                    });
+                }
                 $('#lessonContentInput').summernote('code', '');
             } else {
                 document.getElementById('lessonContentInput').value = '';
             }
+
             if (document.getElementById('lessonVisibilityCheckbox')) document.getElementById('lessonVisibilityCheckbox').checked = true;
             document.getElementById('lessonModalTitle').textContent = '새 수업 자료 등록';
-            modal.classList.remove('hidden');
         };
     }
 
@@ -167,7 +180,6 @@ export function initClassTab(currentUser) {
             const summary = document.getElementById('lessonSummaryInput').value.trim();
             const coverImage = document.getElementById('lessonCoverInput').value.trim();
             
-            // 🎯 에디터 HTML 내용 안전 추출
             let content = '';
             if (window.$ && $('#lessonContentInput').next('.note-editor').length) {
                 content = $('#lessonContentInput').summernote('code');
@@ -252,8 +264,19 @@ function renderLessons(currentUser) {
             document.getElementById('lessonSummaryInput').value = lesson.summary || '';
             document.getElementById('lessonCoverInput').value = lesson.coverImage || '';
             
-            // 🎯 에디터에 기존 본문 HTML 안전 적재
-            if (window.$ && $('#lessonContentInput').next('.note-editor').length) {
+            document.getElementById('lessonModalTitle').textContent = '수업 자료 수정';
+            document.getElementById('lessonModal')?.classList.remove('hidden');
+
+            // 모달 노출 후 Summernote에 본문 주입
+            if (window.$ && $('#lessonContentInput').length) {
+                if (!$('#lessonContentInput').next('.note-editor').length) {
+                    $('#lessonContentInput').summernote({
+                        tabsize: 2,
+                        height: 250,
+                        lang: 'ko-KR',
+                        toolbar: editorToolbar
+                    });
+                }
                 $('#lessonContentInput').summernote('code', lesson.content || '');
             } else {
                 document.getElementById('lessonContentInput').value = lesson.content || '';
@@ -262,8 +285,6 @@ function renderLessons(currentUser) {
             if (document.getElementById('lessonVisibilityCheckbox')) {
                 document.getElementById('lessonVisibilityCheckbox').checked = lesson.isVisible !== false;
             }
-            document.getElementById('lessonModalTitle').textContent = '수업 자료 수정';
-            document.getElementById('lessonModal')?.classList.remove('hidden');
         });
     });
 
@@ -274,7 +295,7 @@ function renderLessons(currentUser) {
     });
 }
 
-// 새 탭 단독 수업 뷰어 및 스마트 에디터
+// 🎯 새 탭 단독 수업 뷰어: 폼 영역 노출 순서 교정
 async function initStandaloneLessonViewer(lessonId) {
     try {
         const snap = await getDoc(doc(db, "lessons", lessonId));
@@ -311,26 +332,28 @@ async function initStandaloneLessonViewer(lessonId) {
                 document.getElementById('viewerEditSummary').value = lesson.summary || '';
                 document.getElementById('viewerEditCover').value = lesson.coverImage || '';
 
-                // 🎯 뷰어 에디터 초기화 및 본문 주입
-                if (window.$ && $('#viewerEditContent').length && !$('#viewerEditContent').next('.note-editor').length) {
-                    $('#viewerEditContent').summernote({
-                        tabsize: 2,
-                        height: 380,
-                        lang: 'ko-KR',
-                        toolbar: editorToolbar
-                    });
-                }
-                if (window.$ && $('#viewerEditContent').next('.note-editor').length) {
-                    $('#viewerEditContent').summernote('code', lesson.content || '');
-                } else {
-                    document.getElementById('viewerEditContent').value = lesson.content || '';
-                }
-
+                // 🎯 1. 폼 섹션을 먼저 화면에 노출 (부모가 display: block이어야 Summernote 에디터가 정상 생성됨)
                 displaySec.classList.add('hidden');
                 formSec.classList.remove('hidden');
                 editBtn.classList.add('hidden');
                 saveBtn.classList.remove('hidden');
                 cancelBtn.classList.remove('hidden');
+
+                // 🎯 2. 화면 노출 직후 에디터 초기화 및 코드 주입
+                const $editor = $('#viewerEditContent');
+                if (window.$ && $editor.length) {
+                    if (!$editor.next('.note-editor').length) {
+                        $editor.summernote({
+                            tabsize: 2,
+                            height: 400,
+                            lang: 'ko-KR',
+                            toolbar: editorToolbar
+                        });
+                    }
+                    $editor.summernote('code', lesson.content || '');
+                } else {
+                    document.getElementById('viewerEditContent').value = lesson.content || '';
+                }
             };
 
             cancelBtn.onclick = () => {
@@ -343,8 +366,9 @@ async function initStandaloneLessonViewer(lessonId) {
 
             saveBtn.onclick = async () => {
                 let content = '';
-                if (window.$ && $('#viewerEditContent').next('.note-editor').length) {
-                    content = $('#viewerEditContent').summernote('code');
+                const $editor = $('#viewerEditContent');
+                if (window.$ && $editor.next('.note-editor').length) {
+                    content = $editor.summernote('code');
                 } else {
                     content = document.getElementById('viewerEditContent').value.trim();
                 }
