@@ -502,7 +502,8 @@ function handleGenerateRecord() {
 
     results.forEach(res => {
         const div = document.createElement('div');
-        div.className = "p-4 bg-white border border-slate-200 rounded-2xl shadow-sm relative group hover:border-purple-400 cursor-pointer transition-colors";
+        // 전체 클릭 이벤트를 지우고, 내부 버튼 클릭으로 명확히 구분
+        div.className = "p-4 bg-white border border-slate-200 rounded-2xl shadow-sm relative transition-colors";
         
         let sentence = res.sentence;
         if (name) {
@@ -511,20 +512,28 @@ function handleGenerateRecord() {
             sentence = `<span class="font-extrabold text-slate-400 bg-slate-100 px-1 rounded">(이름)</span> 학생은 ` + sentence;
         }
 
+        // 🎯 누적 기록 버튼이 결과창 박스 내부에 명확하게 생깁니다.
         div.innerHTML = `
             <div class="flex justify-between items-center mb-2">
                 <span class="text-xs font-extrabold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-100">${res.style}</span>
                 <span class="text-[11px] ${res.isValid ? 'text-emerald-500' : 'text-rose-500'} font-bold bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">${res.bytes} / 1500 Byte</span>
             </div>
-            <p class="text-[13px] text-slate-800 leading-relaxed font-medium tracking-tight break-keep pt-1 select-none pointer-events-none">${sentence}</p>
+            <p class="text-[13px] text-slate-800 leading-relaxed font-medium tracking-tight break-keep pt-1 mb-4 select-none pointer-events-none">${sentence}</p>
+            <div class="border-t border-slate-100 pt-3 flex justify-end">
+                <button class="add-to-archive-btn bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-4 py-2 rounded-xl text-xs transition-colors shadow-sm">
+                    <i class="fa-solid fa-plus mr-1"></i> 누적 기록에 추가
+                </button>
+            </div>
         `;
 
-        // 🎯 클릭 시 강제 탭 전환 코드를 삭제하고 조용히 저장만 합니다.
-        div.onclick = async () => {
+        const addBtn = div.querySelector('.add-to-archive-btn');
+        addBtn.onclick = async (e) => {
+            e.stopPropagation(); // 불필요한 이벤트 번짐 차단
+            
             if (!name) return alert('왼쪽 명단에서 학생을 먼저 선택해주세요.');
             
             let current = homeroomState.accumulatedRecords[name] || "";
-            if (current) current += " ";
+            if (current) current += " "; // 여러번 누르면 띄어쓰기 한 칸과 함께 뒤에 계속 이어붙음
             current += res.sentence;
             homeroomState.accumulatedRecords[name] = current;
             
@@ -533,18 +542,21 @@ function handleGenerateRecord() {
                 if (textarea) textarea.value = current;
             }
 
-            await persistAccumulatedRecords(false);
+            await persistAccumulatedRecords(false); // 화면 넘어감 없이 무소음 저장
             
-            const toast = document.createElement('div');
-            toast.className = "absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg opacity-0 transition-opacity z-10 whitespace-nowrap";
-            toast.innerHTML = `<i class="fa-solid fa-check"></i> '${name}' 누적 기록에 추가됨`;
-            div.appendChild(toast);
+            // 시각적 피드백
+            const originalText = addBtn.innerHTML;
+            addBtn.innerHTML = `<i class="fa-solid fa-check mr-1"></i> 추가 완료!`;
+            addBtn.classList.replace('bg-indigo-50', 'bg-emerald-50');
+            addBtn.classList.replace('text-indigo-700', 'text-emerald-700');
+            addBtn.classList.replace('hover:bg-indigo-100', 'hover:bg-emerald-100');
             
-            setTimeout(() => toast.classList.add('opacity-100'), 10);
             setTimeout(() => {
-                toast.classList.remove('opacity-100');
-                setTimeout(() => toast.remove(), 300);
-            }, 1200);
+                addBtn.innerHTML = originalText;
+                addBtn.classList.replace('bg-emerald-50', 'bg-indigo-50');
+                addBtn.classList.replace('text-emerald-700', 'text-indigo-700');
+                addBtn.classList.replace('hover:bg-emerald-100', 'hover:bg-indigo-100');
+            }, 1500);
             
             renderRecordStudentList('engine'); 
         };
