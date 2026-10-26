@@ -11,10 +11,28 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <!-- 🎯 스마트 위지윅 에디터 (사진 크기 조절, 표, 글자색, 밑줄 등 지원) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/lang/summernote-ko-KR.min.js"></script>
+
     <script>
         tailwind.config = { theme: { extend: { colors: { primary: '#0284c7', secondary: '#0d9488', mint: '#14b8a6', lightbg: '#f8fafc' }, fontFamily: { sans: ['Noto Sans KR', 'sans-serif'] } } } }
     </script>
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* 에디터 및 본문 뷰어 스타일 보정 */
+        .note-editor .note-toolbar { background-color: #f8fafc !important; border-bottom: 1px solid #e2e8f0 !important; }
+        .note-editor .note-btn { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; padding: 4px 8px !important; font-size: 12px !important; }
+        .note-dropdown-menu { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; z-index: 1050 !important; }
+        .note-editable { background-color: #ffffff !important; font-size: 13px !important; line-height: 1.6 !important; }
+        .notion-content table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+        .notion-content table th, .notion-content table td { border: 1px solid #cbd5e1; padding: 8px 12px; }
+        .notion-content table th { background-color: #f1f5f9; font-weight: bold; }
+        .notion-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
+    </style>
     <script>
         const initParams = new URLSearchParams(window.location.search);
         if (initParams.has('lesson')) {
@@ -23,7 +41,6 @@
             document.write('<style>#mainDashboardApp { display: none !important; } #standaloneTaskViewer { display: block !important; }</style>');
         }
 
-        /* JS 파일 간의 구형/신형 ID 호환성을 100% 보장하는 안전 완충 장치 */
         const origGetId = document.getElementById.bind(document);
         document.getElementById = function(id) {
             const aliasMap = {
@@ -34,9 +51,7 @@
                 'closeNewLessonModalBtn': 'closeLessonModalBtn',
                 'closeNewTaskModalBtn': 'closeTaskModalBtn'
             };
-            if (aliasMap[id]) {
-                return origGetId(aliasMap[id]) || origGetId(id);
-            }
+            if (aliasMap[id]) return origGetId(aliasMap[id]) || origGetId(id);
             return origGetId(id);
         };
     </script>
@@ -52,7 +67,7 @@
                     <span id="viewerLessonNum" class="text-xs text-slate-400"></span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button id="viewerEditBtn" class="hidden text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shadow-sm"><i class="fa-solid fa-pen"></i> 수정</button>
+                    <button id="viewerEditBtn" class="text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shadow-sm"><i class="fa-solid fa-pen"></i> 수정</button>
                     <button id="viewerSaveBtn" class="hidden text-xs font-bold px-4 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white transition-all shadow-sm"><i class="fa-solid fa-check"></i> 저장</button>
                     <button id="viewerCancelBtn" class="hidden text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all">취소</button>
                 </div>
@@ -79,7 +94,7 @@
                 <input type="text" id="viewerEditTitle" class="w-full text-sm p-2.5 rounded-xl border border-slate-200 font-bold">
                 <input type="text" id="viewerEditSummary" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
                 <input type="url" id="viewerEditCover" placeholder="커버 이미지 URL" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                <textarea id="viewerEditContent" rows="12" class="w-full text-xs p-3.5 rounded-2xl border border-slate-200 font-mono"></textarea>
+                <textarea id="viewerEditContent" class="w-full"></textarea>
             </div>
         </div>
     </div>
@@ -93,7 +108,7 @@
                     <span id="taskViewerStatusBadge" class="text-xs font-bold px-3 py-1 rounded-full"></span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button id="taskViewerEditBtn" class="hidden text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shadow-sm"><i class="fa-solid fa-pen"></i> 수정</button>
+                    <button id="taskViewerEditBtn" class="text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all shadow-sm"><i class="fa-solid fa-pen"></i> 수정</button>
                     <button id="taskViewerSaveBtn" class="hidden text-xs font-bold px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-all shadow-sm"><i class="fa-solid fa-check"></i> 저장</button>
                     <button id="taskViewerCancelBtn" class="hidden text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all">취소</button>
                 </div>
@@ -120,7 +135,7 @@
                 </div>
                 <input type="text" id="taskViewerEditTitle" class="w-full text-sm p-2.5 rounded-xl border border-slate-200 font-bold">
                 <input type="text" id="taskViewerEditSummary" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                <textarea id="taskViewerEditContent" rows="12" class="w-full text-xs p-3.5 rounded-2xl border border-slate-200 font-mono"></textarea>
+                <textarea id="taskViewerEditContent" class="w-full"></textarea>
             </div>
         </div>
     </div>
@@ -305,7 +320,6 @@
                     </section>
 
                     <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-                        <!-- 컨트롤 헤더 -->
                         <div class="flex flex-wrap justify-between items-center mb-6 gap-3">
                             <p class="text-xs text-slate-500 font-bold"><i class="fa-solid fa-hand-pointer"></i> 안 쓰는 빈자리는 클릭해서 <span class="bg-slate-200 px-1 rounded text-slate-400">회색</span>으로 만들어 제외하세요.</p>
                             
@@ -326,7 +340,6 @@
                             </div>
                         </div>
 
-                        <!-- 교실 배치 -->
                         <div class="flex items-stretch gap-2 sm:gap-4 max-w-4xl mx-auto mb-8">
                             <div class="w-8 sm:w-10 bg-slate-100 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-500 font-bold text-xs py-4 select-none shrink-0 shadow-inner">
                                 <i class="fa-solid fa-door-open mb-2 text-slate-400 text-sm"></i>
@@ -344,7 +357,6 @@
                             </div>
                         </div>
 
-                        <!-- 하단 교탁 -->
                         <div class="flex justify-center border-t-2 border-dashed border-slate-200 pt-6">
                             <button id="teacherDeskBtn" class="bg-amber-100 border-2 border-amber-300 text-amber-800 font-extrabold text-lg px-20 py-4 rounded-xl shadow-sm hover:bg-amber-200 transition-colors cursor-pointer select-none">교 탁 (칠판)</button>
                         </div>
@@ -408,15 +420,12 @@
                         </div>
                     </section>
 
-                    <!-- 내부 탭 버튼 -->
                     <div class="flex gap-2 bg-slate-100 p-1 rounded-xl w-fit">
                         <button id="recordInnerTabEngineBtn" class="px-4 py-2 text-sm font-bold bg-white text-purple-600 rounded-lg shadow-sm transition-all">1. 조립 엔진</button>
                         <button id="recordInnerTabArchiveBtn" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-lg transition-all">2. 개인별 누적 기록</button>
                     </div>
                     
-                    <!-- 탭 1: 조립 엔진 컨테이너 -->
                     <div id="recordEngineContainer" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-                        <!-- 1. 학생 명단 패널 (좌측) -->
                         <div class="lg:col-span-3 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-[650px]">
                             <div class="border-b border-slate-100 pb-3 mb-3 flex items-center justify-between">
                                 <h3 class="font-bold text-slate-800"><i class="fa-solid fa-users text-rose-500 mr-1"></i> 학급 명단</h3>
@@ -425,7 +434,6 @@
                             <div id="recordStudentListWrapper" class="flex-1 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar"></div>
                         </div>
                         
-                        <!-- 2. 조립 메모 옵션 패널 (중앙) -->
                         <div class="lg:col-span-4 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-[650px]">
                             <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
                                 <h3 class="font-bold text-slate-800"><i class="fa-solid fa-keyboard text-purple-600 mr-1"></i> 조립 메모 선택</h3>
@@ -460,7 +468,6 @@
                             </div>
                         </div>
                         
-                        <!-- 3. 출력 결과 패널 (우측) -->
                         <div class="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-inner flex flex-col h-[650px]">
                             <h3 class="font-bold text-slate-800 border-b border-slate-200 pb-3 mb-4 flex items-center justify-between">
                                 <span><i class="fa-solid fa-list-check text-purple-600 mr-1"></i> 단일 조립 결과 (검증 완료)</span>
@@ -475,7 +482,6 @@
                         </div>
                     </div>
 
-                    <!-- 탭 2: 개인별 누적 기록 컨테이너 -->
                     <div id="recordArchiveContainer" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
                         <div class="lg:col-span-3 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-[600px]">
                             <div class="border-b border-slate-100 pb-3 mb-3 flex items-center justify-between">
@@ -541,7 +547,6 @@
                     <button class="bg-white/20 text-white text-xs px-3 py-2 rounded-xl" onclick="window.open('http://comci.net:4082/st', '_blank')"><i class="fa-solid fa-link"></i> 컴시간</button>
                 </section>
                 <div class="space-y-8">
-                    <!-- 교사 시간표 -->
                     <div class="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
                         <div class="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 gap-2">
                             <div class="flex items-center gap-2">
@@ -568,7 +573,6 @@
                         </div>
                     </div>
                     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                        <!-- 학급 시간표 -->
                         <div class="lg:col-span-8 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
                             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                                 <div class="flex items-center gap-2">
@@ -588,7 +592,6 @@
                                 </table>
                             </div>
                         </div>
-                        <!-- 급식 -->
                         <div class="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
                             <h3 class="font-bold text-lg text-slate-800 border-b border-slate-100 pb-3"><i class="fa-solid fa-bowl-rice text-amber-500"></i> 오늘의 급식</h3>
                             <div class="flex items-center gap-2 mt-4 mb-3">
@@ -607,7 +610,7 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- [모든 팝업 모달 영역 - tab-class.js, tab-work.js ID 100% 일치] -->
+    <!-- [모든 팝업 모달 영역 - 100% 완전체] -->
     <!-- ========================================== -->
 
     <!-- 1. 교사 로그인 모달 -->
@@ -627,9 +630,9 @@
         </div>
     </div>
 
-    <!-- 2. 수업 자료 작성/수정 모달 (tab-class.js 매칭: id="lessonModal") -->
+    <!-- 2. 수업 자료 작성/수정 모달 -->
     <div id="lessonModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
             <button id="closeLessonModalBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
             <h3 id="lessonModalTitle" class="text-lg font-bold text-slate-800">수업 자료 작성 / 수정</h3>
             <div class="space-y-3">
@@ -647,9 +650,10 @@
                 <input type="text" id="lessonTitleInput" placeholder="수업 제목" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-bold">
                 <input type="text" id="lessonSummaryInput" placeholder="한 줄 요약 (학습 목표 등)" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
                 <input type="url" id="lessonCoverInput" placeholder="커버 이미지 URL (선택사항)" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                <textarea id="lessonContentInput" rows="8" placeholder="수업 본문 (마크다운 작성 가능)..." class="w-full text-xs p-3 rounded-xl border border-slate-200 font-mono"></textarea>
                 
-                <!-- 🎯 tab-class.js 137번째 줄 필수 체크박스 -->
+                <!-- 🎯 스마트 에디터 렌더링 컨테이너 -->
+                <textarea id="lessonContentInput" class="w-full"></textarea>
+                
                 <div class="flex items-center gap-2 pt-1">
                     <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
                         <input type="checkbox" id="lessonVisibilityCheckbox" class="w-4 h-4 rounded text-teal-600 focus:ring-teal-500" checked>
@@ -663,9 +667,9 @@
         </div>
     </div>
 
-    <!-- 3. 업무 작성/수정 모달 (tab-work.js 매칭: id="taskModal") -->
+    <!-- 3. 업무 작성/수정 모달 -->
     <div id="taskModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
             <button id="closeTaskModalBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
             <h3 id="taskModalTitle" class="text-lg font-bold text-slate-800">업무 등록 / 수정</h3>
             <div class="space-y-3">
@@ -686,7 +690,9 @@
                 </div>
                 <input type="text" id="taskTitleInput" placeholder="업무 제목" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-bold">
                 <input type="text" id="taskSummaryInput" placeholder="업무 개요" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                <textarea id="taskContentInput" rows="8" placeholder="업무 세부 매뉴얼 (마크다운 지원)..." class="w-full text-xs p-3 rounded-xl border border-slate-200 font-mono"></textarea>
+                
+                <!-- 🎯 스마트 에디터 렌더링 컨테이너 -->
+                <textarea id="taskContentInput" class="w-full"></textarea>
             </div>
             <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button id="saveTaskFirebaseBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow-md transition-all">업무 저장</button>
