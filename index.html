@@ -590,7 +590,7 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- [모든 팝업 모달 원본 100% 복원 영역] -->
+    <!-- [모든 팝업 모달 영역 - 100% 완전체 복원] -->
     <!-- ========================================== -->
 
     <!-- 1. 교사 로그인 모달 -->
@@ -616,6 +616,7 @@
             <button id="closeNewLessonModalBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
             <h3 id="lessonModalTitle" class="text-lg font-bold text-slate-800">새 수업 자료 등록</h3>
             <div class="space-y-3">
+                <!-- 🎯 에러 해결 핵심: editLessonId 히든 필드 복원 -->
                 <input type="hidden" id="editLessonId">
                 <div class="grid grid-cols-2 gap-2">
                     <select id="newLessonUnit" class="text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
@@ -644,6 +645,7 @@
             <button id="closeNewTaskModalBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
             <h3 id="taskModalTitle" class="text-lg font-bold text-slate-800">새 업무 등록</h3>
             <div class="space-y-3">
+                <!-- 🎯 에러 해결 핵심: editTaskId 히든 필드 복원 -->
                 <input type="hidden" id="editTaskId">
                 <div class="grid grid-cols-2 gap-2">
                     <select id="newTaskCategory" class="text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
