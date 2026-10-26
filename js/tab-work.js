@@ -7,7 +7,17 @@ const catMap = { 'devices': '💻 계정 및 기기', 'network': '🌐 네트워
 const statMap = { 'todo': '⏳ 대기', 'doing': '🚀 진행', 'done': '✅ 완료' };
 const nextStatusMap = { 'todo': 'doing', 'doing': 'done', 'done': 'todo' };
 
-// 🎯 새 탭 단독 업무 뷰어(?task=...) 감지 시 최우선 즉시 실행
+const editorToolbar = [
+    ['style', ['style']],
+    ['font', ['bold', 'underline', 'clear']],
+    ['fontsize', ['fontsize']],
+    ['color', ['color']],
+    ['para', ['ul', 'ol', 'paragraph']],
+    ['table', ['table']],
+    ['insert', ['picture', 'link', 'video']],
+    ['view', ['codeview', 'fullscreen']]
+];
+
 const urlParams = new URLSearchParams(window.location.search);
 const standaloneTaskId = urlParams.get('task');
 if (standaloneTaskId) {
@@ -17,14 +27,23 @@ if (standaloneTaskId) {
 export function initWorkTab(currentUser) {
     if (standaloneTaskId) return;
 
-    // 1. 업무 목록 실시간 동기화
+    // 🎯 모달 업무 에디터 초기화
+    if (window.$ && $('#taskContentInput').length && !$('#taskContentInput').next('.note-editor').length) {
+        $('#taskContentInput').summernote({
+            placeholder: '업무 세부 매뉴얼을 작성하세요. 사진이나 서식을 자유롭게 넣을 수 있습니다...',
+            tabsize: 2,
+            height: 250,
+            lang: 'ko-KR',
+            toolbar: editorToolbar
+        });
+    }
+
     onSnapshot(query(collection(db, "work_tasks"), orderBy("createdAt", "desc")), (snapshot) => {
         allTaskDocs = [];
         snapshot.forEach(d => allTaskDocs.push({ id: d.id, ...d.data() }));
         renderTasks(currentUser);
     });
 
-    // 2. 카테고리 필터
     document.querySelectorAll('.task-filter-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.task-filter-btn').forEach(b => {
@@ -39,10 +58,9 @@ export function initWorkTab(currentUser) {
         });
     });
 
-    // 🎯 3. 새 업무 추가 모달 및 저장 로직 복원
     const openBtn = document.getElementById('openNewTaskModalBtn');
-    const modal = document.getElementById('taskModal') || document.getElementById('newTaskModal');
-    const closeBtn = document.getElementById('closeTaskModalBtn') || document.getElementById('closeNewTaskModalBtn');
+    const modal = document.getElementById('taskModal');
+    const closeBtn = document.getElementById('closeTaskModalBtn');
     const saveBtn = document.getElementById('saveTaskFirebaseBtn');
 
     if (openBtn && modal) {
@@ -50,7 +68,11 @@ export function initWorkTab(currentUser) {
             document.getElementById('editTaskId').value = '';
             document.getElementById('taskTitleInput').value = '';
             document.getElementById('taskSummaryInput').value = '';
-            document.getElementById('taskContentInput').value = '';
+            if (window.$ && $('#taskContentInput').next('.note-editor').length) {
+                $('#taskContentInput').summernote('code', '');
+            } else {
+                document.getElementById('taskContentInput').value = '';
+            }
             document.getElementById('taskModalTitle').textContent = '새 업무 등록';
             modal.classList.remove('hidden');
         };
@@ -67,7 +89,14 @@ export function initWorkTab(currentUser) {
             const status = document.getElementById('taskStatusSelect').value;
             const title = document.getElementById('taskTitleInput').value.trim();
             const summary = document.getElementById('taskSummaryInput').value.trim();
-            const content = document.getElementById('taskContentInput').value.trim();
+            
+            // 🎯 에디터 내용 추출
+            let content = '';
+            if (window.$ && $('#taskContentInput').next('.note-editor').length) {
+                content = $('#taskContentInput').summernote('code');
+            } else {
+                content = document.getElementById('taskContentInput').value.trim();
+            }
 
             if (!title) return alert('업무 제목을 입력하세요.');
 
@@ -132,7 +161,7 @@ function renderTasks(currentUser) {
         container.appendChild(card);
     });
 
-    // 🎯 카드에서 [대기 -> 진행 -> 완료] 원클릭 상태 변경
+    // 🎯 카드에서 대기 상태 원클릭 변경 (대기중 -> 진행중 -> 완료됨)
     document.querySelectorAll('.toggle-status-btn').forEach(btn => {
         btn.onclick = async (e) => {
             e.stopPropagation();
@@ -152,10 +181,16 @@ function renderTasks(currentUser) {
             document.getElementById('taskStatusSelect').value = task.status;
             document.getElementById('taskTitleInput').value = task.title || '';
             document.getElementById('taskSummaryInput').value = task.summary || '';
-            document.getElementById('taskContentInput').value = task.content || '';
+            
+            // 🎯 에디터에 기존 HTML 주입
+            if (window.$ && $('#taskContentInput').next('.note-editor').length) {
+                $('#taskContentInput').summernote('code', task.content || '');
+            } else {
+                document.getElementById('taskContentInput').value = task.content || '';
+            }
+
             document.getElementById('taskModalTitle').textContent = '업무 수정';
-            const modal = document.getElementById('taskModal') || document.getElementById('newTaskModal');
-            modal?.classList.remove('hidden');
+            document.getElementById('taskModal')?.classList.remove('hidden');
         });
     });
 
@@ -166,7 +201,7 @@ function renderTasks(currentUser) {
     });
 }
 
-// 🎯 새 탭 단독 업무 뷰어: 로그인 여부와 관계없이 [수정] 버튼 100% 노출
+// 새 탭 단독 업무 뷰어 및 스마트 에디터
 async function initStandaloneTaskViewer(taskId) {
     try {
         const snap = await getDoc(doc(db, "work_tasks", taskId));
@@ -191,7 +226,6 @@ async function initStandaloneTaskViewer(taskId) {
 
         updateView(task);
 
-        // 새 탭 상단 배지 클릭 시에도 상태 순환 토글
         const statBadge = document.getElementById('taskViewerStatusBadge');
         if (statBadge) {
             statBadge.onclick = async () => {
@@ -208,7 +242,6 @@ async function initStandaloneTaskViewer(taskId) {
         const displaySec = document.getElementById('taskViewDisplaySection');
         const formSec = document.getElementById('taskEditFormSection');
 
-        // 🎯 조건문 없이 무조건 [수정] 버튼 활성화
         if (editBtn) {
             editBtn.classList.remove('hidden');
 
@@ -217,7 +250,21 @@ async function initStandaloneTaskViewer(taskId) {
                 document.getElementById('taskViewerEditStatus').value = task.status;
                 document.getElementById('taskViewerEditTitle').value = task.title;
                 document.getElementById('taskViewerEditSummary').value = task.summary || '';
-                document.getElementById('taskViewerEditContent').value = task.content || '';
+
+                // 🎯 뷰어 에디터 초기화 및 본문 주입
+                if (window.$ && $('#taskViewerEditContent').length && !$('#taskViewerEditContent').next('.note-editor').length) {
+                    $('#taskViewerEditContent').summernote({
+                        tabsize: 2,
+                        height: 380,
+                        lang: 'ko-KR',
+                        toolbar: editorToolbar
+                    });
+                }
+                if (window.$ && $('#taskViewerEditContent').next('.note-editor').length) {
+                    $('#taskViewerEditContent').summernote('code', task.content || '');
+                } else {
+                    document.getElementById('taskViewerEditContent').value = task.content || '';
+                }
 
                 displaySec.classList.add('hidden');
                 formSec.classList.remove('hidden');
@@ -235,12 +282,19 @@ async function initStandaloneTaskViewer(taskId) {
             };
 
             saveBtn.onclick = async () => {
+                let content = '';
+                if (window.$ && $('#taskViewerEditContent').next('.note-editor').length) {
+                    content = $('#taskViewerEditContent').summernote('code');
+                } else {
+                    content = document.getElementById('taskViewerEditContent').value.trim();
+                }
+
                 const updated = {
                     category: document.getElementById('taskViewerEditCat').value,
                     status: document.getElementById('taskViewerEditStatus').value,
                     title: document.getElementById('taskViewerEditTitle').value.trim(),
                     summary: document.getElementById('taskViewerEditSummary').value.trim(),
-                    content: document.getElementById('taskViewerEditContent').value.trim()
+                    content: content
                 };
 
                 saveBtn.disabled = true;
