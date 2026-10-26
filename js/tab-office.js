@@ -64,51 +64,14 @@ export async function initOfficeTab(currentUser) {
         console.warn("파이어베이스 설정 로드 실패 (로컬 데이터 유지):", e);
     }
     
-    // 3. 교사 성함 클릭 시 직접 변경 팝업
+    // 3. 메인 화면 교사 성함 클릭 시 직접 변경 팝업
     document.getElementById('titleTeacherNameBtn')?.addEventListener('click', () => {
-        const container = document.getElementById('modalTeacherList');
-        container.className = "flex flex-col gap-3 p-2";
-        container.innerHTML = `
-            <label class="text-xs text-slate-500 font-bold">시간표를 조회할 교사 성함을 입력하세요</label>
-            <div class="flex gap-2">
-                <input type="text" id="teacherDirectInput" value="${officeState.teacherName}" placeholder="예: 신정훈" class="flex-1 text-sm p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-400 outline-none font-bold">
-                <button id="teacherDirectConfirmBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-sm transition-colors">확인</button>
-            </div>
-        `;
-        
-        const inputEl = document.getElementById('teacherDirectInput');
-        const confirmBtn = document.getElementById('teacherDirectConfirmBtn');
-
-        const applyTeacherName = async () => {
-            const val = inputEl.value.trim();
-            if (val) {
-                officeState.teacherName = val;
-                localStorage.setItem('office_teacher_name', val);
-                document.getElementById('titleTeacherNameBtn').textContent = val;
-                document.getElementById('teacherSelectModal').classList.add('hidden');
-                
-                try {
-                    await setDoc(doc(db, "app_settings", `${officeState.userId}_office_profile`), {
-                        userId: officeState.userId,
-                        teacherName: val,
-                        grade: officeState.selectedGrade,
-                        classNum: officeState.selectedClassNum,
-                        updatedAt: new Date().toISOString()
-                    }, { merge: true });
-                } catch(e) {}
-                
-                loadAllTimetables();
-            }
-        };
-
-        confirmBtn.onclick = applyTeacherName;
-        inputEl.onkeydown = (e) => { if (e.key === 'Enter') applyTeacherName(); };
-
-        document.getElementById('teacherSelectModal').classList.remove('hidden');
-        inputEl.focus();
+        openTeacherInputModal();
     });
     
-    document.getElementById('closeTeacherSelectModalBtn')?.addEventListener('click', () => document.getElementById('teacherSelectModal').classList.add('hidden'));
+    document.getElementById('closeTeacherSelectModalBtn')?.addEventListener('click', () => {
+        document.getElementById('teacherSelectModal').classList.add('hidden');
+    });
 
     // 4. 학급 선택 모달 (1~3학년, 1~10반)
     document.getElementById('titleClassNameBtn')?.addEventListener('click', () => {
@@ -186,7 +149,6 @@ export async function initOfficeTab(currentUser) {
                 classNum: cl,
                 updatedAt: new Date().toISOString()
             });
-            // 에러 유발 방지를 위해 Toast 형식으로 알림 최소화
         } catch(e) {
             console.error("설정 DB 저장 실패:", e);
         }
@@ -200,23 +162,21 @@ export async function initOfficeTab(currentUser) {
     
     document.getElementById('openTeacherBaseBtn')?.addEventListener('click', () => {
         activeBaseModalType = 'teacher';
-        document.getElementById('baseTimetableModalTitle').textContent = `${officeState.teacherName} 교사 기본 시간표 설정`;
-        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 108정보 (저장 시 모바일과 PC에 모두 영구 동기화됩니다)";
+        renderBaseModalTitle('teacher', officeState.teacherName);
         renderBaseTimetableInputGrid(currentTeacherBaseTimetable);
         baseModal.classList.remove('hidden');
     });
 
     document.getElementById('openClassBaseBtn')?.addEventListener('click', () => {
         activeBaseModalType = 'class';
-        document.getElementById('baseTimetableModalTitle').textContent = `${officeState.selectedGrade}-${officeState.selectedClassNum} 학급 기본 시간표 설정`;
-        document.getElementById('baseTimetableModalDesc').textContent = "입력 예시: 국어, 체육 (앞 2글자 교과목명만 일치하면 정상으로 판별합니다)";
+        renderBaseModalTitle('class', `${officeState.selectedGrade}-${officeState.selectedClassNum}`);
         renderBaseTimetableInputGrid(currentClassBaseTimetable);
         baseModal.classList.remove('hidden');
     });
 
     document.getElementById('closeBaseTimetableModalBtn')?.addEventListener('click', () => baseModal.classList.add('hidden'));
 
-    // 🎯 7. 기본 시간표 저장 에러 해결 (에러 알림 제거 및 로컬 즉각 반영)
+    // 7. 기본 시간표 저장 로직
     document.getElementById('saveBaseTimetableBtn')?.addEventListener('click', async () => {
         const newData = Array(7).fill().map(() => Array(5).fill(""));
         for (let r = 0; r < 7; r++) {
@@ -231,7 +191,6 @@ export async function initOfficeTab(currentUser) {
         const gr = officeState.selectedGrade || 1;
         const cl = officeState.selectedClassNum || 7;
 
-        // [핵심 해결] 파이어베이스 에러 유무와 상관없이 화면에 즉시 적용
         if (activeBaseModalType === 'teacher') {
             currentTeacherBaseTimetable = newData;
             localStorage.setItem(`base_tt_teacher_${uid}_${tName}`, JSON.stringify(newData));
@@ -243,11 +202,9 @@ export async function initOfficeTab(currentUser) {
             localStorage.setItem(`base_tt_class_${classKey}`, JSON.stringify(newData));
         }
 
-        // 모달 닫기 및 화면 시간표 즉시 렌더링 (답답함 완전 해소)
         baseModal.classList.add('hidden');
         loadAllTimetables();
 
-        // 파이어베이스 DB 백그라운드 영구 보존 (실패하더라도 사용자에게 에러창을 띄우지 않음)
         try {
             if (activeBaseModalType === 'teacher') {
                 await setDoc(doc(db, "base_timetables", `${uid}_teacher_${tName}`), {
@@ -320,6 +277,113 @@ export async function initOfficeTab(currentUser) {
 
     loadAllTimetables();
     fetchMeal();
+}
+
+// 🎯 기본시간표 모달 제목 렌더링 및 교사명 클릭 시 즉시 교체 이벤트
+function renderBaseModalTitle(type, targetName) {
+    const titleEl = document.getElementById('baseTimetableModalTitle');
+    const descEl = document.getElementById('baseTimetableModalDesc');
+    if (!titleEl || !descEl) return;
+
+    if (type === 'teacher') {
+        titleEl.innerHTML = `
+            <span id="modalTeacherNameSwitchBtn" class="cursor-pointer underline decoration-dotted decoration-indigo-500 hover:text-indigo-600 text-indigo-700 transition-colors" title="클릭하여 교사 변경">${targetName}</span> 교사 기본 시간표 설정
+            <button id="modalTeacherNameSwitchBtn2" type="button" class="text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md border border-indigo-200 ml-1.5 transition-colors align-middle"><i class="fa-solid fa-arrows-rotate mr-1"></i>교사 변경</button>
+        `;
+        descEl.textContent = "입력 예시: 108정보 (이름을 눌러 다른 선생님으로 변경할 수 있으며, 저장 시 DB에 영구 동기화됩니다)";
+
+        const handleSwitch = () => {
+            openTeacherInputModal(async (newTeacherName) => {
+                officeState.teacherName = newTeacherName;
+                localStorage.setItem('office_teacher_name', newTeacherName);
+                document.getElementById('titleTeacherNameBtn').textContent = newTeacherName;
+
+                // 모달 상단 제목 변경
+                renderBaseModalTitle('teacher', newTeacherName);
+
+                // 해당 선생님의 시간표를 DB 또는 로컬에서 즉시 불러와 채우기
+                let loaded = null;
+                const uid = officeState.userId;
+                const keys = [`${uid}_teacher_${newTeacherName}`, `teacher_${newTeacherName}`];
+                for (const key of keys) {
+                    try {
+                        const snap = await getDoc(doc(db, "base_timetables", key));
+                        if (snap.exists() && snap.data().matrix) {
+                            loaded = snap.data().matrix;
+                            break;
+                        }
+                    } catch(e) {}
+                }
+                if (!loaded) {
+                    const local = localStorage.getItem(`base_tt_teacher_${uid}_${newTeacherName}`) || localStorage.getItem(`base_tt_teacher_${newTeacherName}`);
+                    loaded = local ? JSON.parse(local) : Array(7).fill().map(() => Array(5).fill(""));
+                }
+                currentTeacherBaseTimetable = loaded;
+                renderBaseTimetableInputGrid(currentTeacherBaseTimetable);
+            });
+        };
+
+        document.getElementById('modalTeacherNameSwitchBtn')?.addEventListener('click', handleSwitch);
+        document.getElementById('modalTeacherNameSwitchBtn2')?.addEventListener('click', handleSwitch);
+    } else {
+        titleEl.textContent = `${targetName} 학급 기본 시간표 설정`;
+        descEl.textContent = "입력 예시: 국어, 체육 (앞 2글자 교과목명만 일치하면 정상으로 판별합니다)";
+    }
+}
+
+// 🎯 교사명 직접 입력 모달 (모달 위에서도 정상 작동하도록 z-index 보정)
+function openTeacherInputModal(callback = null) {
+    const modal = document.getElementById('teacherSelectModal');
+    const container = document.getElementById('modalTeacherList');
+    if (!modal || !container) return;
+
+    modal.style.zIndex = '60'; // 기본시간표 모달보다 위에 뜨도록 설정
+
+    container.className = "flex flex-col gap-3 p-2";
+    container.innerHTML = `
+        <label class="text-xs text-slate-500 font-bold">시간표를 조회/설정할 교사 성함을 입력하세요</label>
+        <div class="flex gap-2">
+            <input type="text" id="teacherDirectInput" value="${officeState.teacherName}" placeholder="예: 신정훈" class="flex-1 text-sm p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-400 outline-none font-bold">
+            <button id="teacherDirectConfirmBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-sm transition-colors">확인</button>
+        </div>
+    `;
+    
+    const inputEl = document.getElementById('teacherDirectInput');
+    const confirmBtn = document.getElementById('teacherDirectConfirmBtn');
+
+    const applyTeacherName = async () => {
+        const val = inputEl.value.trim();
+        if (val) {
+            modal.classList.add('hidden');
+            modal.style.zIndex = '';
+            
+            if (callback) {
+                await callback(val);
+            } else {
+                officeState.teacherName = val;
+                localStorage.setItem('office_teacher_name', val);
+                document.getElementById('titleTeacherNameBtn').textContent = val;
+                
+                try {
+                    await setDoc(doc(db, "app_settings", `${officeState.userId}_office_profile`), {
+                        userId: officeState.userId,
+                        teacherName: val,
+                        grade: officeState.selectedGrade,
+                        classNum: officeState.selectedClassNum,
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                } catch(e) {}
+                
+                loadAllTimetables();
+            }
+        }
+    };
+
+    confirmBtn.onclick = applyTeacherName;
+    inputEl.onkeydown = (e) => { if (e.key === 'Enter') applyTeacherName(); };
+
+    modal.classList.remove('hidden');
+    inputEl.focus();
 }
 
 function renderBaseTimetableInputGrid(dataMatrix) {
