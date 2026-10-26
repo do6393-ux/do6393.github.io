@@ -1,6 +1,5 @@
 import { db, doc, getDoc, setDoc } from '../firebase-config.js';
 import { homeroomState } from './state.js';
-import { DEFAULT_BEHAVIOR_PRESETS } from './default-presets.js'; // 🎯 데이터 창고 연결
 
 // ==========================================
 // 1. 데이터 엔진 및 로직부
@@ -91,25 +90,19 @@ export const KoreanGrammar = {
 
 let activePresets = {};
 
-// 🎯 [자동 마이그레이션] DB에 데이터가 없으면 통째로 업로드!
 export async function loadSharedPresetsFromDB() {
     try {
         const docRef = doc(db, "shared_records_presets", "global_presets");
         const snap = await getDoc(docRef);
 
-        if (!snap.exists() || !snap.data().presets || Object.keys(snap.data().presets).length === 0) {
-            console.log("DB에 행발 데이터가 없어 기본 프리셋을 최초 1회 자동 세팅합니다...");
-            await setDoc(docRef, {
-                presets: DEFAULT_BEHAVIOR_PRESETS,
-                updatedAt: new Date().toISOString()
-            });
-            activePresets = JSON.parse(JSON.stringify(DEFAULT_BEHAVIOR_PRESETS));
-        } else {
+        if (snap.exists() && snap.data().presets) {
             activePresets = snap.data().presets;
+        } else {
+            console.warn("DB에 데이터가 없습니다. default-presets.js를 사용하여 DB에 최초 업로드하세요.");
+            activePresets = {};
         }
     } catch (e) {
-        console.warn("DB 로드 에러(오프라인 시 기본값 사용):", e);
-        activePresets = JSON.parse(JSON.stringify(DEFAULT_BEHAVIOR_PRESETS));
+        console.warn("DB 로드 에러(오프라인 시 기본값 없음):", e);
     }
     return activePresets;
 }
@@ -122,7 +115,6 @@ export async function addSharedPresetToDB(categoryKey, { categoryName, situation
         const snap = await getDoc(docRef);
         let currentDBPresets = snap.exists() && snap.data().presets ? snap.data().presets : {};
 
-        // 카테고리가 없으면 새로 생성
         if (!currentDBPresets[categoryKey]) {
             currentDBPresets[categoryKey] = { 
                 category: categoryName || categoryKey, 
@@ -143,10 +135,9 @@ export async function addSharedPresetToDB(categoryKey, { categoryName, situation
         }
         
         await setDoc(docRef, { presets: currentDBPresets, updatedAt: new Date().toISOString() });
-        alert("✅ 공용 데이터베이스에 성공적으로 추가되었습니다.");
     } catch (e) {
         console.error("공용 프리셋 DB 저장 실패:", e);
-        alert("공용 DB 저장 중 오류가 발생했습니다.");
+        throw e;
     }
 }
 
@@ -200,61 +191,121 @@ export class BehaviorRecordEngine {
 }
 
 // ==========================================
-// 6. 화면 UI 연결 로직
+// 6. 화면 UI 연결 로직 (3단 패널 및 커스텀 모달)
 // ==========================================
+
+let currentSelectedStudentName = "";
 
 export function setupRecordsModule() {
     document.getElementById('generateRecordBtn')?.addEventListener('click', handleGenerateRecord);
-    document.getElementById('addSharedPresetBtn')?.addEventListener('click', handleAddSharedPreset);
     
-    // 역량 키워드 입력칸(HTML) 숨김 처리
-    const traitsInputBox = document.getElementById('recordTraitsInput')?.parentElement;
-    if (traitsInputBox) traitsInputBox.classList.add('hidden');
+    // 모달 관련 이벤트 바인딩
+    document.getElementById('openCustomPresetModalBtn')?.addEventListener('click', openPresetModal);
+    document.getElementById('closePresetModalBtn')?.addEventListener('click', closePresetModal);
+    document.getElementById('cancelPresetModalBtn')?.addEventListener('click', closePresetModal);
+    document.getElementById('savePresetBtn')?.addEventListener('click', saveCustomPreset);
+    
+    // 모달 내 버튼 탭 전환 (세부상황 / 행동 / 새 카테고리)
+    const typeBtns = document.querySelectorAll('.preset-type-btn');
+    typeBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            typeBtns.forEach(b => {
+                b.classList.remove('active', 'bg-purple-50', 'border-purple-200', 'text-purple-700');
+                b.classList.add('bg-slate-50', 'border-slate-200', 'text-slate-600');
+            });
+            e.target.classList.remove('bg-slate-50', 'border-slate-200', 'text-slate-600');
+            e.target.classList.add('active', 'bg-purple-50', 'border-purple-200', 'text-purple-700');
+            
+            const type = e.target.dataset.type;
+            const catWrapper = document.getElementById('presetCategoryWrapper');
+            const newCatWrapper = document.getElementById('presetNewCategoryWrapper');
+            const label = document.getElementById('presetInputLabel');
+            const input = document.getElementById('presetTextInput');
+
+            if (type === 'category') {
+                catWrapper.classList.add('hidden');
+                newCatWrapper.classList.remove('hidden');
+                label.textContent = "대표 상황 문구 입력";
+                input.placeholder = "예: 진로 특강 시간에 자신의 적성을 탐색할 때";
+            } else {
+                catWrapper.classList.remove('hidden');
+                newCatWrapper.classList.add('hidden');
+                label.textContent = type === 'situation' ? "세부 상황 문구 입력" : "구체적 행동 문구 입력";
+                input.placeholder = type === 'situation' ? "예: 학급 자치 회의를 진행하는 상황에서" : "예: 친구들의 의견을 경청하고 조율함";
+            }
+        });
+    });
 }
 
 export async function loadRecordsData() {
     await loadSharedPresetsFromDB();
     const presets = getActivePresets();
 
+    // 카테고리 셀렉트 렌더링
     const catSelect = document.getElementById('recordCategorySelect');
-    if (!catSelect) return;
-    
-    const currentCat = catSelect.value;
-    catSelect.innerHTML = '';
-    
-    Object.keys(presets).forEach(key => {
-        const opt = document.createElement('option');
-        opt.value = key;
-        opt.textContent = presets[key].category;
-        catSelect.appendChild(opt);
-    });
-
-    catSelect.onchange = () => updateRecordDropdowns(presets[catSelect.value]);
-
-    if (currentCat && presets[currentCat]) {
-        catSelect.value = currentCat;
-        updateRecordDropdowns(presets[currentCat]);
-    } else if (Object.keys(presets).length > 0) {
-        updateRecordDropdowns(presets[Object.keys(presets)[0]]);
-    }
-
-    const stuSelect = document.getElementById('recordStudentSelect');
-    if (!stuSelect) return;
-    
-    const currentStu = stuSelect.value;
-    stuSelect.innerHTML = '<option value="">학생 이름 생략 (문장만 조립)</option>';
-    
-    if (homeroomState && homeroomState.contacts && homeroomState.contacts.length > 0) {
-        homeroomState.contacts.forEach(s => {
+    if (catSelect) {
+        const currentCat = catSelect.value;
+        catSelect.innerHTML = '';
+        Object.keys(presets).forEach(key => {
             const opt = document.createElement('option');
-            opt.value = s.name;
-            opt.textContent = `${s.num}번 ${s.name}`;
-            stuSelect.appendChild(opt);
+            opt.value = key;
+            opt.textContent = presets[key].category;
+            catSelect.appendChild(opt);
         });
+
+        catSelect.onchange = () => updateRecordDropdowns(presets[catSelect.value]);
+
+        if (currentCat && presets[currentCat]) {
+            catSelect.value = currentCat;
+            updateRecordDropdowns(presets[currentCat]);
+        } else if (Object.keys(presets).length > 0) {
+            updateRecordDropdowns(presets[Object.keys(presets)[0]]);
+        }
     }
-    if (currentStu) {
-        stuSelect.value = currentStu;
+
+    // 좌측 1단: 학생 명단 렌더링
+    renderRecordStudentList();
+}
+
+function renderRecordStudentList() {
+    const listWrapper = document.getElementById('recordStudentListWrapper');
+    const countEl = document.getElementById('recordStudentCount');
+    if (!listWrapper || !countEl) return;
+
+    listWrapper.innerHTML = '';
+    const contacts = homeroomState.contacts || [];
+    countEl.textContent = `${contacts.length}명`;
+
+    if (contacts.length === 0) {
+        listWrapper.innerHTML = `<div class="text-xs text-slate-400 text-center py-6">비상연락망에 명단을 추가하세요.</div>`;
+        return;
     }
+
+    contacts.forEach(s => {
+        const btn = document.createElement('button');
+        btn.className = "w-full text-left p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-purple-50 hover:border-purple-200 transition-colors flex items-center gap-3 group focus:outline-none";
+        if (currentSelectedStudentName === s.name) {
+            btn.classList.replace('bg-slate-50', 'bg-purple-100');
+            btn.classList.replace('border-slate-200', 'border-purple-400');
+        }
+        
+        btn.innerHTML = `
+            <span class="text-[11px] font-extrabold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 group-hover:text-purple-600 group-hover:border-purple-200">${s.num}번</span>
+            <span class="text-sm font-bold text-slate-700 group-hover:text-purple-800">${s.name}</span>
+        `;
+        
+        btn.onclick = () => {
+            currentSelectedStudentName = s.name;
+            document.getElementById('recordSelectedStudentBadge').textContent = `${s.num}번 ${s.name} 선택됨`;
+            document.getElementById('recordSelectedStudentBadge').classList.replace('text-slate-400', 'text-purple-600');
+            document.getElementById('recordSelectedStudentBadge').classList.replace('bg-slate-50', 'bg-purple-100');
+            
+            // 학생을 고르면 즉시 조립 결과 갱신
+            renderRecordStudentList(); // 하이라이트 갱신
+            handleGenerateRecord();
+        };
+        listWrapper.appendChild(btn);
+    });
 }
 
 function updateRecordDropdowns(preset) {
@@ -280,11 +331,12 @@ function updateRecordDropdowns(preset) {
 }
 
 function handleGenerateRecord() {
-    const stuSelect = document.getElementById('recordStudentSelect');
-    const name = stuSelect ? (stuSelect.value || "") : "";
+    const name = currentSelectedStudentName;
     const sit = document.getElementById('recordSituationSelect')?.value || "";
     const act = document.getElementById('recordActionSelect')?.value || "";
     const prep = document.getElementById('recordMemoInput')?.value || "";
+
+    if (!sit || !act) return;
 
     const results = BehaviorRecordEngine.assemble({
         studentName: name,
@@ -299,65 +351,105 @@ function handleGenerateRecord() {
 
     results.forEach(res => {
         const div = document.createElement('div');
-        div.className = "p-4 bg-white border border-indigo-100 rounded-2xl shadow-sm relative group hover:border-purple-300 transition-colors";
+        div.className = "p-4 bg-white border border-slate-200 rounded-2xl shadow-sm relative group hover:border-purple-400 cursor-pointer transition-colors";
         
         let sentence = res.sentence;
         if (name) {
             sentence = `<span class="font-extrabold text-purple-700 bg-purple-50 px-1 rounded">${name}</span> 학생은 ` + sentence;
+        } else {
+            sentence = `<span class="font-extrabold text-slate-400 bg-slate-100 px-1 rounded">(이름)</span> 학생은 ` + sentence;
         }
 
         div.innerHTML = `
             <div class="flex justify-between items-center mb-2">
-                <span class="text-xs font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">${res.style}</span>
-                <span class="text-[11px] ${res.isValid ? 'text-emerald-500' : 'text-rose-500'} font-bold bg-slate-50 px-2 py-0.5 rounded-full">${res.bytes} / 1500 Byte</span>
+                <span class="text-xs font-extrabold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-100">${res.style}</span>
+                <span class="text-[11px] ${res.isValid ? 'text-emerald-500' : 'text-rose-500'} font-bold bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">${res.bytes} / 1500 Byte</span>
             </div>
-            <p class="text-[13px] text-slate-800 leading-relaxed font-medium tracking-tight break-keep pt-1">${sentence}</p>
-            ${res.forbiddenWords.length > 0 ? `<p class="text-[11px] text-rose-500 mt-2 font-bold bg-rose-50 p-1 rounded"><i class="fa-solid fa-triangle-exclamation"></i> 금지어 감지: ${res.forbiddenWords.join(', ')}</p>` : ''}
+            <p class="text-[13px] text-slate-800 leading-relaxed font-medium tracking-tight break-keep pt-1 select-none pointer-events-none">${sentence}</p>
+            ${res.forbiddenWords.length > 0 ? `<p class="text-[11px] text-rose-500 mt-2 font-bold bg-rose-50 p-1 rounded"><i class="fa-solid fa-triangle-exclamation"></i> 금지어: ${res.forbiddenWords.join(', ')}</p>` : ''}
         `;
 
-        const copyBtn = document.createElement('button');
-        copyBtn.className = "absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow-md flex items-center gap-1";
-        copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i> 복사';
-        
         const textToCopy = name ? `${name} 학생은 ${res.sentence}` : res.sentence;
         
-        copyBtn.onclick = () => {
-            navigator.clipboard.writeText(textToCopy).then(() => alert('✅ 클립보드에 복사되었습니다. 나이스에 붙여넣기 하세요.'));
+        div.onclick = () => {
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const toast = document.createElement('div');
+                toast.className = "absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-slate-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-lg opacity-0 transition-opacity";
+                toast.textContent = "복사되었습니다!";
+                div.appendChild(toast);
+                setTimeout(() => toast.classList.add('opacity-100'), 10);
+                setTimeout(() => {
+                    toast.classList.remove('opacity-100');
+                    setTimeout(() => toast.remove(), 300);
+                }, 1000);
+            });
         };
-        div.appendChild(copyBtn);
         container.appendChild(div);
     });
 }
 
-// 🎯 [세부 추가 로직 분리] 항목별로 정밀하게 추가 가능하도록 업그레이드!
-async function handleAddSharedPreset() {
-    const choice = prompt("추가할 항목의 번호를 입력하세요.\n1. 새로운 '상황/역할 카테고리' 만들기\n2. 현재 카테고리에 '세부 상황' 추가\n3. 현재 카테고리에 '구체적 행동/변화' 추가");
+// 🎯 커스텀 모달 열기 및 세팅
+function openPresetModal() {
+    const modal = document.getElementById('customPresetModal');
+    const catTargetSelect = document.getElementById('presetTargetCategory');
+    const presets = getActivePresets();
     
-    if (choice === '1') {
-        const catName = prompt("새로운 카테고리 이름을 입력하세요.\n(예: 진로 특강 도우미)");
-        if (!catName) return;
-        const newKey = `custom_${Date.now()}`;
-        await addSharedPresetToDB(newKey, { categoryName: catName });
-        
-    } else if (choice === '2') {
-        const catSelect = document.getElementById('recordCategorySelect');
-        if (!catSelect || !catSelect.value) return alert("먼저 카테고리를 선택하세요.");
-        const sit = prompt("현재 카테고리에 추가할 새로운 '세부 상황'을 입력하세요.\n(예: 진로 특강 시간이나 적성 검사 시)");
-        if (!sit) return;
-        await addSharedPresetToDB(catSelect.value, { situation: sit });
-        
-    } else if (choice === '3') {
-        const catSelect = document.getElementById('recordCategorySelect');
-        if (!catSelect || !catSelect.value) return alert("먼저 카테고리를 선택하세요.");
-        const act = prompt("현재 카테고리에 추가할 새로운 '구체적 행동/변화'를 입력하세요.\n(예: 자신의 적성을 진지하게 탐색하고 적극적으로 질문함)");
-        if (!act) return;
-        await addSharedPresetToDB(catSelect.value, { action: act });
-        
-    } else if (choice !== null) {
-        alert("1, 2, 3 중에서 입력해주세요.");
-        return;
+    catTargetSelect.innerHTML = '';
+    Object.keys(presets).forEach(key => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = presets[key].category;
+        catTargetSelect.appendChild(opt);
+    });
+
+    const activeMainCat = document.getElementById('recordCategorySelect')?.value;
+    if (activeMainCat && presets[activeMainCat]) {
+        catTargetSelect.value = activeMainCat;
     }
 
-    // 항목 추가 후 즉시 드롭다운 새로고침
-    await loadRecordsData();
+    document.getElementById('presetNewCategoryInput').value = '';
+    document.getElementById('presetTextInput').value = '';
+    modal.classList.remove('hidden');
+}
+
+function closePresetModal() {
+    document.getElementById('customPresetModal').classList.add('hidden');
+}
+
+// 🎯 커스텀 모달 저장 처리
+async function saveCustomPreset() {
+    const activeTypeBtn = document.querySelector('.preset-type-btn.active');
+    if (!activeTypeBtn) return;
+    const type = activeTypeBtn.dataset.type;
+    
+    const textInput = document.getElementById('presetTextInput').value.trim();
+    if (!textInput) return alert("추가할 내용을 입력해주세요.");
+
+    const btn = document.getElementById('savePresetBtn');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 저장중...';
+    btn.disabled = true;
+
+    try {
+        if (type === 'category') {
+            const newCatName = document.getElementById('presetNewCategoryInput').value.trim();
+            if (!newCatName) throw new Error("새 카테고리 이름을 입력하세요.");
+            const newKey = `custom_${Date.now()}`;
+            await addSharedPresetToDB(newKey, { categoryName: newCatName, situation: textInput });
+        } else if (type === 'situation') {
+            const catKey = document.getElementById('presetTargetCategory').value;
+            await addSharedPresetToDB(catKey, { situation: textInput });
+        } else if (type === 'action') {
+            const catKey = document.getElementById('presetTargetCategory').value;
+            await addSharedPresetToDB(catKey, { action: textInput });
+        }
+
+        closePresetModal();
+        await loadRecordsData(); // 화면 즉시 갱신
+        alert("✅ 공용 데이터베이스에 추가되어 즉시 사용할 수 있습니다.");
+    } catch (e) {
+        if (e.message) alert(e.message);
+    } finally {
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> DB에 저장';
+        btn.disabled = false;
+    }
 }
