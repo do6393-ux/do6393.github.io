@@ -3,7 +3,7 @@ import { homeroomState } from './state.js';
 import { DEFAULT_BEHAVIOR_PRESETS, DEFAULT_STYLES } from './default-presets.js'; 
 
 // ==========================================
-// 1. 데이터 엔진 및 로직부
+// 1. 데이터 엔진 및 DB 로직부
 // ==========================================
 
 export const NEIS_RULES = {
@@ -101,36 +101,61 @@ export async function loadSharedPresetsFromDB() {
     return activePresets;
 }
 
-export async function addSharedPresetToDB(categoryKey, { categoryName, situation, action, outcome }) {
+export async function addSharedPresetToDB(categoryKey, { categoryName, situation, action }) {
     if (!categoryKey) return;
-    try {
-        const docRef = doc(db, "shared_records_presets", "global_presets");
-        const snap = await getDoc(docRef);
-        let currentDBPresets = snap.exists() && snap.data().presets ? snap.data().presets : {};
+    const docRef = doc(db, "shared_records_presets", "global_presets");
+    const snap = await getDoc(docRef);
+    let currentDBPresets = snap.exists() && snap.data().presets ? snap.data().presets : {};
 
-        if (!currentDBPresets[categoryKey]) {
-            currentDBPresets[categoryKey] = { category: categoryName || categoryKey, situations: [], actions: [], outcomes: [] };
-        }
-
-        if (situation && !currentDBPresets[categoryKey].situations.includes(situation.trim())) {
-            currentDBPresets[categoryKey].situations.push(situation.trim());
-        }
-        if (action && !currentDBPresets[categoryKey].actions.includes(action.trim())) {
-            currentDBPresets[categoryKey].actions.push(action.trim());
-        }
-        
-        await setDoc(docRef, { presets: currentDBPresets, updatedAt: new Date().toISOString() });
-    } catch (e) {
-        console.error("공용 프리셋 DB 저장 실패:", e);
-        throw e;
+    if (!currentDBPresets[categoryKey]) {
+        currentDBPresets[categoryKey] = { category: categoryName || categoryKey, situations: [], actions: [], outcomes: [] };
     }
+    if (situation && !currentDBPresets[categoryKey].situations.includes(situation.trim())) {
+        currentDBPresets[categoryKey].situations.push(situation.trim());
+    }
+    if (action && !currentDBPresets[categoryKey].actions.includes(action.trim())) {
+        currentDBPresets[categoryKey].actions.push(action.trim());
+    }
+    
+    await setDoc(docRef, { presets: currentDBPresets, updatedAt: new Date().toISOString() });
+}
+
+// 🎯 기존 DB 항목 수정
+export async function updateSharedPresetInDB(categoryKey, type, oldText, newText) {
+    if (!categoryKey || !type || !oldText || !newText) return;
+    const docRef = doc(db, "shared_records_presets", "global_presets");
+    const snap = await getDoc(docRef);
+    if (!snap.exists() || !snap.data().presets) return;
+
+    let data = snap.data().presets;
+    if (!data[categoryKey] || !data[categoryKey][type]) return;
+
+    const arr = data[categoryKey][type];
+    const idx = arr.indexOf(oldText);
+    if (idx > -1) {
+        arr[idx] = newText.trim();
+        await setDoc(docRef, { presets: data, updatedAt: new Date().toISOString() });
+    }
+}
+
+// 🎯 기존 DB 항목 삭제
+export async function deleteSharedPresetFromDB(categoryKey, type, targetText) {
+    if (!categoryKey || !type || !targetText) return;
+    const docRef = doc(db, "shared_records_presets", "global_presets");
+    const snap = await getDoc(docRef);
+    if (!snap.exists() || !snap.data().presets) return;
+
+    let data = snap.data().presets;
+    if (!data[categoryKey] || !data[categoryKey][type]) return;
+
+    data[categoryKey][type] = data[categoryKey][type].filter(t => t !== targetText);
+    await setDoc(docRef, { presets: data, updatedAt: new Date().toISOString() });
 }
 
 export function getActivePresets() {
     return activePresets;
 }
 
-// 🎯 엔진: 하드코딩 제거, default-presets.js의 스타일 배열에서 직접 불러와 결합
 export class BehaviorRecordEngine {
     static assemble({ studentName = "학생", situation = "", action = "", customPrepend = "", styleKey = "model" }) {
         const sitWithJosa = KoreanGrammar.attachSituationJosa(situation);
@@ -186,11 +211,37 @@ let currentArchiveStudentName = "";
 export function setupRecordsModule() {
     document.getElementById('generateRecordBtn')?.addEventListener('click', handleGenerateRecord);
     
+    // 모달 제어
     document.getElementById('openCustomPresetModalBtn')?.addEventListener('click', openPresetModal);
     document.getElementById('closePresetModalBtn')?.addEventListener('click', closePresetModal);
     document.getElementById('cancelPresetModalBtn')?.addEventListener('click', closePresetModal);
     document.getElementById('savePresetBtn')?.addEventListener('click', saveCustomPreset);
     
+    // 🎯 모달 내 메인 탭 전환 (추가 / 관리)
+    document.getElementById('presetModalTabAddBtn')?.addEventListener('click', (e) => {
+        e.target.classList.replace('text-slate-400', 'text-purple-600');
+        e.target.classList.replace('border-transparent', 'border-purple-600');
+        const manageBtn = document.getElementById('presetModalTabManageBtn');
+        manageBtn.classList.replace('text-purple-600', 'text-slate-400');
+        manageBtn.classList.replace('border-purple-600', 'border-transparent');
+        
+        document.getElementById('presetAddView').classList.remove('hidden');
+        document.getElementById('presetManageView').classList.add('hidden');
+    });
+
+    document.getElementById('presetModalTabManageBtn')?.addEventListener('click', (e) => {
+        e.target.classList.replace('text-slate-400', 'text-purple-600');
+        e.target.classList.replace('border-transparent', 'border-purple-600');
+        const addBtn = document.getElementById('presetModalTabAddBtn');
+        addBtn.classList.replace('text-purple-600', 'text-slate-400');
+        addBtn.classList.replace('border-purple-600', 'border-transparent');
+        
+        document.getElementById('presetAddView').classList.add('hidden');
+        document.getElementById('presetManageView').classList.remove('hidden');
+        renderManageList(); // 관리 목록 즉시 렌더링
+    });
+
+    // 🎯 모달 추가창 하위 탭 전환 (상황/행동/카테고리)
     const typeBtns = document.querySelectorAll('.preset-type-btn');
     typeBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -221,9 +272,15 @@ export function setupRecordsModule() {
         });
     });
 
+    // 관리창 드롭다운 변경 시 리스트 다시 그리기
+    document.getElementById('manageCategorySelect')?.addEventListener('change', renderManageList);
+    document.getElementById('manageTypeSelect')?.addEventListener('change', renderManageList);
+
+    // 메인 화면 탭 전환
     document.getElementById('recordInnerTabEngineBtn')?.addEventListener('click', () => switchRecordInnerTab('engine'));
     document.getElementById('recordInnerTabArchiveBtn')?.addEventListener('click', () => switchRecordInnerTab('archive'));
 
+    // 누적 기록 에디터
     const archiveTextarea = document.getElementById('archiveTextarea');
     archiveTextarea?.addEventListener('input', () => {
         const text = archiveTextarea.value;
@@ -294,7 +351,6 @@ export async function loadRecordsData() {
         }
     }
 
-    // 🎯 12가지 스타일 드롭다운 초기화
     const styleSelect = document.getElementById('recordStyleSelect');
     if (styleSelect) {
         styleSelect.innerHTML = '';
@@ -303,7 +359,7 @@ export async function loadRecordsData() {
             opt.value = style.id;
             opt.textContent = style.name;
             if (style.id === 'none') opt.className = 'text-rose-500';
-            if (index === 1) opt.selected = true; // 기본값: 1번(관찰모범형)
+            if (index === 1) opt.selected = true; 
             styleSelect.appendChild(opt);
         });
     }
@@ -368,8 +424,6 @@ function renderRecordStudentList(mode = 'engine') {
                     badge.classList.replace('bg-slate-50', 'bg-purple-100');
                 }
                 renderRecordStudentList('engine');
-                
-                // 학생을 바꾸면 기존에 세팅된 조건으로 문장을 다시 만들어줌
                 const act = document.getElementById('recordActionSelect')?.value;
                 if (act) handleGenerateRecord();
                 
@@ -458,19 +512,7 @@ function handleGenerateRecord() {
             homeroomState.accumulatedRecords[name] = current;
             
             saveAccumulatedRecords(false);
-            
-            const toast = document.createElement('div');
-            toast.className = "absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg opacity-0 transition-opacity z-10 whitespace-nowrap";
-            toast.innerHTML = `<i class="fa-solid fa-check"></i> '${name}' 누적 기록에 추가됨`;
-            div.appendChild(toast);
-            
-            setTimeout(() => toast.classList.add('opacity-100'), 10);
-            setTimeout(() => {
-                toast.classList.remove('opacity-100');
-                setTimeout(() => toast.remove(), 300);
-            }, 1200);
-            
-            renderRecordStudentList('engine'); 
+            switchRecordInnerTab('archive'); // 🎯 자동 탭 전환
         };
         container.appendChild(div);
     });
@@ -535,26 +577,42 @@ async function saveAccumulatedRecords(showAlert = true) {
     }
 }
 
+// ==========================================
+// 🎯 모달 및 문구 DB 관리 (수정/삭제 포함)
+// ==========================================
+
 function openPresetModal() {
     const modal = document.getElementById('customPresetModal');
-    const catTargetSelect = document.getElementById('presetTargetCategory');
+    const catAddSelect = document.getElementById('presetTargetCategory');
+    const catManageSelect = document.getElementById('manageCategorySelect');
     const presets = getActivePresets();
     
-    catTargetSelect.innerHTML = '';
+    catAddSelect.innerHTML = '';
+    catManageSelect.innerHTML = '';
+
     Object.keys(presets).forEach(key => {
-        const opt = document.createElement('option');
-        opt.value = key;
-        opt.textContent = presets[key].category;
-        catTargetSelect.appendChild(opt);
+        const optAdd = document.createElement('option');
+        optAdd.value = key;
+        optAdd.textContent = presets[key].category;
+        catAddSelect.appendChild(optAdd);
+        
+        const optMan = document.createElement('option');
+        optMan.value = key;
+        optMan.textContent = presets[key].category;
+        catManageSelect.appendChild(optMan);
     });
 
     const activeMainCat = document.getElementById('recordCategorySelect')?.value;
     if (activeMainCat && presets[activeMainCat]) {
-        catTargetSelect.value = activeMainCat;
+        catAddSelect.value = activeMainCat;
+        catManageSelect.value = activeMainCat;
     }
 
     document.getElementById('presetNewCategoryInput').value = '';
     document.getElementById('presetTextInput').value = '';
+    
+    // 항상 '문구 추가' 탭으로 초기화
+    document.getElementById('presetModalTabAddBtn').click();
     modal.classList.remove('hidden');
 }
 
@@ -594,7 +652,60 @@ async function saveCustomPreset() {
     } catch (e) {
         if (e.message) alert(e.message);
     } finally {
-        btn.innerHTML = '<i class="fa-solid fa-check"></i> DB에 저장';
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> DB에 추가';
         btn.disabled = false;
     }
+}
+
+// 🎯 기존 DB 항목 리스트업 및 수정/삭제 랜더링
+function renderManageList() {
+    const catKey = document.getElementById('manageCategorySelect').value;
+    const type = document.getElementById('manageTypeSelect').value; // 'situations' or 'actions'
+    const listContainer = document.getElementById('manageItemList');
+    
+    listContainer.innerHTML = '';
+    const presets = getActivePresets();
+    
+    if (!presets[catKey] || !presets[catKey][type] || presets[catKey][type].length === 0) {
+        listContainer.innerHTML = `<div class="text-xs text-slate-400 text-center py-6 border border-dashed rounded-xl">등록된 문구가 없습니다.</div>`;
+        return;
+    }
+
+    presets[catKey][type].forEach((itemText) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = "flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200 group hover:border-purple-300 transition-colors";
+        
+        const input = document.createElement('input');
+        input.type = "text";
+        input.value = itemText;
+        input.className = "flex-1 text-xs p-2 bg-white rounded border border-slate-200 outline-none focus:ring-1 focus:ring-purple-400";
+        
+        const editBtn = document.createElement('button');
+        editBtn.className = "text-[11px] font-bold bg-slate-200 hover:bg-purple-100 hover:text-purple-700 text-slate-600 px-3 py-2 rounded-lg transition-colors";
+        editBtn.textContent = "수정";
+        editBtn.onclick = async () => {
+            if(!input.value.trim() || input.value === itemText) return;
+            editBtn.textContent = "저장중";
+            await updateSharedPresetInDB(catKey, type, itemText, input.value.trim());
+            await loadRecordsData(); // 메인 UI 재렌더링
+            renderManageList(); // 관리 UI 재렌더링
+            alert("✅ 정상적으로 수정되었습니다.");
+        };
+
+        const delBtn = document.createElement('button');
+        delBtn.className = "text-[11px] font-bold bg-rose-50 hover:bg-rose-500 hover:text-white text-rose-500 px-3 py-2 rounded-lg transition-colors";
+        delBtn.textContent = "삭제";
+        delBtn.onclick = async () => {
+            if(!confirm("이 문구를 정말 삭제하시겠습니까?\n(공용 DB에서 즉시 삭제됩니다)")) return;
+            delBtn.textContent = "삭제중";
+            await deleteSharedPresetFromDB(catKey, type, itemText);
+            await loadRecordsData();
+            renderManageList();
+        };
+
+        wrapper.appendChild(input);
+        wrapper.appendChild(editBtn);
+        wrapper.appendChild(delBtn);
+        listContainer.appendChild(wrapper);
+    });
 }
