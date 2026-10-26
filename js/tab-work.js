@@ -7,14 +7,15 @@ const catMap = { 'devices': '💻 계정 및 기기', 'network': '🌐 네트워
 const statMap = { 'todo': '⏳ 대기', 'doing': '🚀 진행', 'done': '✅ 완료' };
 const nextStatusMap = { 'todo': 'doing', 'doing': 'done', 'done': 'todo' };
 
+// 🎯 새 탭 단독 업무 뷰어(?task=...) 감지 시 최우선 즉시 실행
+const urlParams = new URLSearchParams(window.location.search);
+const standaloneTaskId = urlParams.get('task');
+if (standaloneTaskId) {
+    initStandaloneTaskViewer(standaloneTaskId);
+}
+
 export function initWorkTab(currentUser) {
-    // 🎯 새 탭 단독 업무 뷰어 초기화
-    const urlParams = new URLSearchParams(window.location.search);
-    const standaloneTaskId = urlParams.get('task');
-    if (standaloneTaskId) {
-        initStandaloneTaskViewer(standaloneTaskId, currentUser);
-        return;
-    }
+    if (standaloneTaskId) return;
 
     // 1. 업무 목록 실시간 동기화
     onSnapshot(query(collection(db, "work_tasks"), orderBy("createdAt", "desc")), (snapshot) => {
@@ -23,7 +24,7 @@ export function initWorkTab(currentUser) {
         renderTasks(currentUser);
     });
 
-    // 2. 업무 카테고리 필터
+    // 2. 카테고리 필터
     document.querySelectorAll('.task-filter-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.task-filter-btn').forEach(b => {
@@ -38,7 +39,7 @@ export function initWorkTab(currentUser) {
         });
     });
 
-    // 🎯 3. 새 업무 추가 모달 열기/닫기/저장 로직 복원
+    // 🎯 3. 새 업무 추가 모달 및 저장 로직 복원
     const openBtn = document.getElementById('openNewTaskModalBtn');
     const modal = document.getElementById('taskModal') || document.getElementById('newTaskModal');
     const closeBtn = document.getElementById('closeTaskModalBtn') || document.getElementById('closeNewTaskModalBtn');
@@ -112,7 +113,6 @@ function renderTasks(currentUser) {
             window.open(targetUrl, '_blank');
         };
 
-        // 🎯 [대기] 배지에 cursor-pointer와 원클릭 토글 이벤트 복원
         card.innerHTML = `
             <div>
                 <div class="flex items-center justify-between mb-3">
@@ -132,10 +132,10 @@ function renderTasks(currentUser) {
         container.appendChild(card);
     });
 
-    // 🎯 카드에서 [대기 -> 진행 -> 완료] 상태 순환 변경 로직
+    // 🎯 카드에서 [대기 -> 진행 -> 완료] 원클릭 상태 변경
     document.querySelectorAll('.toggle-status-btn').forEach(btn => {
         btn.onclick = async (e) => {
-            e.stopPropagation(); // 카드 열림 방지
+            e.stopPropagation();
             const taskId = btn.getAttribute('data-id');
             const currentStatus = btn.getAttribute('data-status') || 'todo';
             const nextStatus = nextStatusMap[currentStatus] || 'todo';
@@ -166,8 +166,8 @@ function renderTasks(currentUser) {
     });
 }
 
-// 🎯 새 탭 단독 업무 뷰어 초기화, 상태 변경 및 수정 기능 복원
-async function initStandaloneTaskViewer(taskId, currentUser) {
+// 🎯 새 탭 단독 업무 뷰어: 로그인 여부와 관계없이 [수정] 버튼 100% 노출
+async function initStandaloneTaskViewer(taskId) {
     try {
         const snap = await getDoc(doc(db, "work_tasks", taskId));
         if (!snap.exists()) return alert('해당 업무를 찾을 수 없습니다.');
@@ -191,14 +191,16 @@ async function initStandaloneTaskViewer(taskId, currentUser) {
 
         updateView(task);
 
-        // 🎯 뷰어 상단 배지 클릭 시에도 상태 순환 토글
+        // 새 탭 상단 배지 클릭 시에도 상태 순환 토글
         const statBadge = document.getElementById('taskViewerStatusBadge');
-        statBadge.onclick = async () => {
-            const next = nextStatusMap[task.status] || 'todo';
-            await updateDoc(doc(db, "work_tasks", task.id), { status: next });
-            task.status = next;
-            updateView(task);
-        };
+        if (statBadge) {
+            statBadge.onclick = async () => {
+                const next = nextStatusMap[task.status] || 'todo';
+                await updateDoc(doc(db, "work_tasks", task.id), { status: next });
+                task.status = next;
+                updateView(task);
+            };
+        }
 
         const editBtn = document.getElementById('taskViewerEditBtn');
         const saveBtn = document.getElementById('taskViewerSaveBtn');
@@ -206,7 +208,8 @@ async function initStandaloneTaskViewer(taskId, currentUser) {
         const displaySec = document.getElementById('taskViewDisplaySection');
         const formSec = document.getElementById('taskEditFormSection');
 
-        if (currentUser && editBtn) {
+        // 🎯 조건문 없이 무조건 [수정] 버튼 활성화
+        if (editBtn) {
             editBtn.classList.remove('hidden');
 
             editBtn.onclick = () => {
