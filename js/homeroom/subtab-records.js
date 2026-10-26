@@ -1,5 +1,6 @@
 import { db, doc, getDoc, setDoc } from '../firebase-config.js';
 import { homeroomState } from './state.js';
+import { DEFAULT_BEHAVIOR_PRESETS, DEFAULT_STYLES } from './default-presets.js'; 
 
 // ==========================================
 // 1. 데이터 엔진 및 로직부
@@ -91,30 +92,24 @@ export async function loadSharedPresetsFromDB() {
         if (snap.exists() && snap.data().presets) {
             activePresets = snap.data().presets;
         } else {
-            console.warn("DB에 데이터가 없습니다.");
-            activePresets = {};
+            activePresets = JSON.parse(JSON.stringify(DEFAULT_BEHAVIOR_PRESETS));
         }
     } catch (e) {
-        console.warn("DB 로드 에러:", e);
+        console.warn("DB 로드 에러(기본값 사용):", e);
+        activePresets = JSON.parse(JSON.stringify(DEFAULT_BEHAVIOR_PRESETS));
     }
     return activePresets;
 }
 
 export async function addSharedPresetToDB(categoryKey, { categoryName, situation, action, outcome }) {
     if (!categoryKey) return;
-    
     try {
         const docRef = doc(db, "shared_records_presets", "global_presets");
         const snap = await getDoc(docRef);
         let currentDBPresets = snap.exists() && snap.data().presets ? snap.data().presets : {};
 
         if (!currentDBPresets[categoryKey]) {
-            currentDBPresets[categoryKey] = { 
-                category: categoryName || categoryKey, 
-                situations: [], 
-                actions: [], 
-                outcomes: [] 
-            };
+            currentDBPresets[categoryKey] = { category: categoryName || categoryKey, situations: [], actions: [], outcomes: [] };
         }
 
         if (situation && !currentDBPresets[categoryKey].situations.includes(situation.trim())) {
@@ -135,13 +130,12 @@ export function getActivePresets() {
     return activePresets;
 }
 
-// 🎯 12가지 맺음말 스타일 개별 추출 방식 적용
+// 🎯 엔진: 하드코딩 제거, default-presets.js의 스타일 배열에서 직접 불러와 결합
 export class BehaviorRecordEngine {
     static assemble({ studentName = "학생", situation = "", action = "", customPrepend = "", styleKey = "model" }) {
         const sitWithJosa = KoreanGrammar.attachSituationJosa(situation);
         const actConnective = KoreanGrammar.formatActionConnective(action);
         
-        // 맺음말 생략 시: "하며", "하고" 같은 연결어미를 "함." 등의 종결어미로 변경
         let actTerminal = action.trim().replace(/\.+$/, '');
         if (!actTerminal.endsWith('함') && !actTerminal.endsWith('음') && !actTerminal.endsWith('됨') && !actTerminal.endsWith('임')) {
             actTerminal += '함.';
@@ -151,68 +145,16 @@ export class BehaviorRecordEngine {
 
         const prefix = sitWithJosa ? `${sitWithJosa} ` : "";
         let finalSentence = "";
-        let styleName = "";
+        
+        if (!action) return []; 
 
-        if (!action) return []; // 행동이 없으면 빈 배열 반환
+        const targetStyle = DEFAULT_STYLES.find(s => s.id === styleKey) || DEFAULT_STYLES.find(s => s.id === 'model');
 
-        switch(styleKey) {
-            case "none":
-                styleName = "맺음말 생략";
-                finalSentence = `${prefix}${actTerminal}`;
-                finalSentence = finalSentence.replace(/함함\./g, '함.').replace(/음함\./g, '음.');
-                break;
-            case "model":
-                styleName = "관찰·모범형";
-                finalSentence = `${prefix}${actConnective}, 맡은 바 책임을 다하며 매사 진지하고 성실한 태도로 학교 활동에 적극적으로 참여하여 모범을 보임.`;
-                break;
-            case "care":
-                styleName = "교우 배려형";
-                finalSentence = `${prefix}${actConnective}, 친구들에게 편안함을 선사하고 타인을 먼저 배려하는 따뜻한 마음씨를 몸소 실천하여 급우들의 신망이 두터움.`;
-                break;
-            case "potential":
-                styleName = "성장 잠재력형";
-                finalSentence = `${prefix}${actConnective}, 자신이 해야 할 일을 묵묵히 끝까지 마무리할 줄 알며, 평소 체득된 바른 인성과 책임감을 바탕으로 향후 발전 가능성이 대단히 높은 학생임.`;
-                break;
-            case "effort":
-                styleName = "개선 노력형";
-                finalSentence = `${prefix}${actConnective}, 교사의 지도와 조언을 진지하게 경청하고 스스로 부족한 부분을 보완하려는 태도를 보여 앞으로의 긍정적인 성장이 크게 기대됨.`;
-                break;
-            case "leadership":
-                styleName = "리더십·주도형";
-                finalSentence = `${prefix}${actConnective}, 뛰어난 리더십과 소통 능력을 발휘하여 급우들을 이끌고 학급 행사를 성공적으로 주도함.`;
-                break;
-            case "cooperation":
-                styleName = "협동·조화형";
-                finalSentence = `${prefix}${actConnective}, 원만한 대인관계와 협동심을 바탕으로 친구들과 화합하며 학급 분위기를 밝게 만드는 데 기여함.`;
-                break;
-            case "sincerity":
-                styleName = "묵묵한 성실형";
-                finalSentence = `${prefix}${actConnective}, 보이지 않는 곳에서도 묵묵히 자신의 역할을 다하며 학급의 든든한 버팀목이 되어 줌.`;
-                break;
-            case "creative":
-                styleName = "창의·문제해결형";
-                finalSentence = `${prefix}${actConnective}, 창의적인 시각과 뛰어난 문제해결력을 발휘하여 주어진 과제를 훌륭하게 완수하는 역량을 보임.`;
-                break;
-            case "passion":
-                styleName = "열정·도전형";
-                finalSentence = `${prefix}${actConnective}, 새로운 과제에 주저 없이 도전하는 열정을 지녔으며, 매사 배우려는 학업 의지가 매우 돋보임.`;
-                break;
-            case "rules":
-                styleName = "규칙·준법형";
-                finalSentence = `${prefix}${actConnective}, 공동체의 약속과 학급 규칙을 철저히 준수하며 바른 생활 습관으로 타의 귀감이 됨.`;
-                break;
-            case "growth":
-                styleName = "자기주도 성장형";
-                finalSentence = `${prefix}${actConnective}, 스스로 목표를 세우고 꾸준히 실천하는 자기주도성을 지녀 앞으로의 지속적인 성장이 확신됨.`;
-                break;
-            case "empathy":
-                styleName = "공감·소통형";
-                finalSentence = `${prefix}${actConnective}, 타인의 감정을 깊이 헤아리고 배려하는 공감 능력이 뛰어나 교우관계가 매우 원만함.`;
-                break;
-            default:
-                styleName = "기본 결합형";
-                finalSentence = `${prefix}${actTerminal}`;
-                break;
+        if (targetStyle.id === "none") {
+            finalSentence = `${prefix}${actTerminal}`;
+            finalSentence = finalSentence.replace(/함함\./g, '함.').replace(/음함\./g, '음.');
+        } else {
+            finalSentence = `${prefix}${actConnective}, ${targetStyle.text}`;
         }
 
         if (customPrepend && customPrepend.trim()) {
@@ -224,7 +166,7 @@ export class BehaviorRecordEngine {
         const forbidden = NEIS_RULES.checkForbiddenWords(finalSentence);
 
         return [{
-            style: styleName,
+            style: targetStyle.name,
             sentence: finalSentence,
             bytes: bytes,
             byteLimit: 1500,
@@ -304,7 +246,7 @@ export function setupRecordsModule() {
     });
 }
 
-function switchRecordInnerTab(tabName) {
+export function switchRecordInnerTab(tabName) {
     const btnEngine = document.getElementById('recordInnerTabEngineBtn');
     const btnArchive = document.getElementById('recordInnerTabArchiveBtn');
     const viewEngine = document.getElementById('recordEngineContainer');
@@ -314,16 +256,16 @@ function switchRecordInnerTab(tabName) {
     const inactiveClass = "px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-lg transition-all";
 
     if (tabName === 'engine') {
-        btnEngine.className = activeClass;
-        btnArchive.className = inactiveClass;
-        viewEngine.classList.remove('hidden');
-        viewArchive.classList.add('hidden');
+        if (btnEngine) btnEngine.className = activeClass;
+        if (btnArchive) btnArchive.className = inactiveClass;
+        if (viewEngine) viewEngine.classList.remove('hidden');
+        if (viewArchive) viewArchive.classList.add('hidden');
         renderRecordStudentList('engine');
     } else {
-        btnArchive.className = activeClass;
-        btnEngine.className = inactiveClass;
-        viewArchive.classList.remove('hidden');
-        viewEngine.classList.add('hidden');
+        if (btnArchive) btnArchive.className = activeClass;
+        if (btnEngine) btnEngine.className = inactiveClass;
+        if (viewArchive) viewArchive.classList.remove('hidden');
+        if (viewEngine) viewEngine.classList.add('hidden');
         renderRecordStudentList('archive');
         loadArchiveTextarea();
     }
@@ -343,15 +285,27 @@ export async function loadRecordsData() {
             opt.textContent = presets[key].category;
             catSelect.appendChild(opt);
         });
-
         catSelect.onchange = () => updateRecordDropdowns(presets[catSelect.value]);
-
         if (currentCat && presets[currentCat]) {
             catSelect.value = currentCat;
             updateRecordDropdowns(presets[currentCat]);
         } else if (Object.keys(presets).length > 0) {
             updateRecordDropdowns(presets[Object.keys(presets)[0]]);
         }
+    }
+
+    // 🎯 12가지 스타일 드롭다운 초기화
+    const styleSelect = document.getElementById('recordStyleSelect');
+    if (styleSelect) {
+        styleSelect.innerHTML = '';
+        DEFAULT_STYLES.forEach((style, index) => {
+            const opt = document.createElement('option');
+            opt.value = style.id;
+            opt.textContent = style.name;
+            if (style.id === 'none') opt.className = 'text-rose-500';
+            if (index === 1) opt.selected = true; // 기본값: 1번(관찰모범형)
+            styleSelect.appendChild(opt);
+        });
     }
 
     const uid = homeroomState.userId;
@@ -414,7 +368,11 @@ function renderRecordStudentList(mode = 'engine') {
                     badge.classList.replace('bg-slate-50', 'bg-purple-100');
                 }
                 renderRecordStudentList('engine');
-                handleGenerateRecord();
+                
+                // 학생을 바꾸면 기존에 세팅된 조건으로 문장을 다시 만들어줌
+                const act = document.getElementById('recordActionSelect')?.value;
+                if (act) handleGenerateRecord();
+                
             } else {
                 currentArchiveStudentName = s.name;
                 currentSelectedStudentName = s.name;
@@ -503,15 +461,16 @@ function handleGenerateRecord() {
             
             const toast = document.createElement('div');
             toast.className = "absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-purple-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg opacity-0 transition-opacity z-10 whitespace-nowrap";
-            toast.innerHTML = `<i class="fa-solid fa-check"></i> '${name}' 누적 기록에 저장됨`;
+            toast.innerHTML = `<i class="fa-solid fa-check"></i> '${name}' 누적 기록에 추가됨`;
             div.appendChild(toast);
+            
             setTimeout(() => toast.classList.add('opacity-100'), 10);
             setTimeout(() => {
                 toast.classList.remove('opacity-100');
                 setTimeout(() => toast.remove(), 300);
             }, 1200);
             
-            renderRecordStudentList('engine');
+            renderRecordStudentList('engine'); 
         };
         container.appendChild(div);
     });
