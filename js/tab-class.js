@@ -11,7 +11,18 @@ export const unitMeta = {
 let allLessonDocs = [];
 let currentSelectedCategory = 'all';
 
-// 🎯 새 탭 단독 수업 뷰어(?lesson=...) 감지 시 최우선 즉시 실행
+// 스마트 에디터 공통 툴바 프리셋
+const editorToolbar = [
+    ['style', ['style']],
+    ['font', ['bold', 'underline', 'clear']],
+    ['fontsize', ['fontsize']],
+    ['color', ['color']],
+    ['para', ['ul', 'ol', 'paragraph']],
+    ['table', ['table']],
+    ['insert', ['picture', 'link', 'video']],
+    ['view', ['codeview', 'fullscreen']]
+];
+
 const urlParams = new URLSearchParams(window.location.search);
 const standaloneLessonId = urlParams.get('lesson');
 if (standaloneLessonId) {
@@ -21,14 +32,23 @@ if (standaloneLessonId) {
 export function initClassTab(currentUser) {
     if (standaloneLessonId) return;
 
-    // 1. 수업 목록 실시간 동기화
+    // 🎯 모달 수업 에디터 초기화
+    if (window.$ && $('#lessonContentInput').length && !$('#lessonContentInput').next('.note-editor').length) {
+        $('#lessonContentInput').summernote({
+            placeholder: '수업 자료를 작성하세요. 사진이나 표를 자유롭게 넣고 크기를 조절할 수 있습니다...',
+            tabsize: 2,
+            height: 250,
+            lang: 'ko-KR',
+            toolbar: editorToolbar
+        });
+    }
+
     onSnapshot(query(collection(db, "lessons"), orderBy("createdAt", "desc")), (snapshot) => {
         allLessonDocs = [];
         snapshot.forEach(d => allLessonDocs.push({ id: d.id, ...d.data() }));
         renderLessons(currentUser);
     });
 
-    // 2. 과제 목록 실시간 동기화
     onSnapshot(query(collection(db, "assignments"), orderBy("createdAt", "desc")), (snapshot) => {
         const container = document.getElementById('assignmentList');
         if (!container) return;
@@ -39,7 +59,6 @@ export function initClassTab(currentUser) {
         });
     });
 
-    // 3. 과제 제출 폼
     const assignmentForm = document.getElementById('assignmentForm');
     if (assignmentForm) {
         assignmentForm.onsubmit = async (e) => {
@@ -59,7 +78,6 @@ export function initClassTab(currentUser) {
         };
     }
 
-    // 4. 공지사항 실시간 렌더링
     const noticesRef = collection(db, "notices");
     onSnapshot(query(noticesRef, orderBy("createdAt", "desc")), (snapshot) => {
         const container = document.getElementById('noticeListContainer');
@@ -104,7 +122,6 @@ export function initClassTab(currentUser) {
         };
     }
 
-    // 5. 단원 필터 버튼
     document.querySelectorAll('.lesson-filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.lesson-filter-btn').forEach(b => { b.classList.remove('bg-sky-500', 'text-white', 'shadow-sm', 'active'); b.classList.add('bg-slate-200', 'text-slate-600'); });
@@ -114,10 +131,9 @@ export function initClassTab(currentUser) {
         });
     });
 
-    // 🎯 6. 수업 자료 모달 열기/닫기/저장 로직 복원
     const openBtn = document.getElementById('openNewLessonModalBtn');
-    const modal = document.getElementById('lessonModal') || document.getElementById('newLessonModal');
-    const closeBtn = document.getElementById('closeLessonModalBtn') || document.getElementById('closeNewLessonModalBtn');
+    const modal = document.getElementById('lessonModal');
+    const closeBtn = document.getElementById('closeLessonModalBtn');
     const saveBtn = document.getElementById('saveLessonFirebaseBtn');
 
     if (openBtn && modal) {
@@ -127,7 +143,11 @@ export function initClassTab(currentUser) {
             document.getElementById('lessonNumInput').value = '';
             document.getElementById('lessonSummaryInput').value = '';
             document.getElementById('lessonCoverInput').value = '';
-            document.getElementById('lessonContentInput').value = '';
+            if (window.$ && $('#lessonContentInput').next('.note-editor').length) {
+                $('#lessonContentInput').summernote('code', '');
+            } else {
+                document.getElementById('lessonContentInput').value = '';
+            }
             if (document.getElementById('lessonVisibilityCheckbox')) document.getElementById('lessonVisibilityCheckbox').checked = true;
             document.getElementById('lessonModalTitle').textContent = '새 수업 자료 등록';
             modal.classList.remove('hidden');
@@ -146,7 +166,15 @@ export function initClassTab(currentUser) {
             const title = document.getElementById('lessonTitleInput').value.trim();
             const summary = document.getElementById('lessonSummaryInput').value.trim();
             const coverImage = document.getElementById('lessonCoverInput').value.trim();
-            const content = document.getElementById('lessonContentInput').value.trim();
+            
+            // 🎯 에디터 HTML 내용 안전 추출
+            let content = '';
+            if (window.$ && $('#lessonContentInput').next('.note-editor').length) {
+                content = $('#lessonContentInput').summernote('code');
+            } else {
+                content = document.getElementById('lessonContentInput').value.trim();
+            }
+
             const isVisible = document.getElementById('lessonVisibilityCheckbox') ? document.getElementById('lessonVisibilityCheckbox').checked : true;
 
             if (!title) return alert('수업 제목을 입력하세요.');
@@ -223,13 +251,19 @@ function renderLessons(currentUser) {
             document.getElementById('lessonTitleInput').value = lesson.title || '';
             document.getElementById('lessonSummaryInput').value = lesson.summary || '';
             document.getElementById('lessonCoverInput').value = lesson.coverImage || '';
-            document.getElementById('lessonContentInput').value = lesson.content || '';
+            
+            // 🎯 에디터에 기존 본문 HTML 안전 적재
+            if (window.$ && $('#lessonContentInput').next('.note-editor').length) {
+                $('#lessonContentInput').summernote('code', lesson.content || '');
+            } else {
+                document.getElementById('lessonContentInput').value = lesson.content || '';
+            }
+
             if (document.getElementById('lessonVisibilityCheckbox')) {
                 document.getElementById('lessonVisibilityCheckbox').checked = lesson.isVisible !== false;
             }
             document.getElementById('lessonModalTitle').textContent = '수업 자료 수정';
-            const modal = document.getElementById('lessonModal') || document.getElementById('newLessonModal');
-            modal?.classList.remove('hidden');
+            document.getElementById('lessonModal')?.classList.remove('hidden');
         });
     });
 
@@ -240,7 +274,7 @@ function renderLessons(currentUser) {
     });
 }
 
-// 🎯 새 탭 단독 수업 뷰어: 조건 없이 [수정] 버튼 100% 노출
+// 새 탭 단독 수업 뷰어 및 스마트 에디터
 async function initStandaloneLessonViewer(lessonId) {
     try {
         const snap = await getDoc(doc(db, "lessons", lessonId));
@@ -276,7 +310,21 @@ async function initStandaloneLessonViewer(lessonId) {
                 document.getElementById('viewerEditTitle').value = lesson.title;
                 document.getElementById('viewerEditSummary').value = lesson.summary || '';
                 document.getElementById('viewerEditCover').value = lesson.coverImage || '';
-                document.getElementById('viewerEditContent').value = lesson.content || '';
+
+                // 🎯 뷰어 에디터 초기화 및 본문 주입
+                if (window.$ && $('#viewerEditContent').length && !$('#viewerEditContent').next('.note-editor').length) {
+                    $('#viewerEditContent').summernote({
+                        tabsize: 2,
+                        height: 380,
+                        lang: 'ko-KR',
+                        toolbar: editorToolbar
+                    });
+                }
+                if (window.$ && $('#viewerEditContent').next('.note-editor').length) {
+                    $('#viewerEditContent').summernote('code', lesson.content || '');
+                } else {
+                    document.getElementById('viewerEditContent').value = lesson.content || '';
+                }
 
                 displaySec.classList.add('hidden');
                 formSec.classList.remove('hidden');
@@ -294,13 +342,20 @@ async function initStandaloneLessonViewer(lessonId) {
             };
 
             saveBtn.onclick = async () => {
+                let content = '';
+                if (window.$ && $('#viewerEditContent').next('.note-editor').length) {
+                    content = $('#viewerEditContent').summernote('code');
+                } else {
+                    content = document.getElementById('viewerEditContent').value.trim();
+                }
+
                 const updated = {
                     unit: document.getElementById('viewerEditUnit').value,
                     lessonNum: document.getElementById('viewerEditLessonNum').value.trim(),
                     title: document.getElementById('viewerEditTitle').value.trim(),
                     summary: document.getElementById('viewerEditSummary').value.trim(),
                     coverImage: document.getElementById('viewerEditCover').value.trim(),
-                    content: document.getElementById('viewerEditContent').value.trim()
+                    content: content
                 };
 
                 saveBtn.disabled = true;
