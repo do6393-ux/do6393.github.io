@@ -379,18 +379,27 @@
                     </div>
                 </div>
 
-                <!-- 🎯 2-4. 행발/세특 기록 섹션 (학생 명단 포함 3단 레이아웃) -->
-                <div id="homeroomSectionRecords" class="hidden space-y-6">
+                <!-- 🎯 2-4. 행발/세특 기록 섹션 (학생 명단 + 누적 탭 포함) -->
+                <div id="homeroomSectionRecords" class="hidden space-y-4">
                     <section class="bg-gradient-to-r from-purple-600 to-indigo-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
                             <span class="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-bold">🪄 0초 AI 프리 조립기</span>
                             <h2 class="text-2xl font-extrabold mt-2">행발/세특 조립 엔진</h2>
                             <p class="text-sm mt-1 text-purple-100">거친 교무수첩 메모를 나이스 표준 행정 문체로 즉시 조립합니다. 공용 DB를 통해 문구를 확장해 보세요.</p>
                         </div>
-                        <button id="openCustomPresetModalBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-lg transition-colors flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up"></i> 공용 문구 등록</button>
+                        <div class="flex gap-2">
+                            <button id="openCustomPresetModalBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-lg transition-colors flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up"></i> 공용 문구 등록</button>
+                        </div>
                     </section>
+
+                    <!-- 내부 탭 버튼 -->
+                    <div class="flex gap-2 bg-slate-100 p-1 rounded-xl w-fit">
+                        <button id="recordInnerTabEngineBtn" class="px-4 py-2 text-sm font-bold bg-white text-purple-600 rounded-lg shadow-sm transition-all">1. 조립 엔진</button>
+                        <button id="recordInnerTabArchiveBtn" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-lg transition-all">2. 개인별 누적 기록</button>
+                    </div>
                     
-                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                    <!-- 탭 1: 조립 엔진 컨테이너 -->
+                    <div id="recordEngineContainer" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
                         <!-- 1. 학생 명단 패널 (좌측) -->
                         <div class="lg:col-span-3 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-[600px]">
                             <div class="border-b border-slate-100 pb-3 mb-3 flex items-center justify-between">
@@ -437,7 +446,7 @@
                         <div class="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-inner flex flex-col h-[600px]">
                             <h3 class="font-bold text-slate-800 border-b border-slate-200 pb-3 mb-4 flex items-center justify-between">
                                 <span><i class="fa-solid fa-list-check text-purple-600 mr-1"></i> 조립 결과 (검증 완료)</span>
-                                <span class="text-[10px] font-normal text-slate-500">항목을 클릭하면 나이스에 복사됩니다.</span>
+                                <span class="text-[10px] font-normal text-slate-500">항목을 클릭하면 '개인별 누적 기록'에 추가됩니다.</span>
                             </h3>
                             <div id="recordResultsContainer" class="flex-1 space-y-3 overflow-y-auto pr-2 custom-scrollbar">
                                 <div class="flex flex-col items-center justify-center h-full text-slate-400 text-sm font-medium border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center space-y-2">
@@ -447,12 +456,44 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 탭 2: 개인별 누적 기록 컨테이너 -->
+                    <div id="recordArchiveContainer" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                        <!-- 좌측 명단 -->
+                        <div class="lg:col-span-3 bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col h-[600px]">
+                            <div class="border-b border-slate-100 pb-3 mb-3 flex items-center justify-between">
+                                <h3 class="font-bold text-slate-800"><i class="fa-solid fa-users text-rose-500 mr-1"></i> 학급 명단</h3>
+                            </div>
+                            <div id="archiveStudentListWrapper" class="flex-1 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
+                                <!-- Javascript generates items here -->
+                            </div>
+                        </div>
+
+                        <!-- 우측 텍스트 에디터 -->
+                        <div class="lg:col-span-9 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col h-[600px]">
+                            <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                                <h3 class="font-bold text-slate-800 text-lg"><i class="fa-solid fa-file-lines text-indigo-500 mr-2"></i> <span id="archiveSelectedStudentTitle" class="text-indigo-700">학생을 선택하세요</span></h3>
+                                <div class="flex gap-2">
+                                    <button id="archiveClearBtn" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">내용 비우기</button>
+                                    <button id="archiveCopyBtn" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition-colors"><i class="fa-solid fa-copy"></i> 전체 복사</button>
+                                </div>
+                            </div>
+                            
+                            <textarea id="archiveTextarea" class="w-full flex-1 p-4 bg-slate-50 border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm leading-relaxed text-slate-800 placeholder-slate-400" placeholder="조립 엔진에서 만들어진 문장이 이곳에 누적됩니다. 직접 타이핑하여 수정할 수도 있습니다."></textarea>
+                            
+                            <div class="mt-4 flex justify-between items-center">
+                                <span id="archiveByteCount" class="text-xs font-bold text-slate-500">0 / 1500 Byte</span>
+                                <button id="archiveSaveBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow-md transition-all">저장하기</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>
 
         <!-- 3. 정보업무 탭 -->
         <div id="tabContentWork" class="tab-view-content hidden">
+            <!-- (생략 없이 기존 정보업무탭 코드 그대로 유지) -->
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
                 <section class="bg-gradient-to-r from-slate-800 via-slate-900 to-indigo-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center">
                     <div>
@@ -477,6 +518,7 @@
         
         <!-- 4. 교무실 탭 -->
         <div id="tabContentOffice" class="tab-view-content hidden">
+            <!-- (생략 없이 기존 교무실탭 코드 그대로 유지) -->
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
                 <section class="bg-gradient-to-r from-teal-700 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex justify-between items-center flex-wrap gap-4">
                     <div>
@@ -552,7 +594,7 @@
         </div>
     </div>
 
-    <!-- 🎯 신규: 공용 문구 등록 커스텀 모달 (prompt 대체) -->
+    <!-- 신규: 공용 문구 등록 커스텀 모달 -->
     <div id="customPresetModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative space-y-5">
             <button id="closePresetModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
@@ -655,7 +697,7 @@
         </div>
     </div>
 
-    <!-- 학급 선택 모달, 로그인 등 기본 모달류 유지 -->
+    <!-- 기피 조합 모달, 청소 선택 모달, 수업/업무 모달, 로그인 등 기본 모달류 유지 -->
     
     <script type="module" src="js/main.js"></script>
 </body>
