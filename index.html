@@ -239,10 +239,12 @@
         <!-- 2. 내 학급 탭 -->
         <div id="tabContentHomeroom" class="tab-view-content hidden">
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
+                <!-- 🎯 4번째 서브탭 버튼 추가 -->
                 <div class="flex flex-wrap gap-2 mb-2 bg-slate-100 p-1 rounded-2xl w-fit">
                     <button id="homeroomSubTabContacts" class="px-4 py-2 text-sm font-bold bg-white text-rose-600 rounded-xl shadow-sm transition-all"><i class="fa-solid fa-address-book mr-1"></i> 비상연락망</button>
                     <button id="homeroomSubTabSeating" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all"><i class="fa-solid fa-chair mr-1"></i> 자리 바꾸기</button>
                     <button id="homeroomSubTabCleaning" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all"><i class="fa-solid fa-broom mr-1"></i> 청소 구역</button>
+                    <button id="homeroomSubTabRecords" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all"><i class="fa-solid fa-pen-nib mr-1"></i> 행발/세특 기록</button>
                 </div>
 
                 <!-- 2-1. 비상연락망 섹션 -->
@@ -286,9 +288,9 @@
                     </section>
 
                     <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-                        <!-- 컨트롤 헤더 (줄 수 조절 & HWPX 양식) -->
+                        <!-- 컨트롤 헤더 -->
                         <div class="flex flex-wrap justify-between items-center mb-6 gap-3">
-                            <p class="text-xs text-slate-500 font-bold"><i class="fa-solid fa-hand-pointer"></i> 6열 배치입니다. 안 쓰는 빈자리는 클릭해서 <span class="bg-slate-200 px-1 rounded text-slate-400">회색</span>으로 만들어 제외하세요.</p>
+                            <p class="text-xs text-slate-500 font-bold"><i class="fa-solid fa-hand-pointer"></i> 안 쓰는 빈자리는 클릭해서 <span class="bg-slate-200 px-1 rounded text-slate-400">회색</span>으로 만들어 제외하세요.</p>
                             
                             <div class="flex items-center gap-2.5">
                                 <div class="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2 py-1 rounded-xl">
@@ -325,7 +327,7 @@
                             </div>
                         </div>
 
-                        <!-- 하단 교탁 (칠판) -->
+                        <!-- 하단 교탁 -->
                         <div class="flex justify-center border-t-2 border-dashed border-slate-200 pt-6">
                             <button id="teacherDeskBtn" class="bg-amber-100 border-2 border-amber-300 text-amber-800 font-extrabold text-lg px-20 py-4 rounded-xl shadow-sm hover:bg-amber-200 transition-colors cursor-pointer select-none">교 탁 (칠판)</button>
                         </div>
@@ -373,6 +375,70 @@
                             </thead>
                             <tbody id="cleaningGridBody" class="divide-y divide-slate-200 text-slate-800"></tbody>
                         </table>
+                    </div>
+                </div>
+
+                <!-- 🎯 2-4. 행발/세특 기록 섹션 (새 탭) -->
+                <div id="homeroomSectionRecords" class="hidden space-y-6">
+                    <section class="bg-gradient-to-r from-purple-600 to-indigo-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <span class="bg-white/20 text-white text-xs px-3 py-1 rounded-full font-bold">🪄 0초 AI 프리 조립기</span>
+                            <h2 class="text-2xl font-extrabold mt-2">행발/세특 조립 엔진</h2>
+                            <p class="text-sm mt-1 text-purple-100">거친 교무수첩 메모를 나이스 표준 행정 문체로 즉시 조립합니다. 공용 DB를 통해 문구를 확장해 보세요.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="addSharedPresetBtn" class="bg-white/20 hover:bg-white/30 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-lg transition-colors"><i class="fa-solid fa-cloud-arrow-up"></i> 공용 문구 등록</button>
+                        </div>
+                    </section>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- 입력부 -->
+                        <div class="lg:col-span-1 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                            <h3 class="font-bold text-slate-800 border-b border-slate-100 pb-3"><i class="fa-solid fa-keyboard text-purple-600"></i> 조립 메모 입력</h3>
+                            
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-[11px] font-bold text-slate-500 ml-1">학생 선택 (선택사항)</label>
+                                    <select id="recordStudentSelect" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-400 outline-none bg-slate-50 font-bold text-slate-700">
+                                        <option value="">학생 이름 생략 (문장만 조립)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-[11px] font-bold text-slate-500 ml-1">상황 / 역할 카테고리</label>
+                                    <select id="recordCategorySelect" class="w-full text-xs p-2.5 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-white font-bold text-purple-700"></select>
+                                </div>
+                                <div>
+                                    <label class="text-[11px] font-bold text-slate-500 ml-1">세부 상황</label>
+                                    <select id="recordSituationSelect" class="w-full text-xs p-2.5 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-white text-slate-700"></select>
+                                </div>
+                                <div>
+                                    <label class="text-[11px] font-bold text-slate-500 ml-1">구체적 행동 / 변화</label>
+                                    <select id="recordActionSelect" class="w-full text-xs p-2.5 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-white text-slate-700"></select>
+                                </div>
+                                <div>
+                                    <label class="text-[11px] font-bold text-slate-500 ml-1">역량 / 태도 키워드 (필수)</label>
+                                    <input type="text" id="recordTraitsInput" placeholder="쉼표 구분 (예: 솔선수범, 배려심)" class="w-full text-xs p-2.5 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-white font-bold text-purple-700 placeholder-purple-300">
+                                </div>
+                                <div>
+                                    <label class="text-[11px] font-bold text-slate-500 ml-1">선생님의 추가 메모 (선택사항)</label>
+                                    <textarea id="recordMemoInput" rows="2" placeholder="일화나 평소 관찰 내용을 자유롭게 적어주세요. 문장 맨 앞에 자연스럽게 붙여줍니다." class="w-full text-xs p-2.5 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-400 outline-none bg-white text-slate-700"></textarea>
+                                </div>
+                                <button id="generateRecordBtn" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-3 rounded-xl text-sm shadow-md transition-all mt-2">나이스 규격 조립하기</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 출력부 -->
+                        <div class="lg:col-span-2 bg-slate-50 border border-slate-200 rounded-3xl p-6 shadow-inner space-y-4 flex flex-col">
+                            <h3 class="font-bold text-slate-800 border-b border-slate-200 pb-3 flex items-center justify-between">
+                                <span><i class="fa-solid fa-list-check text-purple-600"></i> 조립 결과 (나이스 검증 완료)</span>
+                                <span class="text-[11px] font-normal text-slate-500">복사하여 나이스에 바로 붙여넣으세요.</span>
+                            </h3>
+                            <div id="recordResultsContainer" class="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1 min-h-[300px]">
+                                <div class="flex items-center justify-center h-full text-slate-400 text-sm font-medium border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center">
+                                    왼쪽에서 항목을 선택하고 조립 버튼을 눌러주세요.<br>선택한 옵션에 맞춰 4가지 맞춤형 문장이 즉시 생성됩니다.
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </main>
@@ -565,7 +631,7 @@
         </div>
     </div>
 
-    <!-- 비상연락망 개별 모달 -->
+    <!-- 비상연락망 개별 모달 (행발 기능 완전 분리로 깔끔해진 뷰) -->
     <div id="contactModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl relative space-y-6">
             <button id="closeContactModalBtn" class="absolute top-4 right-4 text-slate-400 text-xl hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
@@ -573,17 +639,19 @@
                 <span id="contactModalNumber" class="text-rose-500 font-bold text-lg mr-1"></span>
                 <span id="contactModalName" class="text-2xl font-extrabold text-slate-800"></span>
             </div>
+            
             <div id="contactViewMode" class="space-y-3">
                 <a id="callStudentBtn" href="#" class="flex items-center justify-center gap-2 w-full bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold py-3.5 rounded-2xl transition-colors text-sm border border-sky-200 shadow-sm"><i class="fa-solid fa-mobile-screen text-lg"></i> <span id="callStudentText">학생 본인</span></a>
                 <div class="grid grid-cols-2 gap-2">
                     <a id="callParentBtn" href="#" class="flex items-center justify-center gap-1.5 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold py-3.5 rounded-2xl transition-colors text-xs sm:text-sm border border-emerald-200 shadow-sm"><i class="fa-solid fa-phone text-base"></i> <span id="callParentText">학부모 1</span></a>
                     <a id="callParent2Btn" href="#" class="flex items-center justify-center gap-1.5 w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-3.5 rounded-2xl transition-colors text-xs sm:text-sm border border-amber-200 shadow-sm"><i class="fa-solid fa-phone text-base"></i> <span id="callParent2Text">학부모 2</span></a>
                 </div>
-                <div class="pt-4 flex justify-between">
+                <div class="pt-4 flex justify-between items-center gap-2">
                     <button id="deleteContactBtn" class="text-xs text-slate-400 hover:text-rose-500 underline">개별 삭제</button>
-                    <button id="editContactModeBtn" class="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg">연락처 수정</button>
+                    <button id="editContactModeBtn" class="text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl transition-colors">수정</button>
                 </div>
             </div>
+
             <div id="contactEditMode" class="hidden space-y-4">
                 <input type="hidden" id="editContactId">
                 <div class="grid grid-cols-3 gap-2">
@@ -605,8 +673,8 @@
                     </div>
                 </div>
                 <div class="flex gap-2 pt-2">
-                    <button id="cancelContactEditBtn" class="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl text-sm">취소</button>
-                    <button id="saveContactBtn" class="flex-1 bg-rose-500 text-white font-bold py-2.5 rounded-xl text-sm shadow-sm">저장</button>
+                    <button id="cancelContactEditBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 rounded-xl text-sm transition-colors">취소</button>
+                    <button id="saveContactBtn" class="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-2.5 rounded-xl text-sm shadow-sm transition-colors">저장</button>
                 </div>
             </div>
         </div>
