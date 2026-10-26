@@ -2,28 +2,31 @@ import { homeroomState, updateHomeroomHeaders } from './homeroom/state.js';
 import { setupContactsModule, loadContactsData, renderContactGrid, handleSaveBulkPaste, openContactEditMode } from './homeroom/subtab-contacts.js';
 import { setupSeatingModule, loadSeatingData, renderSeatingDesks, renderExcludeStudentList, handleResetSeating, changeSeatingRows, updateSeatingDimensionUI } from './homeroom/subtab-seating.js';
 import { setupCleaningModule, loadCleaningData, renderCleaningGrid } from './homeroom/subtab-cleaning.js';
+import { setupRecordsModule, loadRecordsData } from './homeroom/subtab-records.js'; // 🎯 새 탭 모듈 연결
 
-// 기존 main.js와의 호환성을 위한 re-export
 export { homeroomState };
 
-// 서브탭 전환 함수
 export function switchHomeroomSubTab(tabName) {
     const tabContacts = document.getElementById('homeroomSubTabContacts');
     const tabSeating = document.getElementById('homeroomSubTabSeating');
     const tabCleaning = document.getElementById('homeroomSubTabCleaning');
+    const tabRecords = document.getElementById('homeroomSubTabRecords'); // 🎯
 
     const secContacts = document.getElementById('homeroomSectionContacts');
     const secSeating = document.getElementById('homeroomSectionSeating');
     const secCleaning = document.getElementById('homeroomSectionCleaning');
+    const secRecords = document.getElementById('homeroomSectionRecords'); // 🎯
 
     const inactiveClass = "px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all";
     if (tabContacts) tabContacts.className = inactiveClass;
     if (tabSeating) tabSeating.className = inactiveClass;
     if (tabCleaning) tabCleaning.className = inactiveClass;
+    if (tabRecords) tabRecords.className = inactiveClass;
 
     if (secContacts) secContacts.classList.add('hidden');
     if (secSeating) secSeating.classList.add('hidden');
     if (secCleaning) secCleaning.classList.add('hidden');
+    if (secRecords) secRecords.classList.add('hidden');
 
     if (tabName === 'contacts') {
         if (tabContacts) tabContacts.className = "px-4 py-2 text-sm font-bold bg-white text-rose-600 rounded-xl shadow-sm transition-all";
@@ -39,10 +42,13 @@ export function switchHomeroomSubTab(tabName) {
         if (tabCleaning) tabCleaning.className = "px-4 py-2 text-sm font-bold bg-white text-emerald-600 rounded-xl shadow-sm transition-all";
         if (secCleaning) secCleaning.classList.remove('hidden');
         renderCleaningGrid();
+    } else if (tabName === 'records') { // 🎯 행발/세특 기록 탭 오픈
+        if (tabRecords) tabRecords.className = "px-4 py-2 text-sm font-bold bg-white text-purple-600 rounded-xl shadow-sm transition-all";
+        if (secRecords) secRecords.classList.remove('hidden');
+        loadRecordsData(); // 학생 목록 갱신 및 공용 DB 로드
     }
 }
 
-// 초기화 함수
 export async function initHomeroomTab(currentUser) {
     if (currentUser && currentUser.uid) {
         homeroomState.userId = currentUser.uid;
@@ -59,7 +65,6 @@ export async function initHomeroomTab(currentUser) {
     await loadAllSubModulesData();
 }
 
-// 학급 변경 함수
 export function updateHomeroomClass(gradeOrObj, classNum) {
     let g, c;
     if (typeof gradeOrObj === 'object' && gradeOrObj !== null) {
@@ -82,7 +87,6 @@ export function updateHomeroomClass(gradeOrObj, classNum) {
         localStorage.setItem('office_class', parsedC);
     }
 
-    // 학급 전환 시 메모리 초기화
     homeroomState.contacts = [];
     homeroomState.cleaningData = Array(6).fill().map(() => Array(5).fill(null));
     homeroomState.antiPairs = [];
@@ -99,6 +103,7 @@ function setupAllSubModules() {
     setupContactsModule();
     setupSeatingModule();
     setupCleaningModule();
+    setupRecordsModule(); // 🎯 새 탭 이벤트 리스너 등록
 }
 
 async function loadAllSubModulesData() {
@@ -113,21 +118,23 @@ function setupSubTabNav() {
     const tabContacts = document.getElementById('homeroomSubTabContacts');
     const tabSeating = document.getElementById('homeroomSubTabSeating');
     const tabCleaning = document.getElementById('homeroomSubTabCleaning');
+    const tabRecords = document.getElementById('homeroomSubTabRecords');
 
     if (tabContacts) tabContacts.onclick = (e) => { e.preventDefault(); switchHomeroomSubTab('contacts'); };
     if (tabSeating) tabSeating.onclick = (e) => { e.preventDefault(); switchHomeroomSubTab('seating'); };
     if (tabCleaning) tabCleaning.onclick = (e) => { e.preventDefault(); switchHomeroomSubTab('cleaning'); };
+    if (tabRecords) tabRecords.onclick = (e) => { e.preventDefault(); switchHomeroomSubTab('records'); };
 }
 
-// 전역 클릭 위임 (버튼 먹통 원천 방지)
 if (typeof document !== 'undefined') {
     document.addEventListener('click', (e) => {
-        const subTab = e.target.closest('#homeroomSubTabContacts, #homeroomSubTabSeating, #homeroomSubTabCleaning');
+        const subTab = e.target.closest('#homeroomSubTabContacts, #homeroomSubTabSeating, #homeroomSubTabCleaning, #homeroomSubTabRecords');
         if (subTab) {
             e.preventDefault();
             if (subTab.id === 'homeroomSubTabContacts') switchHomeroomSubTab('contacts');
             else if (subTab.id === 'homeroomSubTabSeating') switchHomeroomSubTab('seating');
             else if (subTab.id === 'homeroomSubTabCleaning') switchHomeroomSubTab('cleaning');
+            else if (subTab.id === 'homeroomSubTabRecords') switchHomeroomSubTab('records');
             return;
         }
 
