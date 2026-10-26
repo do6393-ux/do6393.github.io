@@ -11,14 +11,15 @@ export const unitMeta = {
 let allLessonDocs = [];
 let currentSelectedCategory = 'all';
 
+// 🎯 새 탭 단독 수업 뷰어(?lesson=...) 감지 시 최우선 즉시 실행
+const urlParams = new URLSearchParams(window.location.search);
+const standaloneLessonId = urlParams.get('lesson');
+if (standaloneLessonId) {
+    initStandaloneLessonViewer(standaloneLessonId);
+}
+
 export function initClassTab(currentUser) {
-    // 🎯 새 탭 단독 수업 뷰어 초기화
-    const urlParams = new URLSearchParams(window.location.search);
-    const standaloneLessonId = urlParams.get('lesson');
-    if (standaloneLessonId) {
-        initStandaloneLessonViewer(standaloneLessonId, currentUser);
-        return;
-    }
+    if (standaloneLessonId) return;
 
     // 1. 수업 목록 실시간 동기화
     onSnapshot(query(collection(db, "lessons"), orderBy("createdAt", "desc")), (snapshot) => {
@@ -38,7 +39,7 @@ export function initClassTab(currentUser) {
         });
     });
 
-    // 3. 과제 제출 폼 등록
+    // 3. 과제 제출 폼
     const assignmentForm = document.getElementById('assignmentForm');
     if (assignmentForm) {
         assignmentForm.onsubmit = async (e) => {
@@ -239,8 +240,8 @@ function renderLessons(currentUser) {
     });
 }
 
-// 🎯 새 탭 단독 수업 뷰어 초기화 및 수정/저장 기능 복원
-async function initStandaloneLessonViewer(lessonId, currentUser) {
+// 🎯 새 탭 단독 수업 뷰어: 조건 없이 [수정] 버튼 100% 노출
+async function initStandaloneLessonViewer(lessonId) {
     try {
         const snap = await getDoc(doc(db, "lessons", lessonId));
         if (!snap.exists()) return alert('해당 수업 자료를 찾을 수 없습니다.');
@@ -266,7 +267,7 @@ async function initStandaloneLessonViewer(lessonId, currentUser) {
         const displaySec = document.getElementById('viewerDisplaySection');
         const formSec = document.getElementById('viewerEditFormSection');
 
-        if (currentUser && editBtn) {
+        if (editBtn) {
             editBtn.classList.remove('hidden');
 
             editBtn.onclick = () => {
