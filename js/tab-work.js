@@ -18,6 +18,15 @@ const editorToolbar = [
     ['view', ['codeview', 'fullscreen']]
 ];
 
+// 마크다운 및 HTML 안전 변환 함수
+function formatContent(content) {
+    if (!content) return '';
+    if (/<[a-z][\s\S]*>/i.test(content)) {
+        return content;
+    }
+    return window.marked ? window.marked.parse(content) : content;
+}
+
 const urlParams = new URLSearchParams(window.location.search);
 const standaloneTaskId = urlParams.get('task');
 if (standaloneTaskId) {
@@ -27,7 +36,6 @@ if (standaloneTaskId) {
 export function initWorkTab(currentUser) {
     if (standaloneTaskId) return;
 
-    // 🎯 모달 업무 에디터 초기화
     if (window.$ && $('#taskContentInput').length && !$('#taskContentInput').next('.note-editor').length) {
         $('#taskContentInput').summernote({
             placeholder: '업무 세부 매뉴얼을 작성하세요. 사진이나 서식을 자유롭게 넣을 수 있습니다...',
@@ -90,7 +98,6 @@ export function initWorkTab(currentUser) {
             const title = document.getElementById('taskTitleInput').value.trim();
             const summary = document.getElementById('taskSummaryInput').value.trim();
             
-            // 🎯 에디터 내용 추출
             let content = '';
             if (window.$ && $('#taskContentInput').next('.note-editor').length) {
                 content = $('#taskContentInput').summernote('code');
@@ -142,26 +149,32 @@ function renderTasks(currentUser) {
             window.open(targetUrl, '_blank');
         };
 
+        // 🎯 본문(content)을 카드 내부에 즉시 노출하도록 복원
         card.innerHTML = `
-            <div>
-                <div class="flex items-center justify-between mb-3">
+            <div class="flex-1 flex flex-col">
+                <div class="flex items-center justify-between mb-2.5">
                     <span class="text-[11px] font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-600">${catMap[task.category] || task.category}</span>
                     <button class="toggle-status-btn text-[11px] font-bold px-2 py-1 rounded-md transition-transform active:scale-95 ${task.status==='done'?'bg-emerald-100 text-emerald-600':(task.status==='doing'?'bg-sky-100 text-sky-600':'bg-amber-100 text-amber-600')}" data-id="${task.id}" data-status="${task.status}" title="클릭하여 상태 변경">${statMap[task.status] || task.status}</button>
                 </div>
-                <h4 class="font-bold text-slate-800 text-base mb-1 group-hover:text-indigo-600">${task.title}</h4>
-                <p class="text-xs text-slate-500 line-clamp-2 mb-4">${task.summary}</p>
+                <h4 class="font-bold text-slate-800 text-base mb-1.5 group-hover:text-indigo-600 leading-snug">${task.title}</h4>
+                ${task.summary ? `<p class="text-xs text-slate-500 font-medium mb-3">${task.summary}</p>` : ''}
+                
+                ${task.content ? `
+                    <div class="task-card-content text-xs text-slate-700 border-t border-slate-100 pt-3 my-1 leading-relaxed notion-content max-h-52 overflow-y-auto custom-scrollbar" onclick="event.stopPropagation()">
+                        ${formatContent(task.content)}
+                    </div>
+                ` : ''}
             </div>
             ${currentUser ? `
-                <div class="mt-2 pt-2 border-t border-slate-100 flex gap-2 justify-end" onclick="event.stopPropagation()">
-                    <button class="edit-task-btn text-xs text-slate-500 hover:text-indigo-600 p-1" data-id="${task.id}"><i class="fa-solid fa-pen"></i></button>
-                    <button class="delete-task-btn text-xs text-slate-400 hover:text-rose-500 p-1" data-id="${task.id}"><i class="fa-solid fa-trash-can"></i></button>
+                <div class="mt-3 pt-2 border-t border-slate-100 flex gap-2 justify-end" onclick="event.stopPropagation()">
+                    <button class="edit-task-btn text-xs text-slate-500 hover:text-indigo-600 p-1" data-id="${task.id}" title="수정"><i class="fa-solid fa-pen"></i></button>
+                    <button class="delete-task-btn text-xs text-slate-400 hover:text-rose-500 p-1" data-id="${task.id}" title="삭제"><i class="fa-solid fa-trash-can"></i></button>
                 </div>
             ` : ''}
         `;
         container.appendChild(card);
     });
 
-    // 🎯 카드에서 대기 상태 원클릭 변경 (대기중 -> 진행중 -> 완료됨)
     document.querySelectorAll('.toggle-status-btn').forEach(btn => {
         btn.onclick = async (e) => {
             e.stopPropagation();
@@ -182,7 +195,6 @@ function renderTasks(currentUser) {
             document.getElementById('taskTitleInput').value = task.title || '';
             document.getElementById('taskSummaryInput').value = task.summary || '';
             
-            // 🎯 에디터에 기존 HTML 주입
             if (window.$ && $('#taskContentInput').next('.note-editor').length) {
                 $('#taskContentInput').summernote('code', task.content || '');
             } else {
@@ -201,7 +213,6 @@ function renderTasks(currentUser) {
     });
 }
 
-// 새 탭 단독 업무 뷰어 및 스마트 에디터
 async function initStandaloneTaskViewer(taskId) {
     try {
         const snap = await getDoc(doc(db, "work_tasks", taskId));
@@ -221,7 +232,7 @@ async function initStandaloneTaskViewer(taskId) {
             document.getElementById('taskViewerSummary').textContent = t.summary || '';
 
             const mdBody = document.getElementById('taskViewerMarkdownBody');
-            mdBody.innerHTML = window.marked ? window.marked.parse(t.content || '') : (t.content || '');
+            mdBody.innerHTML = formatContent(t.content || '');
         };
 
         updateView(task);
@@ -251,7 +262,6 @@ async function initStandaloneTaskViewer(taskId) {
                 document.getElementById('taskViewerEditTitle').value = task.title;
                 document.getElementById('taskViewerEditSummary').value = task.summary || '';
 
-                // 🎯 뷰어 에디터 초기화 및 본문 주입
                 if (window.$ && $('#taskViewerEditContent').length && !$('#taskViewerEditContent').next('.note-editor').length) {
                     $('#taskViewerEditContent').summernote({
                         tabsize: 2,
