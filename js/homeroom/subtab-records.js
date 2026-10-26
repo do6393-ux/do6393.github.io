@@ -1,7 +1,10 @@
 import { db, doc, getDoc, setDoc } from '../firebase-config.js';
 import { homeroomState } from './state.js';
 
-// 1. 나이스 규격 검증 및 금지어 필터
+// ==========================================
+// 1. 데이터 엔진 및 로직부
+// ==========================================
+
 export const NEIS_RULES = {
     calculateBytes(text) {
         if (!text) return 0;
@@ -28,7 +31,6 @@ export const NEIS_RULES = {
     }
 };
 
-// 2. 한글 조사 및 어미 자동 변환기
 export const KoreanGrammar = {
     hasBatchim(word) {
         if (!word) return false;
@@ -108,7 +110,6 @@ export const KoreanGrammar = {
     }
 };
 
-// 3. 확장된 12대 프리셋 (기존 7개 영역 + 독립 5대 도우미 영역)
 export const DEFAULT_BEHAVIOR_PRESETS = {
     conflictResolution: {
         category: "갈등 해결 및 대화·관계 회복",
@@ -355,7 +356,6 @@ export const DEFAULT_BEHAVIOR_PRESETS = {
     }
 };
 
-// 4. 공용 DB 연동 메모리 장부
 let activePresets = JSON.parse(JSON.stringify(DEFAULT_BEHAVIOR_PRESETS));
 
 export async function loadSharedPresetsFromDB() {
@@ -412,7 +412,6 @@ export function getActivePresets() {
     return activePresets;
 }
 
-// 5. 선생님 문체 맞춤형 통합 조립기
 export class BehaviorRecordEngine {
     static assemble({ studentName = "학생", situation = "", action = "", traits = [], customPrepend = "" }) {
         const rawTraits = Array.isArray(traits) ? traits : String(traits).split(/[,/ ]+/).map(t => t.trim()).filter(Boolean);
@@ -462,8 +461,9 @@ export class BehaviorRecordEngine {
 }
 
 // ==========================================
-// [화면 UI 연결 코드 추가]
+// 6. 화면 UI 연결 로직 (이 부분이 있어야 에러가 안 납니다)
 // ==========================================
+
 export function setupRecordsModule() {
     document.getElementById('generateRecordBtn')?.addEventListener('click', handleGenerateRecord);
     document.getElementById('addSharedPresetBtn')?.addEventListener('click', handleAddSharedPreset);
@@ -475,6 +475,7 @@ export async function loadRecordsData() {
 
     const catSelect = document.getElementById('recordCategorySelect');
     if (!catSelect) return;
+    
     const currentCat = catSelect.value;
     catSelect.innerHTML = '';
     
@@ -496,6 +497,7 @@ export async function loadRecordsData() {
 
     const stuSelect = document.getElementById('recordStudentSelect');
     if (!stuSelect) return;
+    
     const currentStu = stuSelect.value;
     stuSelect.innerHTML = '<option value="">학생 이름 생략 (문장만 조립)</option>';
     
@@ -516,6 +518,7 @@ function updateRecordDropdowns(preset) {
     const sitSelect = document.getElementById('recordSituationSelect');
     const actSelect = document.getElementById('recordActionSelect');
     if (!sitSelect || !actSelect) return;
+    
     sitSelect.innerHTML = '';
     actSelect.innerHTML = '';
 
