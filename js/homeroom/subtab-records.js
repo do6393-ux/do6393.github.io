@@ -32,14 +32,6 @@ export const NEIS_RULES = {
 };
 
 export const KoreanGrammar = {
-    hasBatchim(word) {
-        if (!word) return false;
-        const clean = word.trim();
-        const lastChar = clean.charAt(clean.length - 1);
-        const code = lastChar.charCodeAt(0);
-        if (code < 0xAC00 || code > 0xD7A3) return false;
-        return (code - 0xAC00) % 28 > 0;
-    },
     attachSituationJosa(situationText) {
         if (!situationText) return "";
         const clean = situationText.trim();
@@ -89,7 +81,7 @@ export const KoreanGrammar = {
 };
 
 let activePresets = {};
-homeroomState.accumulatedRecords = {}; // 학생별 누적 데이터 저장소
+homeroomState.accumulatedRecords = {};
 
 export async function loadSharedPresetsFromDB() {
     try {
@@ -143,48 +135,102 @@ export function getActivePresets() {
     return activePresets;
 }
 
+// 🎯 12가지 맺음말 스타일 개별 추출 방식 적용
 export class BehaviorRecordEngine {
-    static assemble({ studentName = "학생", situation = "", action = "", customPrepend = "" }) {
+    static assemble({ studentName = "학생", situation = "", action = "", customPrepend = "", styleKey = "model" }) {
         const sitWithJosa = KoreanGrammar.attachSituationJosa(situation);
-        const actClean = KoreanGrammar.formatActionConnective(action);
-        const templates = [];
-
-        if (sitWithJosa && actClean) {
-            templates.push({
-                style: "관찰·모범형",
-                text: `${sitWithJosa} ${actClean}, 맡은 바 책임을 다하며 매사 진지하고 성실한 태도로 학교 활동에 적극적으로 참여하여 모범을 보임.`
-            });
-            templates.push({
-                style: "교우 배려형",
-                text: `${sitWithJosa} ${actClean}, 친구들에게 편안함을 선사하고 타인을 먼저 배려하는 따뜻한 마음씨를 몸소 실천하여 급우들의 신망이 두터움.`
-            });
-            templates.push({
-                style: "성장 잠재력형",
-                text: `${sitWithJosa} ${actClean}, 자신이 해야 할 일을 묵묵히 끝까지 마무리할 줄 알며, 평소 체득된 바른 인성과 책임감을 바탕으로 향후 발전 가능성이 대단히 높은 학생임.`
-            });
-            templates.push({
-                style: "개선 노력형",
-                text: `${sitWithJosa} ${actClean}, 교사의 지도와 조언을 진지하게 경청하고 스스로 부족한 부분을 보완하려는 태도를 보여 앞으로의 긍정적인 성장이 크게 기대됨.`
-            });
+        const actConnective = KoreanGrammar.formatActionConnective(action);
+        
+        // 맺음말 생략 시: "하며", "하고" 같은 연결어미를 "함." 등의 종결어미로 변경
+        let actTerminal = action.trim().replace(/\.+$/, '');
+        if (!actTerminal.endsWith('함') && !actTerminal.endsWith('음') && !actTerminal.endsWith('됨') && !actTerminal.endsWith('임')) {
+            actTerminal += '함.';
+        } else {
+            actTerminal += '.';
         }
 
-        return templates.map(item => {
-            let fullText = item.text;
-            if (customPrepend && customPrepend.trim()) {
-                const prep = customPrepend.trim().replace(/\.+$/, '') + '.';
-                fullText = `${prep} ${fullText}`;
-            }
-            const bytes = NEIS_RULES.calculateBytes(fullText);
-            const forbidden = NEIS_RULES.checkForbiddenWords(fullText);
-            return {
-                style: item.style,
-                sentence: fullText,
-                bytes: bytes,
-                byteLimit: 1500,
-                forbiddenWords: forbidden,
-                isValid: forbidden.length === 0 && bytes <= 1500
-            };
-        });
+        const prefix = sitWithJosa ? `${sitWithJosa} ` : "";
+        let finalSentence = "";
+        let styleName = "";
+
+        if (!action) return []; // 행동이 없으면 빈 배열 반환
+
+        switch(styleKey) {
+            case "none":
+                styleName = "맺음말 생략";
+                finalSentence = `${prefix}${actTerminal}`;
+                finalSentence = finalSentence.replace(/함함\./g, '함.').replace(/음함\./g, '음.');
+                break;
+            case "model":
+                styleName = "관찰·모범형";
+                finalSentence = `${prefix}${actConnective}, 맡은 바 책임을 다하며 매사 진지하고 성실한 태도로 학교 활동에 적극적으로 참여하여 모범을 보임.`;
+                break;
+            case "care":
+                styleName = "교우 배려형";
+                finalSentence = `${prefix}${actConnective}, 친구들에게 편안함을 선사하고 타인을 먼저 배려하는 따뜻한 마음씨를 몸소 실천하여 급우들의 신망이 두터움.`;
+                break;
+            case "potential":
+                styleName = "성장 잠재력형";
+                finalSentence = `${prefix}${actConnective}, 자신이 해야 할 일을 묵묵히 끝까지 마무리할 줄 알며, 평소 체득된 바른 인성과 책임감을 바탕으로 향후 발전 가능성이 대단히 높은 학생임.`;
+                break;
+            case "effort":
+                styleName = "개선 노력형";
+                finalSentence = `${prefix}${actConnective}, 교사의 지도와 조언을 진지하게 경청하고 스스로 부족한 부분을 보완하려는 태도를 보여 앞으로의 긍정적인 성장이 크게 기대됨.`;
+                break;
+            case "leadership":
+                styleName = "리더십·주도형";
+                finalSentence = `${prefix}${actConnective}, 뛰어난 리더십과 소통 능력을 발휘하여 급우들을 이끌고 학급 행사를 성공적으로 주도함.`;
+                break;
+            case "cooperation":
+                styleName = "협동·조화형";
+                finalSentence = `${prefix}${actConnective}, 원만한 대인관계와 협동심을 바탕으로 친구들과 화합하며 학급 분위기를 밝게 만드는 데 기여함.`;
+                break;
+            case "sincerity":
+                styleName = "묵묵한 성실형";
+                finalSentence = `${prefix}${actConnective}, 보이지 않는 곳에서도 묵묵히 자신의 역할을 다하며 학급의 든든한 버팀목이 되어 줌.`;
+                break;
+            case "creative":
+                styleName = "창의·문제해결형";
+                finalSentence = `${prefix}${actConnective}, 창의적인 시각과 뛰어난 문제해결력을 발휘하여 주어진 과제를 훌륭하게 완수하는 역량을 보임.`;
+                break;
+            case "passion":
+                styleName = "열정·도전형";
+                finalSentence = `${prefix}${actConnective}, 새로운 과제에 주저 없이 도전하는 열정을 지녔으며, 매사 배우려는 학업 의지가 매우 돋보임.`;
+                break;
+            case "rules":
+                styleName = "규칙·준법형";
+                finalSentence = `${prefix}${actConnective}, 공동체의 약속과 학급 규칙을 철저히 준수하며 바른 생활 습관으로 타의 귀감이 됨.`;
+                break;
+            case "growth":
+                styleName = "자기주도 성장형";
+                finalSentence = `${prefix}${actConnective}, 스스로 목표를 세우고 꾸준히 실천하는 자기주도성을 지녀 앞으로의 지속적인 성장이 확신됨.`;
+                break;
+            case "empathy":
+                styleName = "공감·소통형";
+                finalSentence = `${prefix}${actConnective}, 타인의 감정을 깊이 헤아리고 배려하는 공감 능력이 뛰어나 교우관계가 매우 원만함.`;
+                break;
+            default:
+                styleName = "기본 결합형";
+                finalSentence = `${prefix}${actTerminal}`;
+                break;
+        }
+
+        if (customPrepend && customPrepend.trim()) {
+            const prep = customPrepend.trim().replace(/\.+$/, '') + '.';
+            finalSentence = `${prep} ${finalSentence}`;
+        }
+
+        const bytes = NEIS_RULES.calculateBytes(finalSentence);
+        const forbidden = NEIS_RULES.checkForbiddenWords(finalSentence);
+
+        return [{
+            style: styleName,
+            sentence: finalSentence,
+            bytes: bytes,
+            byteLimit: 1500,
+            forbiddenWords: forbidden,
+            isValid: forbidden.length === 0 && bytes <= 1500
+        }];
     }
 }
 
@@ -233,11 +279,9 @@ export function setupRecordsModule() {
         });
     });
 
-    // 🎯 내부 탭 전환 이벤트
     document.getElementById('recordInnerTabEngineBtn')?.addEventListener('click', () => switchRecordInnerTab('engine'));
     document.getElementById('recordInnerTabArchiveBtn')?.addEventListener('click', () => switchRecordInnerTab('archive'));
 
-    // 누적 기록 에디터 이벤트
     const archiveTextarea = document.getElementById('archiveTextarea');
     archiveTextarea?.addEventListener('input', () => {
         const text = archiveTextarea.value;
@@ -310,7 +354,6 @@ export async function loadRecordsData() {
         }
     }
 
-    // 초기 누적 데이터 로컬스토리지(또는 DB)에서 불러오기
     const uid = homeroomState.userId;
     const g = homeroomState.grade;
     const c = homeroomState.classNum;
@@ -324,10 +367,9 @@ export async function loadRecordsData() {
     renderRecordStudentList('engine');
 }
 
-// 🎯 학생 명단 렌더링 (엔진 탭 / 아카이브 탭 공용 대응)
 function renderRecordStudentList(mode = 'engine') {
     const listWrapper = document.getElementById(mode === 'engine' ? 'recordStudentListWrapper' : 'archiveStudentListWrapper');
-    const countEl = document.getElementById('recordStudentCount'); // engine용
+    const countEl = document.getElementById('recordStudentCount');
     if (!listWrapper) return;
 
     listWrapper.innerHTML = '';
@@ -350,7 +392,6 @@ function renderRecordStudentList(mode = 'engine') {
             btn.classList.replace('border-slate-200', 'border-purple-400');
         }
         
-        // 누적 기록이 있는지 표시
         const hasRecord = homeroomState.accumulatedRecords[s.name] && homeroomState.accumulatedRecords[s.name].trim().length > 0;
         const checkIcon = hasRecord ? `<i class="fa-solid fa-check text-emerald-500 text-xs"></i>` : '';
 
@@ -365,7 +406,7 @@ function renderRecordStudentList(mode = 'engine') {
         btn.onclick = () => {
             if (mode === 'engine') {
                 currentSelectedStudentName = s.name;
-                currentArchiveStudentName = s.name; // 동기화
+                currentArchiveStudentName = s.name;
                 const badge = document.getElementById('recordSelectedStudentBadge');
                 if(badge) {
                     badge.textContent = `${s.num}번 ${s.name} 선택됨`;
@@ -376,7 +417,7 @@ function renderRecordStudentList(mode = 'engine') {
                 handleGenerateRecord();
             } else {
                 currentArchiveStudentName = s.name;
-                currentSelectedStudentName = s.name; // 동기화
+                currentSelectedStudentName = s.name;
                 renderRecordStudentList('archive');
                 loadArchiveTextarea();
             }
@@ -390,7 +431,7 @@ function updateRecordDropdowns(preset) {
     const actSelect = document.getElementById('recordActionSelect');
     if (!sitSelect || !actSelect) return;
     
-    sitSelect.innerHTML = '';
+    sitSelect.innerHTML = '<option value="">(세부 상황 생략)</option>';
     actSelect.innerHTML = '';
 
     preset.situations.forEach(s => {
@@ -409,17 +450,22 @@ function updateRecordDropdowns(preset) {
 
 function handleGenerateRecord() {
     const name = currentSelectedStudentName;
-    const sit = document.getElementById('recordSituationSelect')?.value || "";
+    const sit = document.getElementById('recordSituationSelect')?.value || ""; 
     const act = document.getElementById('recordActionSelect')?.value || "";
     const prep = document.getElementById('recordMemoInput')?.value || "";
+    const style = document.getElementById('recordStyleSelect')?.value || "model"; 
 
-    if (!sit || !act) return;
+    if (!act) {
+        alert("구체적 행동/변화를 반드시 선택하거나 추가해주세요.");
+        return;
+    }
 
     const results = BehaviorRecordEngine.assemble({
         studentName: name,
         situation: sit,
         action: act,
-        customPrepend: prep
+        customPrepend: prep,
+        styleKey: style
     });
 
     const container = document.getElementById('recordResultsContainer');
@@ -445,13 +491,12 @@ function handleGenerateRecord() {
             <p class="text-[13px] text-slate-800 leading-relaxed font-medium tracking-tight break-keep pt-1 select-none pointer-events-none">${sentence}</p>
         `;
 
-        // 🎯 클릭 시 개인별 누적 기록에 저장 (클립보드 복사 대체)
         div.onclick = () => {
             if (!name) return alert('왼쪽 명단에서 학생을 먼저 선택해주세요.');
             
             let current = homeroomState.accumulatedRecords[name] || "";
             if (current) current += " ";
-            current += res.sentence; // '이름 학생은' 빼고 순수 문장만 합침
+            current += res.sentence;
             homeroomState.accumulatedRecords[name] = current;
             
             saveAccumulatedRecords(false);
@@ -466,7 +511,6 @@ function handleGenerateRecord() {
                 setTimeout(() => toast.remove(), 300);
             }, 1200);
             
-            // 학생 명단 V표시 갱신
             renderRecordStudentList('engine');
         };
         container.appendChild(div);
@@ -514,10 +558,8 @@ async function saveAccumulatedRecords(showAlert = true) {
     const g = homeroomState.grade;
     const c = homeroomState.classNum;
     
-    // 로컬 저장
     localStorage.setItem(`records_${uid}_${g}_${c}`, JSON.stringify(homeroomState.accumulatedRecords));
     
-    // DB 저장
     try {
         await setDoc(doc(db, "homeroom_records", `${uid}_${g}_${c}`), {
             userId: uid,
@@ -527,14 +569,13 @@ async function saveAccumulatedRecords(showAlert = true) {
             updatedAt: new Date().toISOString()
         });
         if(showAlert) alert('✅ 누적 기록이 안전하게 저장되었습니다.');
-        renderRecordStudentList('archive');
+        renderRecordStudentList(document.getElementById('recordInnerTabArchiveBtn')?.classList.contains('text-purple-600') ? 'archive' : 'engine');
     } catch (e) {
         console.error("누적 기록 DB 저장 에러:", e);
-        if(showAlert) alert('저장 중 네트워크 오류가 발생했으나, 이 브라우저에는 저장되었습니다.');
+        if(showAlert) alert('저장 중 네트워크 오류가 발생했으나, 이 브라우저에는 임시 저장되었습니다.');
     }
 }
 
-// 🎯 커스텀 모달 열기 및 세팅
 function openPresetModal() {
     const modal = document.getElementById('customPresetModal');
     const catTargetSelect = document.getElementById('presetTargetCategory');
