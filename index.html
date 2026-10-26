@@ -12,7 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
-    <!-- 🎯 스마트 위지윅 에디터 (사진 크기 조절, 표, 글자색, 밑줄 등 지원) -->
+    <!-- 스마트 위지윅 에디터 (Summernote Lite) -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
@@ -23,11 +23,17 @@
     </script>
     <link rel="stylesheet" href="css/styles.css">
     <style>
-        /* 에디터 및 본문 뷰어 스타일 보정 */
+        /* 에디터 툴바 및 본문 뷰어 스타일 */
         .note-editor .note-toolbar { background-color: #f8fafc !important; border-bottom: 1px solid #e2e8f0 !important; }
-        .note-editor .note-btn { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; padding: 4px 8px !important; font-size: 12px !important; }
+        /* 🎯 툴바 상단 버튼에만 흰색 배경 한정 (팔레트 색상 덮어쓰기 방지) */
+        .note-editor .note-toolbar > .note-btn-group .note-btn { background-color: #ffffff; border: 1px solid #cbd5e1; padding: 4px 8px; font-size: 12px; }
         .note-dropdown-menu { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; z-index: 1050 !important; }
         .note-editable { background-color: #ffffff !important; font-size: 13px !important; line-height: 1.6 !important; }
+        
+        /* 🎯 색상 팔레트 버튼 원래 색상 정상 복원 */
+        .note-color-palette .note-color-row { height: 18px !important; }
+        .note-color-palette .note-color-btn { border: 1px solid rgba(0, 0, 0, 0.15) !important; padding: 0 !important; margin: 0 !important; width: 17px !important; height: 17px !important; border-radius: 2px !important; }
+
         .notion-content table { border-collapse: collapse; width: 100%; margin: 12px 0; }
         .notion-content table th, .notion-content table td { border: 1px solid #cbd5e1; padding: 8px 12px; }
         .notion-content table th { background-color: #f1f5f9; font-weight: bold; }
@@ -650,10 +656,7 @@
                 <input type="text" id="lessonTitleInput" placeholder="수업 제목" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-bold">
                 <input type="text" id="lessonSummaryInput" placeholder="한 줄 요약 (학습 목표 등)" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
                 <input type="url" id="lessonCoverInput" placeholder="커버 이미지 URL (선택사항)" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                
-                <!-- 🎯 스마트 에디터 렌더링 컨테이너 -->
                 <textarea id="lessonContentInput" class="w-full"></textarea>
-                
                 <div class="flex items-center gap-2 pt-1">
                     <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
                         <input type="checkbox" id="lessonVisibilityCheckbox" class="w-4 h-4 rounded text-teal-600 focus:ring-teal-500" checked>
@@ -690,8 +693,6 @@
                 </div>
                 <input type="text" id="taskTitleInput" placeholder="업무 제목" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-bold">
                 <input type="text" id="taskSummaryInput" placeholder="업무 개요" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                
-                <!-- 🎯 스마트 에디터 렌더링 컨테이너 -->
                 <textarea id="taskContentInput" class="w-full"></textarea>
             </div>
             <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
