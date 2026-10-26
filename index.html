@@ -590,7 +590,7 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- [모든 팝업 모달 영역 - 100% 완전체 복원] -->
+    <!-- [모든 팝업 모달 영역 - 100% 완전체] -->
     <!-- ========================================== -->
 
     <!-- 1. 교사 로그인 모달 -->
@@ -616,22 +616,22 @@
             <button id="closeNewLessonModalBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
             <h3 id="lessonModalTitle" class="text-lg font-bold text-slate-800">새 수업 자료 등록</h3>
             <div class="space-y-3">
-                <!-- 🎯 에러 해결 핵심: editLessonId 히든 필드 복원 -->
                 <input type="hidden" id="editLessonId">
                 <div class="grid grid-cols-2 gap-2">
-                    <select id="newLessonUnit" class="text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
+                    <!-- 🎯 ID 완벽 매칭: lessonUnitSelect -->
+                    <select id="lessonUnitSelect" class="text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
                         <option value="unit1">1단원</option>
                         <option value="unit2">2단원</option>
                         <option value="unit3">3단원</option>
                         <option value="unit4">4단원</option>
                         <option value="unit5">5단원</option>
                     </select>
-                    <input type="text" id="newLessonNum" placeholder="차시 (예: 1차시)" class="text-xs p-2.5 rounded-xl border border-slate-200">
+                    <input type="text" id="lessonNumInput" placeholder="차시 (예: 1차시)" class="text-xs p-2.5 rounded-xl border border-slate-200">
                 </div>
-                <input type="text" id="newLessonTitle" placeholder="수업 제목" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-bold">
-                <input type="text" id="newLessonSummary" placeholder="한 줄 요약 (학습 목표 등)" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                <input type="url" id="newLessonCover" placeholder="커버 이미지 URL (선택사항)" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                <textarea id="newLessonContent" rows="8" placeholder="수업 본문 (마크다운 작성 가능)..." class="w-full text-xs p-3 rounded-xl border border-slate-200 font-mono"></textarea>
+                <input type="text" id="lessonTitleInput" placeholder="수업 제목" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-bold">
+                <input type="text" id="lessonSummaryInput" placeholder="한 줄 요약 (학습 목표 등)" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
+                <input type="url" id="lessonCoverInput" placeholder="커버 이미지 URL (선택사항)" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
+                <textarea id="lessonContentInput" rows="8" placeholder="수업 본문 (마크다운 작성 가능)..." class="w-full text-xs p-3 rounded-xl border border-slate-200 font-mono"></textarea>
             </div>
             <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button id="saveLessonFirebaseBtn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow-md transition-all">저장하기</button>
@@ -645,25 +645,25 @@
             <button id="closeNewTaskModalBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
             <h3 id="taskModalTitle" class="text-lg font-bold text-slate-800">새 업무 등록</h3>
             <div class="space-y-3">
-                <!-- 🎯 에러 해결 핵심: editTaskId 히든 필드 복원 -->
                 <input type="hidden" id="editTaskId">
                 <div class="grid grid-cols-2 gap-2">
-                    <select id="newTaskCategory" class="text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
+                    <!-- 🎯 ID 완벽 매칭: taskCatSelect, taskStatusSelect -->
+                    <select id="taskCatSelect" class="text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
                         <option value="devices">💻 계정 및 기기</option>
                         <option value="network">🌐 네트워크/서버</option>
                         <option value="privacy">🛡️ 보안점검</option>
                         <option value="software">🔑 SW관리자</option>
                         <option value="disposal">📊 행정/공시</option>
                     </select>
-                    <select id="newTaskStatus" class="text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-bold">
+                    <select id="taskStatusSelect" class="text-xs p-2.5 rounded-xl border border-slate-200 bg-white font-bold">
                         <option value="todo">⏳ 대기중</option>
                         <option value="doing">🚀 진행중</option>
                         <option value="done">✅ 완료됨</option>
                     </select>
                 </div>
-                <input type="text" id="newTaskTitle" placeholder="업무 제목" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-bold">
-                <input type="text" id="newTaskSummary" placeholder="업무 개요" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
-                <textarea id="newTaskContent" rows="8" placeholder="업무 세부 매뉴얼 (마크다운 지원)..." class="w-full text-xs p-3 rounded-xl border border-slate-200 font-mono"></textarea>
+                <input type="text" id="taskTitleInput" placeholder="업무 제목" class="w-full text-xs p-2.5 rounded-xl border border-slate-200 font-bold">
+                <input type="text" id="taskSummaryInput" placeholder="업무 개요" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
+                <textarea id="taskContentInput" rows="8" placeholder="업무 세부 매뉴얼 (마크다운 지원)..." class="w-full text-xs p-3 rounded-xl border border-slate-200 font-mono"></textarea>
             </div>
             <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button id="saveTaskFirebaseBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow-md transition-all">업무 저장</button>
