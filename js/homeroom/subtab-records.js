@@ -1,4 +1,5 @@
 import { db, doc, getDoc, setDoc } from '../firebase-config.js';
+import { homeroomState } from './state.js';
 
 // 1. 나이스 규격 검증 및 금지어 필터
 export const NEIS_RULES = {
@@ -109,9 +110,6 @@ export const KoreanGrammar = {
 
 // 3. 확장된 12대 프리셋 (기존 7개 영역 + 독립 5대 도우미 영역)
 export const DEFAULT_BEHAVIOR_PRESETS = {
-    // ----------------------------------------------------
-    // [기존 7대 핵심 영역]
-    // ----------------------------------------------------
     conflictResolution: {
         category: "갈등 해결 및 대화·관계 회복",
         situations: [
@@ -259,10 +257,6 @@ export const DEFAULT_BEHAVIOR_PRESETS = {
             "보다 적극적으로 자신을 표현하고 소통한다면 지니고 있는 많은 장점이 더욱 빛날 것임."
         ]
     },
-
-    // ----------------------------------------------------
-    // [독립 5대 도우미 영역]
-    // ----------------------------------------------------
     recycleHelper: {
         category: "학급 쓰레기 분리수거 담당",
         situations: [
@@ -463,6 +457,162 @@ export class BehaviorRecordEngine {
                 forbiddenWords: forbidden,
                 isValid: forbidden.length === 0 && bytes <= 1500
             };
+        });
+    }
+}
+
+// ==========================================
+// [화면 UI 연결 코드 추가]
+// ==========================================
+export function setupRecordsModule() {
+    document.getElementById('generateRecordBtn')?.addEventListener('click', handleGenerateRecord);
+    document.getElementById('addSharedPresetBtn')?.addEventListener('click', handleAddSharedPreset);
+}
+
+export async function loadRecordsData() {
+    await loadSharedPresetsFromDB();
+    const presets = getActivePresets();
+
+    const catSelect = document.getElementById('recordCategorySelect');
+    if (!catSelect) return;
+    const currentCat = catSelect.value;
+    catSelect.innerHTML = '';
+    
+    Object.keys(presets).forEach(key => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = presets[key].category;
+        catSelect.appendChild(opt);
+    });
+
+    catSelect.onchange = () => updateRecordDropdowns(presets[catSelect.value]);
+
+    if (currentCat && presets[currentCat]) {
+        catSelect.value = currentCat;
+        updateRecordDropdowns(presets[currentCat]);
+    } else if (Object.keys(presets).length > 0) {
+        updateRecordDropdowns(presets[Object.keys(presets)[0]]);
+    }
+
+    const stuSelect = document.getElementById('recordStudentSelect');
+    if (!stuSelect) return;
+    const currentStu = stuSelect.value;
+    stuSelect.innerHTML = '<option value="">학생 이름 생략 (문장만 조립)</option>';
+    
+    if (homeroomState && homeroomState.contacts && homeroomState.contacts.length > 0) {
+        homeroomState.contacts.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.name;
+            opt.textContent = `${s.num}번 ${s.name}`;
+            stuSelect.appendChild(opt);
+        });
+    }
+    if (currentStu) {
+        stuSelect.value = currentStu;
+    }
+}
+
+function updateRecordDropdowns(preset) {
+    const sitSelect = document.getElementById('recordSituationSelect');
+    const actSelect = document.getElementById('recordActionSelect');
+    if (!sitSelect || !actSelect) return;
+    sitSelect.innerHTML = '';
+    actSelect.innerHTML = '';
+
+    preset.situations.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        sitSelect.appendChild(opt);
+    });
+    preset.actions.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a;
+        opt.textContent = a;
+        actSelect.appendChild(opt);
+    });
+}
+
+function handleGenerateRecord() {
+    const stuSelect = document.getElementById('recordStudentSelect');
+    const name = stuSelect ? (stuSelect.value || "") : "";
+    const sit = document.getElementById('recordSituationSelect')?.value || "";
+    const act = document.getElementById('recordActionSelect')?.value || "";
+    const traitsInput = document.getElementById('recordTraitsInput');
+    const traits = traitsInput ? traitsInput.value : "";
+    const prep = document.getElementById('recordMemoInput')?.value || "";
+
+    if (!traits) {
+        alert("역량 키워드(예: 솔선수범, 배려심)를 쉼표로 구분하여 하나 이상 입력해주세요.");
+        if (traitsInput) traitsInput.focus();
+        return;
+    }
+
+    const results = BehaviorRecordEngine.assemble({
+        studentName: name,
+        situation: sit,
+        action: act,
+        traits: traits,
+        customPrepend: prep
+    });
+
+    const container = document.getElementById('recordResultsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    results.forEach(res => {
+        const div = document.createElement('div');
+        div.className = "p-4 bg-white border border-indigo-100 rounded-2xl shadow-sm relative group hover:border-purple-300 transition-colors";
+        
+        let sentence = res.sentence;
+        if (name) {
+            sentence = `<span class="font-extrabold text-purple-700 bg-purple-50 px-1 rounded">${name}</span> 학생은 ` + sentence;
+        }
+
+        div.innerHTML = `
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-extrabold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">${res.style}</span>
+                <span class="text-[11px] ${res.isValid ? 'text-emerald-500' : 'text-rose-500'} font-bold bg-slate-50 px-2 py-0.5 rounded-full">${res.bytes} / 1500 Byte</span>
+            </div>
+            <p class="text-[13px] text-slate-800 leading-relaxed font-medium tracking-tight break-keep pt-1">${sentence}</p>
+            ${res.forbiddenWords.length > 0 ? `<p class="text-[11px] text-rose-500 mt-2 font-bold bg-rose-50 p-1 rounded"><i class="fa-solid fa-triangle-exclamation"></i> 금지어 감지: ${res.forbiddenWords.join(', ')}</p>` : ''}
+        `;
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = "absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg shadow-md flex items-center gap-1";
+        copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i> 복사';
+        
+        const textToCopy = name ? `${name} 학생은 ${res.sentence}` : res.sentence;
+        
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(textToCopy).then(() => alert('✅ 클립보드에 복사되었습니다. 나이스에 붙여넣기 하세요.'));
+        };
+        div.appendChild(copyBtn);
+        container.appendChild(div);
+    });
+}
+
+function handleAddSharedPreset() {
+    const catSelect = document.getElementById('recordCategorySelect');
+    if (!catSelect) return;
+    const cat = catSelect.value;
+    if (!cat) return;
+    const presets = getActivePresets();
+    const catName = presets[cat].category;
+    
+    const sit = prompt(`[${catName}] 공용으로 등록할 새로운 '상황' 문구를 입력하세요.\n(예: 학급 아침 조회 시간에)`);
+    if (sit === null) return; 
+
+    const act = prompt(`[${catName}] 공용으로 등록할 새로운 '행동' 문구를 입력하세요.\n(예: 단짝 친구를 챙기며 배려함)`);
+    if (act === null) return;
+
+    if (sit.trim() || act.trim()) {
+        addSharedPresetToDB(cat, {
+            categoryName: catName,
+            situation: sit.trim(),
+            action: act.trim()
+        }).then(() => {
+            loadRecordsData();
         });
     }
 }
