@@ -22,6 +22,23 @@
         } else if (initParams.has('task')) {
             document.write('<style>#mainDashboardApp { display: none !important; } #standaloneTaskViewer { display: block !important; }</style>');
         }
+
+        /* JS 파일 간의 구형/신형 ID 호환성을 100% 보장하는 안전 완충 장치 */
+        const origGetId = document.getElementById.bind(document);
+        document.getElementById = function(id) {
+            const aliasMap = {
+                'newLessonModal': 'lessonModal',
+                'newTaskModal': 'taskModal',
+                'newLessonUnit': 'lessonUnitSelect',
+                'newTaskCategory': 'taskCatSelect',
+                'closeNewLessonModalBtn': 'closeLessonModalBtn',
+                'closeNewTaskModalBtn': 'closeTaskModalBtn'
+            };
+            if (aliasMap[id]) {
+                return origGetId(aliasMap[id]) || origGetId(id);
+            }
+            return origGetId(id);
+        };
     </script>
 </head>
 <body class="text-slate-800 antialiased min-h-screen flex flex-col relative">
@@ -590,7 +607,7 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- [모든 팝업 모달 영역 - 100% 완전체] -->
+    <!-- [모든 팝업 모달 영역 - tab-class.js, tab-work.js ID 100% 일치] -->
     <!-- ========================================== -->
 
     <!-- 1. 교사 로그인 모달 -->
@@ -610,15 +627,14 @@
         </div>
     </div>
 
-    <!-- 2. 새 수업 자료 작성/수정 모달 -->
-    <div id="newLessonModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <!-- 2. 수업 자료 작성/수정 모달 (tab-class.js 매칭: id="lessonModal") -->
+    <div id="lessonModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
-            <button id="closeNewLessonModalBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
-            <h3 id="lessonModalTitle" class="text-lg font-bold text-slate-800">새 수업 자료 등록</h3>
+            <button id="closeLessonModalBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+            <h3 id="lessonModalTitle" class="text-lg font-bold text-slate-800">수업 자료 작성 / 수정</h3>
             <div class="space-y-3">
                 <input type="hidden" id="editLessonId">
                 <div class="grid grid-cols-2 gap-2">
-                    <!-- 🎯 ID 완벽 매칭: lessonUnitSelect -->
                     <select id="lessonUnitSelect" class="text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
                         <option value="unit1">1단원</option>
                         <option value="unit2">2단원</option>
@@ -632,6 +648,14 @@
                 <input type="text" id="lessonSummaryInput" placeholder="한 줄 요약 (학습 목표 등)" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
                 <input type="url" id="lessonCoverInput" placeholder="커버 이미지 URL (선택사항)" class="w-full text-xs p-2.5 rounded-xl border border-slate-200">
                 <textarea id="lessonContentInput" rows="8" placeholder="수업 본문 (마크다운 작성 가능)..." class="w-full text-xs p-3 rounded-xl border border-slate-200 font-mono"></textarea>
+                
+                <!-- 🎯 tab-class.js 137번째 줄 필수 체크박스 -->
+                <div class="flex items-center gap-2 pt-1">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                        <input type="checkbox" id="lessonVisibilityCheckbox" class="w-4 h-4 rounded text-teal-600 focus:ring-teal-500" checked>
+                        <span>학생들에게 자료 공개</span>
+                    </label>
+                </div>
             </div>
             <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button id="saveLessonFirebaseBtn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow-md transition-all">저장하기</button>
@@ -639,15 +663,14 @@
         </div>
     </div>
 
-    <!-- 3. 새 업무 작성/수정 모달 -->
-    <div id="newTaskModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <!-- 3. 업무 작성/수정 모달 (tab-work.js 매칭: id="taskModal") -->
+    <div id="taskModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
-            <button id="closeNewTaskModalBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
-            <h3 id="taskModalTitle" class="text-lg font-bold text-slate-800">새 업무 등록</h3>
+            <button id="closeTaskModalBtn" class="absolute top-4 right-4 text-slate-400 text-lg hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+            <h3 id="taskModalTitle" class="text-lg font-bold text-slate-800">업무 등록 / 수정</h3>
             <div class="space-y-3">
                 <input type="hidden" id="editTaskId">
                 <div class="grid grid-cols-2 gap-2">
-                    <!-- 🎯 ID 완벽 매칭: taskCatSelect, taskStatusSelect -->
                     <select id="taskCatSelect" class="text-xs p-2.5 rounded-xl border border-slate-200 bg-white">
                         <option value="devices">💻 계정 및 기기</option>
                         <option value="network">🌐 네트워크/서버</option>
