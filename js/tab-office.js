@@ -25,11 +25,31 @@ let activeBaseModalType = null;
 // 이벤트(민트색) 과목 식별 키워드
 const eventKeywords = ['자치', '동아', '봉사', '진로'];
 
+// 🎯 Firestore 호환 2차원 데이터 파서 (문자열, 1차원, 2차원 모두 안전 처리)
+function parseMatrixData(raw) {
+    if (!raw) return null;
+    if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            return parseMatrixData(parsed);
+        } catch(e) {
+            return null;
+        }
+    }
+    if (Array.isArray(raw)) {
+        if (Array.isArray(raw[0])) return raw;
+        if (raw.length === 35) {
+            const res = [];
+            for (let i = 0; i < 7; i++) res.push(raw.slice(i * 5, (i + 1) * 5));
+            return res;
+        }
+    }
+    return null;
+}
+
 export async function initOfficeTab(currentUser) {
-    if (!currentUser) return;
-    
-    // 1. 로그인 계정 UID 연동
-    if (currentUser.uid) {
+    // 1. 로그인 계정 UID 연동 (모바일 비로그인/지연 상태에서도 시간표 조회 보장)
+    if (currentUser && currentUser.uid) {
         officeState.userId = currentUser.uid;
         localStorage.setItem('user_id', currentUser.uid);
     }
@@ -64,7 +84,7 @@ export async function initOfficeTab(currentUser) {
         console.warn("파이어베이스 설정 로드 실패 (로컬 데이터 유지):", e);
     }
     
-    // 3. 메인 화면 교사 성함 클릭 시 직접 변경 팝업
+    // 3. 교사 성함 클릭 시 직접 변경 팝업
     document.getElementById('titleTeacherNameBtn')?.addEventListener('click', () => {
         openTeacherInputModal();
     });
@@ -160,28 +180,39 @@ export async function initOfficeTab(currentUser) {
     // 6. 기본 시간표 설정 모달 연결
     const baseModal = document.getElementById('baseTimetableModal');
     
-    document.getElementById('openTeacherBaseBtn')?.addEventListener('click', () => {
+    document.getElementById('openTeacherBaseBtn')?.addEventListener('click', async () => {
         activeBaseModalType = 'teacher';
         renderBaseModalTitle('teacher', officeState.teacherName);
         renderBaseTimetableInputGrid(currentTeacherBaseTimetable);
         baseModal.classList.remove('hidden');
+
+        // 혹시 비어있다면 DB에서 즉시 재조회
+        if (isMatrixEmpty(currentTeacherBaseTimetable)) {
+            await fetchAndFillTeacherBase(officeState.teacherName);
+        }
     });
 
-    document.getElementById('openClassBaseBtn')?.addEventListener('click', () => {
+    document.getElementById('openClassBaseBtn')?.addEventListener('click', async () => {
         activeBaseModalType = 'class';
-        renderBaseModalTitle('class', `${officeState.selectedGrade}-${officeState.selectedClassNum}`);
+        const classTarget = `${officeState.selectedGrade}-${officeState.selectedClassNum}`;
+        renderBaseModalTitle('class', classTarget);
         renderBaseTimetableInputGrid(currentClassBaseTimetable);
         baseModal.classList.remove('hidden');
+
+        if (isMatrixEmpty(currentClassBaseTimetable)) {
+            await fetchAndFillClassBase(officeState.selectedGrade, officeState.selectedClassNum);
+        }
     });
 
     document.getElementById('closeBaseTimetableModalBtn')?.addEventListener('click', () => baseModal.classList.add('hidden'));
 
-    // 7. 기본 시간표 저장 로직
+    // 🎯 7. 기본 시간표 저장 로직 (Firestore 2차원 배열 제약 해결)
     document.getElementById('saveBaseTimetableBtn')?.addEventListener('click', async () => {
         const newData = Array(7).fill().map(() => Array(5).fill(""));
         for (let r = 0; r < 7; r++) {
             for (let c = 0; c < 5; c++) {
-                const val = document.getElementById(`baseInput_${r}_${c}`).value.trim();
+                const el = document.getElementById(`baseInput_${r}_${c}`);
+                const val = el ? el.value.trim() : "";
                 newData[r][c] = val;
             }
         }
@@ -191,6 +222,7 @@ export async function initOfficeTab(currentUser) {
         const gr = officeState.selectedGrade || 1;
         const cl = officeState.selectedClassNum || 7;
 
+        // 로컬 캐시 즉시 반영
         if (activeBaseModalType === 'teacher') {
             currentTeacherBaseTimetable = newData;
             localStorage.setItem(`base_tt_teacher_${uid}_${tName}`, JSON.stringify(newData));
@@ -205,38 +237,33 @@ export async function initOfficeTab(currentUser) {
         baseModal.classList.add('hidden');
         loadAllTimetables();
 
+        // 🎯 Firestore에는 JSON 문자열로 저장하여 Nested Array 거부 에러 완벽 해결
+        const matrixString = JSON.stringify(newData);
         try {
             if (activeBaseModalType === 'teacher') {
-                await setDoc(doc(db, "base_timetables", `${uid}_teacher_${tName}`), {
+                const payload = {
                     userId: uid,
                     teacherName: tName,
-                    matrix: newData,
+                    matrix: matrixString,
+                    matrixJson: matrixString,
                     updatedAt: new Date().toISOString()
-                });
-                await setDoc(doc(db, "base_timetables", `teacher_${tName}`), {
-                    userId: uid,
-                    teacherName: tName,
-                    matrix: newData,
-                    updatedAt: new Date().toISOString()
-                });
+                };
+                await setDoc(doc(db, "base_timetables", `${uid}_teacher_${tName}`), payload);
+                await setDoc(doc(db, "base_timetables", `teacher_${tName}`), payload);
             } else {
-                await setDoc(doc(db, "base_timetables", `${uid}_class_${gr}_${cl}`), {
+                const payload = {
                     userId: uid,
                     grade: gr,
                     classNum: cl,
-                    matrix: newData,
+                    matrix: matrixString,
+                    matrixJson: matrixString,
                     updatedAt: new Date().toISOString()
-                });
-                await setDoc(doc(db, "base_timetables", `class_${gr}_${cl}`), {
-                    userId: uid,
-                    grade: gr,
-                    classNum: cl,
-                    matrix: newData,
-                    updatedAt: new Date().toISOString()
-                });
+                };
+                await setDoc(doc(db, "base_timetables", `${uid}_class_${gr}_${cl}`), payload);
+                await setDoc(doc(db, "base_timetables", `class_${gr}_${cl}`), payload);
             }
         } catch (e) {
-            console.warn("Firestore 기본 시간표 저장 지연(오프라인 모드 작동 중):", e);
+            console.error("Firestore 기본 시간표 저장 에러:", e);
         }
     });
 
@@ -275,8 +302,13 @@ export async function initOfficeTab(currentUser) {
     document.getElementById('titleTeacherNameBtn').textContent = officeState.teacherName;
     document.getElementById('titleClassNameBtn').textContent = `${officeState.selectedGrade}-${officeState.selectedClassNum}`;
 
-    loadAllTimetables();
+    await loadAllTimetables();
     fetchMeal();
+}
+
+function isMatrixEmpty(m) {
+    if (!m || !Array.isArray(m)) return true;
+    return m.every(r => Array.isArray(r) && r.every(c => !c || c.trim() === ''));
 }
 
 // 🎯 기본시간표 모달 제목 렌더링 및 교사명 클릭 시 즉시 교체 이벤트
@@ -290,7 +322,7 @@ function renderBaseModalTitle(type, targetName) {
             <span id="modalTeacherNameSwitchBtn" class="cursor-pointer underline decoration-dotted decoration-indigo-500 hover:text-indigo-600 text-indigo-700 transition-colors" title="클릭하여 교사 변경">${targetName}</span> 교사 기본 시간표 설정
             <button id="modalTeacherNameSwitchBtn2" type="button" class="text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md border border-indigo-200 ml-1.5 transition-colors align-middle"><i class="fa-solid fa-arrows-rotate mr-1"></i>교사 변경</button>
         `;
-        descEl.textContent = "입력 예시: 108정보 (이름을 눌러 다른 선생님으로 변경할 수 있으며, 저장 시 DB에 영구 동기화됩니다)";
+        descEl.textContent = "입력 예시: 108정보 (이름을 눌러 다른 선생님으로 변경할 수 있으며, 저장 시 모바일과 PC에 모두 영구 동기화됩니다)";
 
         const handleSwitch = () => {
             openTeacherInputModal(async (newTeacherName) => {
@@ -298,28 +330,8 @@ function renderBaseModalTitle(type, targetName) {
                 localStorage.setItem('office_teacher_name', newTeacherName);
                 document.getElementById('titleTeacherNameBtn').textContent = newTeacherName;
 
-                // 모달 상단 제목 변경
                 renderBaseModalTitle('teacher', newTeacherName);
-
-                // 해당 선생님의 시간표를 DB 또는 로컬에서 즉시 불러와 채우기
-                let loaded = null;
-                const uid = officeState.userId;
-                const keys = [`${uid}_teacher_${newTeacherName}`, `teacher_${newTeacherName}`];
-                for (const key of keys) {
-                    try {
-                        const snap = await getDoc(doc(db, "base_timetables", key));
-                        if (snap.exists() && snap.data().matrix) {
-                            loaded = snap.data().matrix;
-                            break;
-                        }
-                    } catch(e) {}
-                }
-                if (!loaded) {
-                    const local = localStorage.getItem(`base_tt_teacher_${uid}_${newTeacherName}`) || localStorage.getItem(`base_tt_teacher_${newTeacherName}`);
-                    loaded = local ? JSON.parse(local) : Array(7).fill().map(() => Array(5).fill(""));
-                }
-                currentTeacherBaseTimetable = loaded;
-                renderBaseTimetableInputGrid(currentTeacherBaseTimetable);
+                await fetchAndFillTeacherBase(newTeacherName);
             });
         };
 
@@ -331,7 +343,60 @@ function renderBaseModalTitle(type, targetName) {
     }
 }
 
-// 🎯 교사명 직접 입력 모달 (모달 위에서도 정상 작동하도록 z-index 보정)
+// 🎯 특정 교사의 시간표를 DB에서 불러와 모달 입력창에 채우기
+async function fetchAndFillTeacherBase(tName) {
+    const uid = officeState.userId;
+    const keys = [`${uid}_teacher_${tName}`, `teacher_${tName}`];
+    let loaded = null;
+
+    for (const key of keys) {
+        try {
+            const snap = await getDoc(doc(db, "base_timetables", key));
+            if (snap.exists()) {
+                const d = snap.data();
+                loaded = parseMatrixData(d.matrixJson || d.matrix || d.table);
+                if (loaded) break;
+            }
+        } catch(e) {}
+    }
+
+    if (!loaded) {
+        const local = localStorage.getItem(`base_tt_teacher_${uid}_${tName}`) || localStorage.getItem(`base_tt_teacher_${tName}`);
+        loaded = parseMatrixData(local) || Array(7).fill().map(() => Array(5).fill(""));
+    }
+
+    currentTeacherBaseTimetable = loaded;
+    renderBaseTimetableInputGrid(currentTeacherBaseTimetable);
+}
+
+// 🎯 특정 학급의 시간표를 DB에서 불러와 모달 입력창에 채우기
+async function fetchAndFillClassBase(gr, cl) {
+    const uid = officeState.userId;
+    const classKey = `${gr}-${cl}`;
+    const keys = [`${uid}_class_${gr}_${cl}`, `class_${gr}_${cl}`];
+    let loaded = null;
+
+    for (const key of keys) {
+        try {
+            const snap = await getDoc(doc(db, "base_timetables", key));
+            if (snap.exists()) {
+                const d = snap.data();
+                loaded = parseMatrixData(d.matrixJson || d.matrix || d.table);
+                if (loaded) break;
+            }
+        } catch(e) {}
+    }
+
+    if (!loaded) {
+        const local = localStorage.getItem(`base_tt_class_${uid}_${classKey}`) || localStorage.getItem(`base_tt_class_${classKey}`);
+        loaded = parseMatrixData(local) || Array(7).fill().map(() => Array(5).fill(""));
+    }
+
+    currentClassBaseTimetable = loaded;
+    renderBaseTimetableInputGrid(currentClassBaseTimetable);
+}
+
+// 🎯 교사명 직접 입력 모달
 function openTeacherInputModal(callback = null) {
     const modal = document.getElementById('teacherSelectModal');
     const container = document.getElementById('modalTeacherList');
@@ -388,19 +453,21 @@ function openTeacherInputModal(callback = null) {
 
 function renderBaseTimetableInputGrid(dataMatrix) {
     const tbody = document.getElementById('baseTimetableInputBody');
+    if (!tbody) return;
     tbody.innerHTML = '';
     for (let r = 0; r < 7; r++) {
         const tr = document.createElement('tr');
         let html = `<td class="py-2 border-r border-slate-200 font-bold bg-slate-50">${r + 1}교시</td>`;
         for (let c = 0; c < 5; c++) {
-            html += `<td class="p-1 border-r border-slate-200"><input type="text" id="baseInput_${r}_${c}" value="${dataMatrix[r][c] || ''}" class="w-full text-center text-xs p-1.5 rounded bg-white border border-slate-300 focus:ring-1 focus:ring-indigo-400 outline-none font-bold"></td>`;
+            const val = (dataMatrix && dataMatrix[r] && dataMatrix[r][c]) ? dataMatrix[r][c] : '';
+            html += `<td class="p-1 border-r border-slate-200"><input type="text" id="baseInput_${r}_${c}" value="${val}" class="w-full text-center text-xs p-1.5 rounded bg-white border border-slate-300 focus:ring-1 focus:ring-indigo-400 outline-none font-bold"></td>`;
         }
         tr.innerHTML = html;
         tbody.appendChild(tr);
     }
 }
 
-// 스마트 시간표 로드 함수
+// 🎯 스마트 시간표 로드 함수 (Firestore 및 로컬 복구 연동)
 async function loadAllTimetables() {
     const weekKey = officeState.isNextWeek ? 'next' : 'this';
     const uid = officeState.userId;
@@ -417,9 +484,10 @@ async function loadAllTimetables() {
     for (const key of tDocKeys) {
         try {
             const snap = await getDoc(doc(db, "base_timetables", key));
-            if (snap.exists() && snap.data().matrix) {
-                loadedTeacherBase = snap.data().matrix;
-                break;
+            if (snap.exists()) {
+                const d = snap.data();
+                loadedTeacherBase = parseMatrixData(d.matrixJson || d.matrix || d.table);
+                if (loadedTeacherBase) break;
             }
         } catch(e) {}
     }
@@ -430,7 +498,20 @@ async function loadAllTimetables() {
         localStorage.setItem(`base_tt_teacher_${tName}`, JSON.stringify(loadedTeacherBase));
     } else {
         const localT = localStorage.getItem(`base_tt_teacher_${uid}_${tName}`) || localStorage.getItem(`base_tt_teacher_${tName}`);
-        currentTeacherBaseTimetable = localT ? JSON.parse(localT) : Array(7).fill().map(() => Array(5).fill(""));
+        const parsedLocal = parseMatrixData(localT);
+        currentTeacherBaseTimetable = parsedLocal || Array(7).fill().map(() => Array(5).fill(""));
+
+        // 🎯 PC 캐시에만 데이터가 있고 DB가 비어있는 경우, DB로 자동 구출 전송 (모바일 즉시 연동)
+        if (parsedLocal && !isMatrixEmpty(parsedLocal)) {
+            const matrixStr = JSON.stringify(parsedLocal);
+            setDoc(doc(db, "base_timetables", `teacher_${tName}`), {
+                userId: uid,
+                teacherName: tName,
+                matrix: matrixStr,
+                matrixJson: matrixStr,
+                updatedAt: new Date().toISOString()
+            }).catch(() => {});
+        }
     }
 
     let loadedClassBase = null;
@@ -443,9 +524,10 @@ async function loadAllTimetables() {
     for (const key of cDocKeys) {
         try {
             const snap = await getDoc(doc(db, "base_timetables", key));
-            if (snap.exists() && snap.data().matrix) {
-                loadedClassBase = snap.data().matrix;
-                break;
+            if (snap.exists()) {
+                const d = snap.data();
+                loadedClassBase = parseMatrixData(d.matrixJson || d.matrix || d.table);
+                if (loadedClassBase) break;
             }
         } catch(e) {}
     }
@@ -456,7 +538,21 @@ async function loadAllTimetables() {
         localStorage.setItem(`base_tt_class_${classKey}`, JSON.stringify(loadedClassBase));
     } else {
         const localC = localStorage.getItem(`base_tt_class_${uid}_${classKey}`) || localStorage.getItem(`base_tt_class_${classKey}`);
-        currentClassBaseTimetable = localC ? JSON.parse(localC) : Array(7).fill().map(() => Array(5).fill(""));
+        const parsedLocalC = parseMatrixData(localC);
+        currentClassBaseTimetable = parsedLocalC || Array(7).fill().map(() => Array(5).fill(""));
+
+        // 학급 데이터도 DB로 자동 구출 전송
+        if (parsedLocalC && !isMatrixEmpty(parsedLocalC)) {
+            const matrixStr = JSON.stringify(parsedLocalC);
+            setDoc(doc(db, "base_timetables", `class_${gr}_${cl}`), {
+                userId: uid,
+                grade: gr,
+                classNum: cl,
+                matrix: matrixStr,
+                matrixJson: matrixStr,
+                updatedAt: new Date().toISOString()
+            }).catch(() => {});
+        }
     }
 
     let teacherScheduleMap = null;
@@ -486,7 +582,7 @@ async function loadAllTimetables() {
     renderClassGrid(classScheduleMap);
 }
 
-// 교사 시간표 렌더링 (보라색 판별 적용)
+// 교사 시간표 렌더링
 function renderTeacherGrid(scheduleMap) {
     const tbody = document.getElementById('teacherTimetableGridBody');
     if(!tbody) return;
