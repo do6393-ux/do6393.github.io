@@ -23,17 +23,116 @@
     </script>
     <link rel="stylesheet" href="css/styles.css">
     <style>
-        /* 에디터 툴바 및 본문 뷰어 스타일 */
+        /* 툴바 기본 스타일 */
         .note-editor .note-toolbar { background-color: #f8fafc !important; border-bottom: 1px solid #e2e8f0 !important; }
-        /* 🎯 툴바 상단 버튼에만 흰색 배경 한정 (팔레트 색상 덮어쓰기 방지) */
         .note-editor .note-toolbar > .note-btn-group .note-btn { background-color: #ffffff; border: 1px solid #cbd5e1; padding: 4px 8px; font-size: 12px; }
         .note-dropdown-menu { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; z-index: 1050 !important; }
         .note-editable { background-color: #ffffff !important; font-size: 13px !important; line-height: 1.6 !important; }
-        
-        /* 🎯 색상 팔레트 버튼 원래 색상 정상 복원 */
-        .note-color-palette .note-color-row { height: 18px !important; }
-        .note-color-palette .note-color-btn { border: 1px solid rgba(0, 0, 0, 0.15) !important; padding: 0 !important; margin: 0 !important; width: 17px !important; height: 17px !important; border-radius: 2px !important; }
 
+        /* ========================================================
+           🎯 모던 스마트 색상 팔레트 GUI 리디자인
+           ======================================================== */
+        /* 1. 팝업 컨테이너: 좌우 2열(배경색/글자색) 나란히 배치 & 빈 여백 완전 제거 */
+        .note-color .dropdown-menu {
+            display: flex !important;
+            flex-direction: row !important;
+            gap: 14px !important;
+            width: auto !important;
+            min-width: 0 !important;
+            padding: 14px 16px !important;
+            background: #ffffff !important;
+            border-radius: 18px !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 16px 36px -4px rgba(15, 23, 42, 0.14), 0 4px 12px -2px rgba(15, 23, 42, 0.08) !important;
+            z-index: 1050 !important;
+        }
+
+        /* 2. 각 열(배경색 / 글자색) 블록 */
+        .note-color .dropdown-menu .note-palette {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 146px !important;
+            margin: 0 !important;
+            float: none !important;
+        }
+
+        /* 3. 중간 세로 구분선 (배경색과 글자색 사이) */
+        .note-color .dropdown-menu .note-palette:first-child {
+            border-right: 1px solid #f1f5f9;
+            padding-right: 14px;
+        }
+
+        /* 4. 제목 텍스트 (배경색 / 글자색) */
+        .note-color .note-palette-title {
+            font-size: 12px !important;
+            font-weight: 800 !important;
+            color: #1e293b !important;
+            margin: 0 0 6px 0 !important;
+            text-align: center !important;
+            border-bottom: none !important;
+            letter-spacing: -0.02em;
+        }
+
+        /* 5. '투명' & '기본값으로 설정' 알약형 버튼 */
+        .note-color .note-color-reset {
+            display: block !important;
+            width: 100% !important;
+            background-color: #f1f5f9 !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 8px !important;
+            font-size: 11px !important;
+            font-weight: 700 !important;
+            color: #475569 !important;
+            padding: 5px 0 !important;
+            margin: 0 0 8px 0 !important;
+            text-align: center !important;
+            cursor: pointer !important;
+            transition: all 0.15s ease !important;
+        }
+        .note-color .note-color-reset:hover {
+            background-color: #e2e8f0 !important;
+            color: #0f172a !important;
+            border-color: #cbd5e1 !important;
+        }
+
+        /* 6. 색상 팔레트 격자 및 칩 호버 효과 */
+        .note-color-palette .note-color-row {
+            height: 19px !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            margin-bottom: 2px !important;
+        }
+        .note-color-palette .note-color-btn {
+            width: 16px !important;
+            height: 16px !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: 1px solid rgba(0, 0, 0, 0.12) !important;
+            border-radius: 3px !important;
+            transition: transform 0.12s ease, box-shadow 0.12s ease !important;
+            cursor: pointer !important;
+        }
+        .note-color-palette .note-color-btn:hover {
+            transform: scale(1.3) !important;
+            z-index: 20 !important;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25) !important;
+            border-color: #ffffff !important;
+        }
+
+        /* 7. 어색한 '고르다' 문구 및 미사용 빈칸 영역 완전 제거 */
+        .note-color .note-color-select,
+        .note-color .note-btn-color-picker,
+        .note-color .note-holder-custom {
+            display: none !important;
+        }
+
+        /* 8. 팝업이 열렸을 때 검은색 툴팁('다른 색 선택') 가림 현상 차단 */
+        .note-btn-group.open .note-tooltip,
+        .note-color.open .note-tooltip {
+            display: none !important;
+        }
+
+        /* 본문 뷰어 테이블 & 이미지 */
         .notion-content table { border-collapse: collapse; width: 100%; margin: 12px 0; }
         .notion-content table th, .notion-content table td { border: 1px solid #cbd5e1; padding: 8px 12px; }
         .notion-content table th { background-color: #f1f5f9; font-weight: bold; }
@@ -277,7 +376,6 @@
         <!-- 2. 내 학급 탭 -->
         <div id="tabContentHomeroom" class="tab-view-content hidden">
             <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
-                
                 <div class="flex flex-wrap gap-2 mb-2 bg-slate-100 p-1 rounded-2xl w-fit">
                     <button id="homeroomSubTabContacts" class="px-4 py-2 text-sm font-bold bg-white text-rose-600 rounded-xl shadow-sm transition-all"><i class="fa-solid fa-address-book mr-1"></i> 비상연락망</button>
                     <button id="homeroomSubTabSeating" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 rounded-xl transition-all"><i class="fa-solid fa-chair mr-1"></i> 자리 바꾸기</button>
@@ -328,14 +426,12 @@
                     <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
                         <div class="flex flex-wrap justify-between items-center mb-6 gap-3">
                             <p class="text-xs text-slate-500 font-bold"><i class="fa-solid fa-hand-pointer"></i> 안 쓰는 빈자리는 클릭해서 <span class="bg-slate-200 px-1 rounded text-slate-400">회색</span>으로 만들어 제외하세요.</p>
-                            
                             <div class="flex items-center gap-2.5">
                                 <div class="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2 py-1 rounded-xl">
                                     <button id="decreaseRowBtn" type="button" class="w-6 h-6 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center border border-slate-200 shadow-sm transition-colors" title="줄 삭제">-</button>
                                     <span id="seatingDimensionText" class="text-xs font-bold text-indigo-700 px-1">6줄 (36석)</span>
                                     <button id="increaseRowBtn" type="button" class="w-6 h-6 rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center border border-slate-200 shadow-sm transition-colors" title="줄 추가">+</button>
                                 </div>
-
                                 <label for="hwpxTemplateInput" id="seatingHwpxLabel" class="cursor-pointer text-[11px] font-bold bg-slate-100 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-200 border border-slate-200 transition-colors">
                                     <i class="fa-solid fa-file-arrow-up"></i> 양식 등록(.hwpx)
                                 </label>
@@ -352,9 +448,7 @@
                                 <span class="my-0.5">복</span>
                                 <span class="my-0.5">도</span>
                             </div>
-
                             <div id="seatingGrid" class="grid grid-cols-6 gap-2 sm:gap-3 flex-1"></div>
-
                             <div class="w-8 sm:w-10 bg-slate-100 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-500 font-bold text-xs py-4 select-none shrink-0 shadow-inner">
                                 <i class="fa-solid fa-sun mb-2 text-amber-500 text-sm"></i>
                                 <span class="my-0.5">운</span>
@@ -616,7 +710,7 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- [모든 팝업 모달 영역 - 100% 완전체] -->
+    <!-- [모든 팝업 모달 영역] -->
     <!-- ========================================== -->
 
     <!-- 1. 교사 로그인 모달 -->
