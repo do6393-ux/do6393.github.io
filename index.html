@@ -30,12 +30,21 @@
         .note-editable { background-color: #ffffff !important; font-size: 13px !important; line-height: 1.6 !important; }
 
         /* ========================================================
-           🎯 색상 팔레트 우측 빈 여백 완전 제거 & 좌우 2열 배치
+           🎯 색상 팔레트 상시 노출 방지 & 모던 2열 GUI
            ======================================================== */
-        /* 1. 팝업 박스: 고정 너비를 풀고 내용물 크기에 딱 맞춤 */
-        .note-editor .note-color .note-dropdown-menu,
+        /* 1. 기본 상태: 닫혀 있을 때는 무조건 숨김 */
         .note-color .note-dropdown-menu,
         .note-color .dropdown-menu {
+            display: none;
+        }
+
+        /* 2. 버튼을 눌러 열렸을 때(.open 또는 .show)만 2열 flex로 노출 */
+        .note-color.open > .note-dropdown-menu,
+        .note-color.open > .dropdown-menu,
+        .note-color.open .note-dropdown-menu,
+        .note-color.show > .note-dropdown-menu,
+        .note-color.show > .dropdown-menu,
+        .note-color.show .note-dropdown-menu {
             display: flex !important;
             flex-direction: row !important;
             width: max-content !important;
@@ -51,7 +60,7 @@
             white-space: nowrap !important;
         }
 
-        /* 2. 각 열 (왼쪽: 배경색 / 오른쪽: 글자색) */
+        /* 3. 각 열 (왼쪽: 배경색 / 오른쪽: 글자색) */
         .note-color .note-palette {
             display: flex !important;
             flex-direction: column !important;
@@ -63,13 +72,13 @@
             float: none !important;
         }
 
-        /* 3. 배경색과 글자색 사이의 깔끔한 세로 구분선 */
+        /* 4. 배경색과 글자색 사이의 깔끔한 세로 구분선 */
         .note-color .note-palette:first-child {
             border-right: 1px solid #f1f5f9 !important;
             padding-right: 14px !important;
         }
 
-        /* 4. 제목 (배경색 / 글자색) */
+        /* 5. 제목 (배경색 / 글자색) */
         .note-color .note-palette-title {
             font-size: 12px !important;
             font-weight: 800 !important;
@@ -80,7 +89,7 @@
             letter-spacing: -0.02em;
         }
 
-        /* 5. 투명 / 기본값으로 설정 알약 버튼 */
+        /* 6. 투명 / 기본값으로 설정 알약 버튼 */
         .note-color .note-color-reset {
             display: block !important;
             width: 100% !important;
@@ -101,7 +110,7 @@
             color: #0f172a !important;
         }
 
-        /* 6. 색상 격자 및 마우스 호버 효과 */
+        /* 7. 색상 격자 및 마우스 호버 효과 */
         .note-color-palette .note-color-row {
             height: 19px !important;
             display: flex !important;
@@ -124,14 +133,14 @@
             border-color: #ffffff !important;
         }
 
-        /* 7. '고르다' 및 미사용 빈칸 제거 */
+        /* 8. '고르다' 및 미사용 빈칸 제거 */
         .note-color .note-color-select,
         .note-color .note-btn-color-picker,
         .note-color .note-holder-custom {
             display: none !important;
         }
 
-        /* 8. 툴팁 간섭 방지 */
+        /* 9. 툴팁 간섭 방지 */
         .note-btn-group.open .note-tooltip,
         .note-color.open .note-tooltip {
             display: none !important;
