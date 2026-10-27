@@ -1,0 +1,145 @@
+/* 툴바 및 에디터 기본 스타일 */
+.note-editor .note-toolbar { 
+    background-color: #f8fafc !important; 
+    border-bottom: 1px solid #e2e8f0 !important; 
+}
+.note-editor .note-toolbar > .note-btn-group .note-btn { 
+    background-color: #ffffff; 
+    border: 1px solid #cbd5e1; 
+    padding: 4px 8px; 
+    font-size: 12px; 
+}
+.note-dropdown-menu { 
+    background-color: #ffffff !important; 
+    border: 1px solid #cbd5e1 !important; 
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; 
+    z-index: 1050 !important; 
+}
+.note-editable { 
+    background-color: #ffffff !important; 
+    font-size: 13px !important; 
+    line-height: 1.6 !important; 
+}
+
+/* ========================================================
+   🎯 색상 팔레트 (평상시 숨김 & 열림 시 2열 모던 GUI)
+   ======================================================== */
+/* 1. 기본 상태: 닫혀 있을 때는 무조건 숨김 */
+.note-color .note-dropdown-menu,
+.note-color .dropdown-menu {
+    display: none;
+}
+
+/* 2. 버튼 클릭 시(.open, .show) 2열 가로 flex 노출 */
+.note-color.open > .note-dropdown-menu,
+.note-color.open > .dropdown-menu,
+.note-color.open .note-dropdown-menu,
+.note-color.show > .note-dropdown-menu,
+.note-color.show > .dropdown-menu,
+.note-color.show .note-dropdown-menu {
+    display: flex !important;
+    flex-direction: row !important;
+    width: max-content !important;
+    min-width: 0 !important;
+    max-width: fit-content !important;
+    padding: 14px !important;
+    gap: 14px !important;
+    background: #ffffff !important;
+    border-radius: 16px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.15) !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+}
+
+/* 3. 각 열 (왼쪽: 배경색 / 오른쪽: 글자색) */
+.note-color .note-palette {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 146px !important;
+    min-width: 146px !important;
+    max-width: 146px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    float: none !important;
+}
+
+/* 4. 배경색과 글자색 사이의 세로 구분선 */
+.note-color .note-palette:first-child {
+    border-right: 1px solid #f1f5f9 !important;
+    padding-right: 14px !important;
+}
+
+/* 5. 제목 (배경색 / 글자색) */
+.note-color .note-palette-title {
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    color: #1e293b !important;
+    margin: 0 0 6px 0 !important;
+    text-align: center !important;
+    border-bottom: none !important;
+    letter-spacing: -0.02em;
+}
+
+/* 6. 투명 / 기본값으로 설정 알약형 버튼 */
+.note-color .note-color-reset {
+    display: block !important;
+    width: 100% !important;
+    background-color: #f1f5f9 !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+    padding: 5px 0 !important;
+    margin: 0 0 8px 0 !important;
+    text-align: center !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+}
+.note-color .note-color-reset:hover {
+    background-color: #e2e8f0 !important;
+    color: #0f172a !important;
+}
+
+/* 7. 색상 격자 및 호버 효과 */
+.note-color-palette .note-color-row {
+    height: 19px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    margin-bottom: 2px !important;
+}
+.note-color-palette .note-color-btn {
+    width: 16px !important;
+    height: 16px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 1px solid rgba(0, 0, 0, 0.12) !important;
+    border-radius: 3px !important;
+    transition: transform 0.12s ease !important;
+    cursor: pointer !important;
+}
+.note-color-palette .note-color-btn:hover {
+    transform: scale(1.25) !important;
+    z-index: 20 !important;
+    border-color: #ffffff !important;
+}
+
+/* 8. '고르다' 및 미사용 빈칸 제거 */
+.note-color .note-color-select,
+.note-color .note-btn-color-picker,
+.note-color .note-holder-custom {
+    display: none !important;
+}
+
+/* 9. 툴팁 가림 방지 */
+.note-btn-group.open .note-tooltip,
+.note-color.open .note-tooltip {
+    display: none !important;
+}
+
+/* 본문 뷰어 테이블 & 이미지 */
+.notion-content table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+.notion-content table th, .notion-content table td { border: 1px solid #cbd5e1; padding: 8px 12px; }
+.notion-content table th { background-color: #f1f5f9; font-weight: bold; }
+.notion-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
