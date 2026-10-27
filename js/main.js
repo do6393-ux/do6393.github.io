@@ -3,6 +3,8 @@ import { initClassTab } from './tab-class.js';
 import { initWorkTab } from './tab-work.js';
 import { initOfficeTab, officeState, teacherList } from './tab-office.js';
 import { updateHomeroomClass } from './tab-homeroom.js';
+import { injectModals } from './modals.js';
+injectModals(); // 🎯 탭 초기화 전에 12개 팝업 모달을 동기 주입
 
 let currentUser = null;
 
